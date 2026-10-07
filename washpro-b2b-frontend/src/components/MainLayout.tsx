@@ -1,0 +1,219 @@
+import { useState, type ReactNode } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Tag, Typography } from 'antd'
+import type { MenuProps } from 'antd'
+import {
+  AppstoreOutlined,
+  CarOutlined,
+  DollarOutlined,
+  FileTextOutlined,
+  LogoutOutlined,
+  MenuOutlined,
+  ShopOutlined,
+  TagsOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
+import logo from '../assets/logo-mark.png'
+import { BRAND } from '../theme'
+import { clearSession, canManagePrices, canViewFinance, getSession, isRestaurantRole } from '../utils/auth'
+import { ROLE_LABELS, type Role } from '../types'
+
+const { Sider, Header, Content } = Layout
+
+interface NavItem {
+  key: string
+  icon: ReactNode
+  label: string
+  /** Nhãn ngắn cho thanh điều hướng dưới cùng trên điện thoại. */
+  short?: string
+}
+
+interface NavGroup {
+  title: string
+  items: NavItem[]
+}
+
+/** Menu theo vai trò, chia nhóm cho dễ tìm. */
+function navFor(role: Role): NavGroup[] {
+  const ops: NavItem[] = [
+    { key: '/', icon: <AppstoreOutlined />, label: 'Tổng quan', short: 'Tổng quan' },
+    { key: '/pickups', icon: <CarOutlined />, label: 'Lấy đồ', short: 'Lấy đồ' },
+    { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn hàng', short: 'Đơn hàng' },
+  ]
+  const manage: NavItem[] = []
+  if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/restaurants', icon: <ShopOutlined />, label: 'Khách hàng' })
+  if (canManagePrices(role)) manage.push({ key: '/prices', icon: <TagsOutlined />, label: 'Bảng giá' })
+  if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/accounts', icon: <TeamOutlined />, label: 'Tài khoản' })
+  const finance: NavItem[] = canViewFinance(role)
+    ? [{ key: '/finance', icon: <DollarOutlined />, label: 'Công nợ & thanh toán', short: 'Công nợ' }]
+    : []
+
+  return [
+    { title: 'Vận hành', items: ops },
+    { title: 'Quản lý', items: manage },
+    { title: 'Tài chính', items: finance },
+  ].filter((g) => g.items.length > 0)
+}
+
+/** Chữ cái đầu của tên để làm ảnh đại diện. */
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(-2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
+
+export default function MainLayout() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const screens = Grid.useBreakpoint()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const session = getSession()
+
+  if (!session) return null // ProtectedRoute sẽ chuyển hướng về trang đăng nhập
+  const { role } = session
+  const isDesktop = !!screens.lg
+  // Tài xế và khách hàng chủ yếu dùng điện thoại: điều hướng dưới cùng, bấm một tay
+  const fieldRole = role === 'DRIVER' || isRestaurantRole(role)
+  const useBottomNav = !isDesktop && fieldRole
+
+  const groups = navFor(role)
+  const allItems = groups.flatMap((g) => g.items)
+  const firstSegment = '/' + (location.pathname.split('/')[1] ?? '')
+  const selectedKey = allItems.some((i) => i.key === firstSegment) ? firstSegment : location.pathname === '/profile' ? '/profile' : '/'
+
+  const menuItems: MenuProps['items'] = groups.map((g) => ({
+    type: 'group' as const,
+    key: g.title,
+    label: g.title,
+    children: g.items.map((i) => ({ key: i.key, icon: i.icon, label: i.label })),
+  }))
+
+  const go = (key: string) => {
+    navigate(key)
+    setDrawerOpen(false)
+  }
+
+  const logout = () => {
+    clearSession()
+    navigate('/login', { replace: true })
+  }
+
+  const userMenu: MenuProps['items'] = [
+    {
+      key: 'who',
+      disabled: true,
+      label: (
+        <div style={{ lineHeight: 1.4 }}>
+          <div style={{ fontWeight: 600, color: BRAND.ink }}>{session.fullName}</div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {ROLE_LABELS[role]}
+          </Typography.Text>
+        </div>
+      ),
+    },
+    { type: 'divider' },
+    { key: 'profile', icon: <UserOutlined />, label: 'Thông tin tài khoản', onClick: () => navigate('/profile') },
+    { key: 'logout', icon: <LogoutOutlined />, label: 'Đăng xuất', danger: true, onClick: logout },
+  ]
+
+  const brand = (
+    <div className="brand">
+      <div className="brand-logo">
+        <img src={logo} alt="" />
+      </div>
+      <div>
+        <div className="brand-name">{BRAND.name}</div>
+        <div className="brand-tagline">{BRAND.tagline}</div>
+      </div>
+    </div>
+  )
+
+  const sideMenu = (
+    <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={menuItems} onClick={({ key }) => go(key)} />
+  )
+
+  // Thanh dưới cùng: các mục chính + Tài khoản
+  const bottomItems: NavItem[] = [
+    ...allItems.filter((i) => i.short),
+    { key: '/profile', icon: <UserOutlined />, label: 'Tài khoản', short: 'Tài khoản' },
+  ]
+
+  return (
+    <Layout style={{ minHeight: '100vh' }} className={useBottomNav ? 'with-bottom-nav' : undefined}>
+      {isDesktop && (
+        <Sider width={248} className="app-sider">
+          {brand}
+          {sideMenu}
+        </Sider>
+      )}
+
+      <Layout>
+        <Header className="app-header">
+          <div className="header-left">
+            {!isDesktop && !useBottomNav && (
+              <Button type="text" icon={<MenuOutlined />} aria-label="Mở menu" onClick={() => setDrawerOpen(true)} />
+            )}
+            {!isDesktop && <img src={logo} alt="" width={30} height={30} style={{ objectFit: 'contain' }} />}
+            <div className="header-context">
+              {session.restaurantName ?? `Xưởng giặt ${BRAND.name}`}
+              <small>
+                {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </small>
+            </div>
+          </div>
+          <Dropdown menu={{ items: userMenu }} trigger={['click']} placement="bottomRight">
+            <Button type="text" className="user-button">
+              <Space size={8}>
+                <Avatar size={32} className="user-avatar">
+                  {initials(session.fullName) || <UserOutlined />}
+                </Avatar>
+                <span className="user-name">{session.fullName}</span>
+                <Tag color="cyan" className="role-tag" style={{ marginInlineEnd: 0 }}>
+                  {ROLE_LABELS[role]}
+                </Tag>
+              </Space>
+            </Button>
+          </Dropdown>
+        </Header>
+
+        <Content className="app-content">
+          <Outlet />
+        </Content>
+      </Layout>
+
+      {!isDesktop && !useBottomNav && (
+        <Drawer
+          placement="left"
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          size={270}
+          closable={false}
+          className="mobile-drawer"
+        >
+          {brand}
+          {sideMenu}
+        </Drawer>
+      )}
+
+      {useBottomNav && (
+        <nav className="bottom-nav" aria-label="Điều hướng chính">
+          {bottomItems.map((i) => (
+            <button
+              key={i.key}
+              type="button"
+              className={selectedKey === i.key ? 'active' : undefined}
+              aria-current={selectedKey === i.key ? 'page' : undefined}
+              onClick={() => go(i.key)}
+            >
+              {i.icon}
+              <span>{i.short}</span>
+            </button>
+          ))}
+        </nav>
+      )}
+    </Layout>
+  )
+}

@@ -1,0 +1,59 @@
+package com.washpro.washpro_b2b.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "users")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
+
+    /** Luôn lưu dạng BCrypt hash, không bao giờ trả ra API. */
+    @Column(nullable = false)
+    private String password;
+
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+
+    @Column(length = 20)
+    private String phone;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
+    /** Chỉ có giá trị với tài khoản khách hàng. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "restaurant_id")
+    private Restaurant restaurant;
+
+    /** false = tài khoản bị khóa, không đăng nhập được. */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    @Builder.Default
+    private boolean enabled = true;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
+
+    public String getDisplayName() {
+        return (fullName != null && !fullName.isBlank()) ? fullName : username;
+    }
+}

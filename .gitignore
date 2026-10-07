@@ -1,0 +1,13 @@
+# Bí mật cục bộ (mật khẩu CSDL, JWT secret) – chỉ commit file .env.example
+.env
+.env.*
+!.env.example
+
+# Cấu hình IDE cá nhân
+.vscode/
+.idea/
+
+# Hệ điều hành / log
+.DS_Store
+Thumbs.db
+*.log
