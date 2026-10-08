@@ -150,6 +150,19 @@ export interface Order {
   history: OrderHistory[] | null
 }
 
+/** Một trang đơn hàng từ GET /orders (lọc, phân trang phía máy chủ). */
+export interface OrderPage {
+  content: Order[]
+  total: number
+  /** Bắt đầu từ 0. */
+  page: number
+  size: number
+  /** Số đơn theo trạng thái, đã áp các bộ lọc khác trừ trạng thái. */
+  counts: Record<OrderStatus, number>
+  /** Số đơn trễ hạn, đã áp các bộ lọc khác trừ trạng thái và "chỉ trễ hạn". */
+  overdueCount: number
+}
+
 /** Khách hàng của xưởng (nhà hàng, khách sạn, spa...); tên "Restaurant" giữ theo API. */
 export interface Restaurant {
   id: number

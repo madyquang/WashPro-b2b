@@ -22,6 +22,7 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public final class OrderDtos {
 
@@ -90,7 +91,25 @@ public final class OrderDtos {
             @NotEmpty(message = "Cần có ít nhất một dòng đồ giặt") @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemRequest> items) {
     }
 
+    /** Thứ tự danh sách đơn: mới nhận trước, hoặc hạn trả gần nhất trước (đơn trễ hạn tự đứng đầu). */
+    public enum Sort {
+        NEWEST, DUE
+    }
+
+    /** Bộ lọc danh sách đơn; mọi trường đều không bắt buộc. */
+    public record Filter(List<OrderStatus> statuses, boolean overdueOnly, ItemCategory category, String keyword) {
+    }
+
     // ===== Response =====
+
+    /**
+     * Một trang đơn hàng.
+     * counts: số đơn theo trạng thái (áp mọi bộ lọc trừ trạng thái) để hiện trên các tab;
+     * overdueCount: số đơn trễ hạn (áp mọi bộ lọc trừ trạng thái và "chỉ trễ hạn").
+     */
+    public record PageResponse(List<Response> content, long total, int page, int size,
+            Map<OrderStatus, Long> counts, long overdueCount) {
+    }
 
     public record ItemResponse(Long id, Long servicePriceId, String itemName, ItemCategory category,
             ServiceType serviceType, PriceUnit unit, BigDecimal quantity, BigDecimal unitPrice, BigDecimal lineTotal) {

@@ -19,7 +19,7 @@ import StatusTag from '../components/StatusTag'
 import { getSession } from '../utils/auth'
 import { groupByCategory } from '../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage } from '../utils/format'
-import { STATUS_META, STATUS_ORDER, type Dashboard as DashboardData, type Order, type OrderStatus, type Role } from '../types'
+import { STATUS_META, STATUS_ORDER, type Dashboard as DashboardData, type Order, type OrderPage, type OrderStatus, type Role } from '../types'
 
 /** Màu chấm cho từng trạng thái (khớp màu thẻ trạng thái của Ant Design). */
 const STATUS_DOT: Record<OrderStatus, string> = {
@@ -30,6 +30,9 @@ const STATUS_DOT: Record<OrderStatus, string> = {
   DELIVERY_ISSUE: '#FA541C',
   COMPLETED: '#52C41A',
 }
+
+/** Số đơn tối đa trong khung "Việc cần bạn xử lý". */
+const PENDING_LIMIT = 8
 
 /** Những trạng thái đang chờ chính vai trò này xử lý. */
 const ACTION_STATUSES: Record<Role, OrderStatus[]> = {
@@ -97,15 +100,22 @@ export default function Dashboard() {
     setLoading(true)
     setError(null)
     try {
-      const [stats, orders] = await Promise.all([axiosClient.get<DashboardData>('/dashboard'), axiosClient.get<Order[]>('/orders')])
-      setData(stats.data)
       const wanted = role ? ACTION_STATUSES[role] : []
-      // Đơn trễ hạn lên đầu, rồi theo hạn trả gần nhất
+      // Chỉ lấy vài đơn cần xử lý (máy chủ đã lọc và xếp theo hạn trả), không tải toàn bộ đơn
+      const top = (params: Record<string, unknown>) =>
+        axiosClient.get<OrderPage>('/orders', { params: { sort: 'DUE', size: PENDING_LIMIT, ...params } }).then((r) => r.data.content)
+      const [stats, byStatus, overdue] = await Promise.all([
+        axiosClient.get<DashboardData>('/dashboard'),
+        top({ status: wanted.join(',') }),
+        role !== 'WORKSHOP_ACCOUNTANT' ? top({ overdue: true }) : Promise.resolve<Order[]>([]),
+      ])
+      setData(stats.data)
+      // Gộp hai danh sách: đơn trễ hạn lên đầu, rồi theo hạn trả gần nhất
+      const merged = new Map([...overdue, ...byStatus].map((o) => [o.id, o]))
       setPending(
-        orders.data
-          .filter((o) => wanted.includes(o.status) || (o.overdue && role !== 'WORKSHOP_ACCOUNTANT'))
+        [...merged.values()]
           .sort((a, b) => Number(b.overdue) - Number(a.overdue) || (a.dueAt ?? '').localeCompare(b.dueAt ?? ''))
-          .slice(0, 8),
+          .slice(0, PENDING_LIMIT),
       )
     } catch (e) {
       setError(getErrorMessage(e, 'Không tải được dữ liệu tổng quan'))

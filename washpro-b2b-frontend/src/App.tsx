@@ -1,18 +1,20 @@
-import type { ReactElement } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { ConfigProvider } from 'antd'
+import { lazy, Suspense, type ReactElement } from 'react'
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { ConfigProvider, Spin } from 'antd'
 import viVN from 'antd/locale/vi_VN'
 import MainLayout from './components/MainLayout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Orders from './pages/Orders'
-import Pickups from './pages/Pickups'
-import Restaurants from './pages/Restaurants'
-import Accounts from './pages/Accounts'
-import Prices from './pages/Prices'
-import Finance from './pages/Finance'
-import Profile from './pages/Profile'
 import { antdTheme } from './theme'
+
+// Mỗi trang là một gói JS riêng, chỉ tải khi người dùng mở trang đó
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Orders = lazy(() => import('./pages/Orders'))
+const Pickups = lazy(() => import('./pages/Pickups'))
+const Restaurants = lazy(() => import('./pages/Restaurants'))
+const Accounts = lazy(() => import('./pages/Accounts'))
+const Prices = lazy(() => import('./pages/Prices'))
+const Finance = lazy(() => import('./pages/Finance'))
+const Profile = lazy(() => import('./pages/Profile'))
 import { getSession } from './utils/auth'
 import type { Role } from './types'
 
@@ -24,6 +26,15 @@ function ProtectedRoute({ children }: { children: ReactElement }) {
 function RoleRoute({ roles, children }: { roles: Role[]; children: ReactElement }) {
   const session = getSession()
   return session && roles.includes(session.role) ? children : <Navigate to="/" replace />
+}
+
+/** Vùng nội dung khi đang tải gói JS của trang (khung menu vẫn giữ nguyên). */
+function PageSuspense() {
+  return (
+    <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '96px auto' }} />}>
+      <Outlet />
+    </Suspense>
+  )
 }
 
 export default function App() {
@@ -39,42 +50,44 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            <Route index element={<Dashboard />} />
-            <Route path="orders" element={<Orders />} />
-            <Route path="pickups" element={<Pickups />} />
-            <Route
-              path="restaurants"
-              element={
-                <RoleRoute roles={['WORKSHOP_ADMIN']}>
-                  <Restaurants />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="accounts"
-              element={
-                <RoleRoute roles={['WORKSHOP_ADMIN']}>
-                  <Accounts />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="prices"
-              element={
-                <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT']}>
-                  <Prices />
-                </RoleRoute>
-              }
-            />
-            <Route
-              path="finance"
-              element={
-                <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER']}>
-                  <Finance />
-                </RoleRoute>
-              }
-            />
-            <Route path="profile" element={<Profile />} />
+            <Route element={<PageSuspense />}>
+              <Route index element={<Dashboard />} />
+              <Route path="orders" element={<Orders />} />
+              <Route path="pickups" element={<Pickups />} />
+              <Route
+                path="restaurants"
+                element={
+                  <RoleRoute roles={['WORKSHOP_ADMIN']}>
+                    <Restaurants />
+                  </RoleRoute>
+                }
+              />
+              <Route
+                path="accounts"
+                element={
+                  <RoleRoute roles={['WORKSHOP_ADMIN']}>
+                    <Accounts />
+                  </RoleRoute>
+                }
+              />
+              <Route
+                path="prices"
+                element={
+                  <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT']}>
+                    <Prices />
+                  </RoleRoute>
+                }
+              />
+              <Route
+                path="finance"
+                element={
+                  <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER']}>
+                    <Finance />
+                  </RoleRoute>
+                }
+              />
+              <Route path="profile" element={<Profile />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

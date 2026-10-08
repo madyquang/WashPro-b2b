@@ -26,7 +26,7 @@ Tên mã nguồn và gói Java là `washpro` (tên ban đầu của dự án); t
 | Backend | Java 21, Spring Boot 4.1, Spring Security (JWT), Spring Data JPA / Hibernate, Bean Validation, Lombok |
 | Cơ sở dữ liệu | MySQL 8 (cần MySQL ≥ 8.0.16 nếu dùng ràng buộc CHECK) |
 | Frontend | React 19, TypeScript, Vite, Ant Design 6, React Router, Axios |
-| Kiểm thử | JUnit 5 (test đơn vị backend) |
+| Kiểm thử | JUnit 5, Spring MockMvc, H2 (test đơn vị và test tích hợp backend) |
 
 ## Cấu trúc thư mục
 
@@ -240,11 +240,25 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Khách hàng | `GET/POST /restaurants`, `PUT /restaurants/{id}`, `PATCH /restaurants/{id}/active` |
 | Bảng giá | `GET/POST /prices`, `PUT /prices/{id}`, `PATCH /prices/{id}/active`, `GET /prices/catalog`, `GET /prices/customers/{id}`, `PUT/DELETE /prices/customers/{id}/{priceId}` |
 | Yêu cầu lấy đồ | `GET/POST /pickups`, `PUT /pickups/{id}/accept`, `/release`, `/assign`, `/cancel` |
-| Đơn hàng | `GET/POST /orders`, `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
+| Đơn hàng | `GET/POST /orders` (xem bên dưới), `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Báo cáo | `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
+
+`GET /orders` lọc và phân trang ngay trong CSDL. Tham số (đều không bắt buộc):
+
+| Tham số | Ý nghĩa |
+|---|---|
+| `status` | Một hoặc nhiều trạng thái, ngăn cách bằng dấu phẩy (`WASHING,DELIVERING`) |
+| `overdue` | `true`: chỉ đơn trễ hạn |
+| `category` | Nhóm đồ (`TABLE_LINEN`, `BEDDING`, `TOWEL`, `UNIFORM`, `OTHER`) |
+| `q` | Tìm theo tên khách hàng, tài xế, loại đồ hoặc mã đơn (`#12`) |
+| `sort` | `NEWEST` (mặc định, mới nhận trước) hoặc `DUE` (hạn trả gần nhất trước) |
+| `page`, `size` | Trang (từ 0) và cỡ trang (1–100, mặc định 10) |
+
+Kết quả: `{ content, total, page, size, counts, overdueCount }`; `counts` là số đơn theo từng trạng thái
+(áp các bộ lọc khác, trừ trạng thái) để hiển thị trên các tab.
 
 ## Kiểm thử
 
@@ -253,10 +267,12 @@ cd washpro-b2b
 ./mvnw test
 ```
 
-Hiện có 18 test đơn vị:
+Hiện có 18 test đơn vị và 4 test tích hợp. Test tích hợp dùng H2 trong bộ nhớ (profile `it`,
+`src/test/resources/application-it.properties`), không cần MySQL:
 
 | Lớp test | Nội dung |
 |---|---|
+| `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
 | `PriceUnitTest` | Số lượng hợp lệ theo đơn vị, đọc đơn vị dạng chữ của dữ liệu cũ |
 | `DebtAgingTest` | Phân nhóm tuổi nợ, trừ thanh toán theo FIFO |
@@ -267,13 +283,15 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 
 ## Hạn chế hiện tại
 
-- Chưa có test tích hợp (API + CSDL) và test giao diện tự động.
+- Test tích hợp mới bao phủ luồng đơn hàng; chưa có cho lấy đồ, bảng giá, thanh toán. Chưa có test giao diện tự động.
 - Cấu trúc CSDL do Hibernate (`ddl-auto=update`) quản lý, chưa dùng công cụ migration (Flyway/Liquibase);
   các bước nâng cấp phải thực hiện bằng script SQL và mã khởi động.
 - JWT lưu trong `localStorage` của trình duyệt (dễ bị ảnh hưởng nếu có lỗ hổng XSS); chưa có refresh token.
 - Bộ đếm đăng nhập sai lưu trong bộ nhớ, không chia sẻ được khi chạy nhiều máy chủ.
-- Danh sách đơn và báo cáo được tải toàn bộ rồi lọc, chưa phân trang phía máy chủ; có thể chậm khi dữ liệu lớn.
+- Danh sách đơn đã phân trang phía máy chủ; trang tổng quan (`/dashboard`) và báo cáo/xuất CSV vẫn tải toàn bộ đơn
+  trong phạm vi rồi tính trong bộ nhớ.
 - Chưa có thông báo (email, SMS, push) khi có yêu cầu lấy đồ mới, đơn trễ hạn hoặc nợ quá hạn.
 - Chưa hỗ trợ đính kèm ảnh (đồ hư hỏng, chữ ký khi giao nhận) và chưa xuất hóa đơn điện tử.
-- Giao diện chỉ có chế độ sáng; bản build frontend là một file JavaScript khoảng 1,3 MB (chưa tách gói).
+- Giao diện chỉ có chế độ sáng. Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB);
+  phần lõi antd dùng chung vẫn là gói lớn nhất (~390 KB).
 - Tên trong mã nguồn (`restaurant`) không còn khớp với nghiệp vụ nhiều loại khách hàng.

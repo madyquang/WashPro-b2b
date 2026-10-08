@@ -1,12 +1,15 @@
 package com.washpro.washpro_b2b.service;
 
+import com.washpro.washpro_b2b.dto.OrderDtos;
 import com.washpro.washpro_b2b.dto.OrderDtos.CreateRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.DiscrepancyRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.DueRequest;
+import com.washpro.washpro_b2b.dto.OrderDtos.Filter;
 import com.washpro.washpro_b2b.dto.OrderDtos.ReceiptIssueRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ItemCountRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ItemRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ItemsRequest;
+import com.washpro.washpro_b2b.dto.OrderDtos.PageResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos.Response;
 import com.washpro.washpro_b2b.dto.OrderDtos.StatusRequest;
 import com.washpro.washpro_b2b.entity.ItemCategory;
@@ -20,9 +23,14 @@ import com.washpro.washpro_b2b.entity.ServiceType;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.OrderRepository;
+import com.washpro.washpro_b2b.repository.OrderSpecs;
 import com.washpro.washpro_b2b.repository.RestaurantRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +39,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -104,13 +113,57 @@ public class OrderService {
 
     // ===================== Xem đơn =====================
 
+    /**
+     * Một trang đơn trong phạm vi của người đăng nhập. Lọc, sắp xếp, phân trang đều chạy trong CSDL;
+     * chi tiết (khách, tài xế, dòng đồ giặt) chỉ được nạp cho các đơn của trang đó.
+     */
     @Transactional(readOnly = true)
-    public List<Response> listOrders(OrderStatus status) {
+    public PageResponse searchOrders(Filter filter, OrderDtos.Sort sort, int page, int size) {
         User user = currentUserService.getCurrentUser();
-        return visibleOrders(user).stream()
-                .filter(o -> status == null || o.getStatus() == status)
-                .map(o -> Response.from(o, false))
-                .toList();
+        LocalDateTime now = LocalDateTime.now();
+
+        // Phạm vi + nhóm đồ + từ khóa: dùng chung cho danh sách và các con số đếm
+        Specification<Order> base = scope(user);
+        if (filter.category() != null) {
+            base = base.and(OrderSpecs.hasCategory(filter.category()));
+        }
+        String keyword = blankToNull(filter.keyword());
+        if (keyword != null) {
+            base = base.and(OrderSpecs.keyword(keyword));
+        }
+        Specification<Order> withOverdue = filter.overdueOnly() ? base.and(OrderSpecs.overdue(now)) : base;
+        boolean byStatus = filter.statuses() != null && !filter.statuses().isEmpty();
+        Specification<Order> spec = byStatus ? withOverdue.and(OrderSpecs.statusIn(filter.statuses())) : withOverdue;
+
+        Sort order = sort == OrderDtos.Sort.DUE
+                ? Sort.by(Sort.Order.asc("dueAt").nullsLast(), Sort.Order.asc("id"))
+                : Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"));
+        Page<Order> result = orderRepository.findAll(spec, PageRequest.of(page, size, order));
+
+        // Bước 2: nạp chi tiết cho các đơn trong trang (tránh phân trang trên tập đã JOIN dòng đồ giặt)
+        List<Long> ids = result.getContent().stream().map(Order::getId).toList();
+        Map<Long, Order> loaded = orderRepository.findByIdIn(ids).stream()
+                .collect(Collectors.toMap(Order::getId, Function.identity()));
+        List<Response> content = ids.stream().map(id -> Response.from(loaded.get(id), false)).toList();
+
+        Map<OrderStatus, Long> counts = new EnumMap<>(OrderStatus.class);
+        for (OrderStatus s : OrderStatus.values()) {
+            counts.put(s, 0L);
+        }
+        counts.putAll(orderRepository.countByStatus(withOverdue));
+        long overdueCount = orderRepository.count(base.and(OrderSpecs.overdue(now)));
+
+        return new PageResponse(content, result.getTotalElements(), page, size, counts, overdueCount);
+    }
+
+    /** Điều kiện "đơn chưa hủy mà người dùng được phép thấy", chạy trong CSDL. */
+    private Specification<Order> scope(User user) {
+        Specification<Order> alive = OrderSpecs.notDeleted();
+        return switch (user.getRole()) {
+            case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> alive;
+            case DRIVER -> alive.and(OrderSpecs.driver(user.getId()));
+            case RESTAURANT_STAFF, RESTAURANT_MANAGER -> alive.and(OrderSpecs.restaurant(requireRestaurantId(user)));
+        };
     }
 
     @Transactional(readOnly = true)

@@ -3,6 +3,7 @@ package com.washpro.washpro_b2b.exception;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
@@ -51,6 +53,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiError> handleConstraint(ConstraintViolationException ex) {
         return build(HttpStatus.BAD_REQUEST, "Dữ liệu không hợp lệ", null);
+    }
+
+    /** Ràng buộc trên tham số URL (@RequestParam @Min/@Max/@Size...). */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> handleMethodValidation(HandlerMethodValidationException ex) {
+        String message = ex.getAllErrors().stream()
+                .map(MessageSourceResolvable::getDefaultMessage)
+                .filter(m -> m != null && !m.isBlank())
+                .findFirst()
+                .orElse("Dữ liệu không hợp lệ");
+        return build(HttpStatus.BAD_REQUEST, message, null);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

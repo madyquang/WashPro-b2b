@@ -5,15 +5,22 @@ import com.washpro.washpro_b2b.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface OrderRepository extends JpaRepository<Order, Long> {
+public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order>,
+        OrderRepositoryCustom {
+
+    /** Nạp đủ khách, tài xế, chi tiết cho một trang đơn (bước 2 của phân trang, sau khi đã có danh sách id). */
+    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
+    List<Order> findByIdIn(Collection<Long> ids);
 
     @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
     List<Order> findByIsDeletedFalseOrderByCreatedAtDesc();

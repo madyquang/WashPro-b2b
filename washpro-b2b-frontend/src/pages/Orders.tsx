@@ -13,9 +13,13 @@ import OrderDrawer from './orders/OrderDrawer'
 import { getSession, isRestaurantRole } from '../utils/auth'
 import { formatQuantity, groupByCategory } from '../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage, toLocalInput } from '../utils/format'
-import { CATEGORY_META, CATEGORY_ORDER, STATUS_META, STATUS_ORDER, type ItemCategory, type Order, type OrderStatus } from '../types'
+import { CATEGORY_META, CATEGORY_ORDER, STATUS_META, STATUS_ORDER, type ItemCategory, type Order, type OrderPage, type OrderStatus } from '../types'
 
 type Filter = 'ALL' | OrderStatus
+/** NEWEST: mới nhận trước; DUE: hạn trả gần nhất trước. */
+type SortKey = 'NEWEST' | 'DUE'
+
+const PAGE_SIZE = 10
 
 interface AdminStep {
   status: OrderStatus
@@ -46,11 +50,17 @@ export default function Orders() {
   const screens = Grid.useBreakpoint()
   const [modal, modalHolder] = Modal.useModal()
 
-  const [orders, setOrders] = useState<Order[]>([])
+  const [result, setResult] = useState<OrderPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [keyword, setKeyword] = useState('')
   const [category, setCategory] = useState<ItemCategory | undefined>()
+  const [sort, setSort] = useState<SortKey>('NEWEST')
+  const [paging, setPaging] = useState({ key: '', page: 1 })
+  /** Tăng lên để tải lại trang hiện tại (sau thao tác, nút Làm mới). */
+  const [reloadKey, setReloadKey] = useState(0)
+  const load = useCallback(() => setReloadKey((k) => k + 1), [])
   const [busyId, setBusyId] = useState<number | null>(null)
 
   const [creating, setCreating] = useState(false)
@@ -69,46 +79,63 @@ export default function Orders() {
   const statusParam = params.get('status')
   const filter: Filter = STATUS_ORDER.includes(statusParam as OrderStatus) ? (statusParam as OrderStatus) : 'ALL'
 
-  const load = useCallback(async () => {
+  // Gõ tìm kiếm: chờ người dùng ngừng gõ một chút rồi mới gọi API
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(search.trim()), 350)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  // Đổi bộ lọc hoặc thứ tự thì quay về trang đầu (trang được gắn với bộ lọc đang dùng)
+  const filterKey = [filter, overdueOnly, category, keyword, sort].join('|')
+  const page = paging.key === filterKey ? paging.page : 1
+  const setPage = useCallback((p: number) => setPaging({ key: filterKey, page: p }), [filterKey])
+
+  // Lọc, phân trang chạy ở máy chủ; chỉ tải đúng trang đang xem
+  useEffect(() => {
+    // Đổi bộ lọc khi yêu cầu trước chưa xong: bỏ kết quả cũ
+    let ignore = false
     setLoading(true)
     setError(null)
-    try {
-      const { data } = await axiosClient.get<Order[]>('/orders')
-      setOrders(data)
-    } catch (e) {
-      setError(getErrorMessage(e, 'Không tải được danh sách đơn hàng'))
-    } finally {
-      setLoading(false)
+    axiosClient
+      .get<OrderPage>('/orders', {
+        params: {
+          status: filter === 'ALL' ? undefined : filter,
+          overdue: overdueOnly || undefined,
+          category,
+          q: keyword || undefined,
+          sort,
+          page: page - 1,
+          size: PAGE_SIZE,
+        },
+      })
+      .then(({ data }) => {
+        if (ignore) return
+        // Trang hiện tại trống (vừa hủy đơn cuối của trang): lùi về trang trước
+        if (data.content.length === 0 && page > 1) setPage(page - 1)
+        else setResult(data)
+      })
+      .catch((e) => {
+        if (!ignore) setError(getErrorMessage(e, 'Không tải được danh sách đơn hàng'))
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false)
+      })
+    return () => {
+      ignore = true
     }
-  }, [])
+  }, [filter, overdueOnly, category, keyword, sort, page, setPage, reloadKey])
 
-  useEffect(() => {
-    load()
-  }, [load])
-
+  const visible = result?.content ?? []
+  const total = result?.total ?? 0
+  const overdueCount = result?.overdueCount ?? 0
   const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: orders.length }
-    STATUS_ORDER.forEach((s) => (c[s] = 0))
-    orders.forEach((o) => (c[o.status] += 1))
+    const c: Record<string, number> = { ALL: 0 }
+    STATUS_ORDER.forEach((s) => {
+      c[s] = result?.counts[s] ?? 0
+      c.ALL += c[s]
+    })
     return c
-  }, [orders])
-
-  const visible = useMemo(() => {
-    const keyword = search.trim().toLowerCase()
-    return orders.filter(
-      (o) =>
-        (filter === 'ALL' || o.status === filter) &&
-        (!overdueOnly || o.overdue) &&
-        (!category || o.items.some((i) => i.category === category)) &&
-        (!keyword ||
-          o.restaurantName.toLowerCase().includes(keyword) ||
-          o.driverName.toLowerCase().includes(keyword) ||
-          o.items.some((i) => i.itemName.toLowerCase().includes(keyword)) ||
-          String(o.id) === keyword.replace('#', '')),
-    )
-  }, [orders, filter, search, category, overdueOnly])
-
-  const overdueCount = useMemo(() => orders.filter((o) => o.overdue).length, [orders])
+  }, [result])
 
   if (!role) return null
   const isDriver = role === 'DRIVER'
@@ -123,7 +150,7 @@ export default function Orders() {
     try {
       await request()
       message.success(success)
-      await load()
+      load()
     } catch (e) {
       message.error(getErrorMessage(e))
     } finally {
@@ -204,7 +231,10 @@ export default function Orders() {
     {
       title: 'Hạn trả',
       key: 'due',
-      sorter: (a, b) => (a.dueAt ?? '').localeCompare(b.dueAt ?? ''),
+      // Sắp xếp ở máy chủ (trên toàn bộ đơn, không chỉ trang đang xem)
+      sorter: true,
+      sortOrder: sort === 'DUE' ? 'ascend' : null,
+      sortDirections: ['ascend'],
       render: (_: unknown, o) => <DueTag order={o} />,
     },
     {
@@ -454,7 +484,10 @@ export default function Orders() {
             columns={columns}
             dataSource={visible}
             scroll={{ x: 980 }}
-            pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} đơn`, style: { paddingInline: 16 } }}
+            pagination={{ current: page, pageSize: PAGE_SIZE, total, onChange: setPage, showSizeChanger: false, showTotal: (t) => `${t} đơn`, style: { paddingInline: 16 } }}
+            onChange={(_pagination, _filters, sorter, extra) => {
+              if (extra.action === 'sort') setSort(!Array.isArray(sorter) && sorter.order ? 'DUE' : 'NEWEST')
+            }}
             locale={{ emptyText: 'Không có đơn hàng nào' }}
           />
         </Card>
@@ -463,7 +496,7 @@ export default function Orders() {
           loading={loading}
           dataSource={visible}
           locale={{ emptyText: 'Không có đơn hàng nào' }}
-          pagination={visible.length > 10 ? { pageSize: 10, size: 'small', align: 'center' } : false}
+          pagination={total > PAGE_SIZE ? { current: page, pageSize: PAGE_SIZE, total, onChange: setPage, size: 'small', align: 'center' } : false}
           renderItem={(o) => (
             <Card key={o.id} className="order-card" style={{ marginBottom: 12, borderColor: o.overdue ? '#ffa39e' : undefined }}>
               <div className="order-card-head">

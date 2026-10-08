@@ -3,13 +3,20 @@ package com.washpro.washpro_b2b.controller;
 import com.washpro.washpro_b2b.dto.OrderDtos.CreateRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.DiscrepancyRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.DueRequest;
+import com.washpro.washpro_b2b.dto.OrderDtos.Filter;
+import com.washpro.washpro_b2b.dto.OrderDtos.PageResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos.ReceiptIssueRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ItemsRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.Response;
+import com.washpro.washpro_b2b.dto.OrderDtos.Sort;
 import com.washpro.washpro_b2b.dto.OrderDtos.StatusRequest;
+import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.service.OrderService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,10 +35,20 @@ public class OrderController {
 
     private final OrderService orderService;
 
-    /** Danh sách đơn trong phạm vi của người đăng nhập, có thể lọc theo trạng thái. */
+    /**
+     * Danh sách đơn trong phạm vi của người đăng nhập, lọc và phân trang phía máy chủ.
+     * status nhận nhiều giá trị ngăn cách bằng dấu phẩy; page bắt đầu từ 0.
+     */
     @GetMapping
-    public ResponseEntity<List<Response>> list(@RequestParam(required = false) OrderStatus status) {
-        return ResponseEntity.ok(orderService.listOrders(status));
+    public ResponseEntity<PageResponse> list(
+            @RequestParam(required = false) List<OrderStatus> status,
+            @RequestParam(defaultValue = "false") boolean overdue,
+            @RequestParam(required = false) ItemCategory category,
+            @RequestParam(required = false) @Size(max = 100, message = "Từ khóa tối đa 100 ký tự") String q,
+            @RequestParam(defaultValue = "NEWEST") Sort sort,
+            @RequestParam(defaultValue = "0") @Min(value = 0, message = "Trang không hợp lệ") int page,
+            @RequestParam(defaultValue = "10") @Min(value = 1, message = "Cỡ trang tối thiểu là 1") @Max(value = 100, message = "Cỡ trang tối đa là 100") int size) {
+        return ResponseEntity.ok(orderService.searchOrders(new Filter(status, overdue, category, q), sort, page, size));
     }
 
     @GetMapping("/{id}")
