@@ -124,10 +124,11 @@ Nội dung được sinh (`config/DemoDataRunner.java`, dùng hạt giống cố
 - Thanh toán theo tháng với ba thói quen trả tiền (đúng hạn, chậm, nợ kéo dài) để có số liệu tuổi nợ; một khoản đã hủy.
 - 12 yêu cầu lấy đồ ở các trạng thái.
 
-Tài khoản demo, mật khẩu chung `Demo@1234`:
+Tài khoản demo, mật khẩu chung `11111111` (chỉ dùng để xem thử, không dùng trên hệ thống thật):
 
 | Vai trò | Tên đăng nhập |
 |---|---|
+| Quản lý xưởng | Tài khoản tạo từ `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` (không thuộc dữ liệu demo) |
 | Tài xế | `taixe.tai`, `taixe.hung`, `taixe.phuc` |
 | Kế toán xưởng | `ketoan.mai` |
 | Quản lý phía khách | `hoasen.ql`, `bienngoc.ql`, `bienxanh.ql`, `phoco.ql`, `ngoclan.ql`, `saomai.ql`, `antam.ql`, `doithong.ql` |
@@ -292,6 +293,7 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
   trong phạm vi rồi tính trong bộ nhớ.
 - Chưa có thông báo (email, SMS, push) khi có yêu cầu lấy đồ mới, đơn trễ hạn hoặc nợ quá hạn.
 - Chưa hỗ trợ đính kèm ảnh (đồ hư hỏng, chữ ký khi giao nhận) và chưa xuất hóa đơn điện tử.
-- Giao diện chỉ có chế độ sáng. Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB);
-  phần lõi antd dùng chung vẫn là gói lớn nhất (~390 KB).
+- Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).
+  Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB); phần lõi antd dùng chung vẫn là gói
+  lớn nhất (~390 KB). Hệ thiết kế và trạng thái triển khai: `DESIGN_PLAN.md`.
 - Tên trong mã nguồn (`restaurant`) không còn khớp với nghiệp vụ nhiều loại khách hàng.

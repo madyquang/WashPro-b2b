@@ -50,14 +50,14 @@ import java.util.TreeMap;
  * khoảng 6 tháng đơn hàng ở mọi trạng thái, thanh toán (có khách trả chậm để thấy tuổi nợ) và yêu cầu lấy đồ.
  *
  * Chỉ chạy khi đặt DEMO_DATA=true. Chạy lại không tạo trùng (đã có khách demo thì bỏ qua).
- * Xóa toàn bộ dữ liệu demo: docs/xoa-du-lieu-demo.sql. Mật khẩu mọi tài khoản demo: Demo@1234
+ * Xóa toàn bộ dữ liệu demo: docs/xoa-du-lieu-demo.sql. Mật khẩu mọi tài khoản demo: 11111111
  */
 @Component
 @org.springframework.core.annotation.Order(10) // sau LegacyDataRunner (gỡ ràng buộc trạng thái cũ)
 public class DemoDataRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataRunner.class);
-    static final String PASSWORD = "Demo@1234";
+    static final String PASSWORD = "11111111";
     private static final String MARKER_CUSTOMER = "Khách sạn Hoa Sen";
 
     private final ServicePriceRepository priceRepository;
