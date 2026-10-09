@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Descriptions, Divider, Drawer, Empty, Skeleton, Table, Tag, Timeline, Typography, message } from 'antd'
+import { Alert, Button, Descriptions, Divider, Drawer, Empty, Skeleton, Table, Timeline, Typography, message } from 'antd'
 import { PrinterOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
+import CategoryTag from '../../components/CategoryTag'
 import DueTag from '../../components/DueTag'
 import StatusTag from '../../components/StatusTag'
 import { catalogLabel, formatQuantity, groupByCategory } from '../../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage } from '../../utils/format'
 import { getSession } from '../../utils/auth'
 import { printDeliverySlip } from '../../utils/print'
-import { CATEGORY_META, CUSTOMER_TYPE_LABELS, STATUS_META, type Order, type OrderItem } from '../../types'
+import { CUSTOMER_TYPE_LABELS, STATUS_META, type Order, type OrderItem } from '../../types'
 
 interface Props {
   orderId: number | null
@@ -98,10 +99,10 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
           ) : (
             <>
               {groupByCategory(order.items).map((g) => (
-                <div key={g.category} style={{ marginBottom: 12 }}>
-                  <Tag color={CATEGORY_META[g.category].color} style={{ marginBottom: 6 }}>
-                    {g.label}
-                  </Tag>
+                <div key={g.category} className="mb-3">
+                  <div style={{ marginBottom: 6 }}>
+                    <CategoryTag category={g.category} />
+                  </div>
                   <Table<OrderItem>
                     size="small"
                     pagination={false}

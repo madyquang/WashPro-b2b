@@ -1,12 +1,13 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Tag, Typography } from 'antd'
+import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Typography } from 'antd'
 import type { MenuProps } from 'antd'
 import {
   AppstoreOutlined,
   CarOutlined,
   DollarOutlined,
   FileTextOutlined,
+  HomeOutlined,
   LogoutOutlined,
   MenuOutlined,
   ShopOutlined,
@@ -16,6 +17,8 @@ import {
 } from '@ant-design/icons'
 import logo from '../assets/logo-mark.png'
 import { BRAND } from '../theme'
+import ToneTag from './ToneTag'
+import TouchFriendly from './TouchFriendly'
 import { clearSession, canManagePrices, canViewFinance, getSession, isRestaurantRole } from '../utils/auth'
 import { ROLE_LABELS, type Role } from '../types'
 
@@ -36,21 +39,36 @@ interface NavGroup {
 
 /** Menu theo vai trò, chia nhóm cho dễ tìm. */
 function navFor(role: Role): NavGroup[] {
-  const ops: NavItem[] = [
-    { key: '/', icon: <AppstoreOutlined />, label: 'Tổng quan', short: 'Tổng quan' },
-    { key: '/pickups', icon: <CarOutlined />, label: 'Lấy đồ', short: 'Lấy đồ' },
-    { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn hàng', short: 'Đơn hàng' },
-  ]
+  // Nhãn theo cách mỗi vai trò gọi công việc của mình (khớp tiêu đề trang tương ứng)
+  const driver = role === 'DRIVER'
+  const customer = isRestaurantRole(role)
+  const ops: NavItem[] = driver
+    ? [
+        { key: '/', icon: <HomeOutlined />, label: 'Việc hôm nay', short: 'Hôm nay' },
+        { key: '/pickups', icon: <CarOutlined />, label: 'Việc lấy đồ', short: 'Lấy đồ' },
+        { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn đã tạo', short: 'Đơn đã tạo' },
+      ]
+    : customer
+      ? [
+          { key: '/', icon: <HomeOutlined />, label: 'Trang chủ', short: 'Trang chủ' },
+          { key: '/pickups', icon: <CarOutlined />, label: 'Yêu cầu lấy đồ', short: 'Lấy đồ' },
+          { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn giặt', short: 'Đơn giặt' },
+        ]
+      : [
+          { key: '/', icon: <AppstoreOutlined />, label: role === 'WORKSHOP_ADMIN' ? 'Điều phối' : 'Tổng quan', short: 'Tổng quan' },
+          { key: '/pickups', icon: <CarOutlined />, label: 'Lấy đồ', short: 'Lấy đồ' },
+          { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn hàng', short: 'Đơn hàng' },
+        ]
   const manage: NavItem[] = []
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/restaurants', icon: <ShopOutlined />, label: 'Khách hàng' })
   if (canManagePrices(role)) manage.push({ key: '/prices', icon: <TagsOutlined />, label: 'Bảng giá' })
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/accounts', icon: <TeamOutlined />, label: 'Tài khoản' })
   const finance: NavItem[] = canViewFinance(role)
-    ? [{ key: '/finance', icon: <DollarOutlined />, label: 'Công nợ & thanh toán', short: 'Công nợ' }]
+    ? [{ key: '/finance', icon: <DollarOutlined />, label: customer ? 'Công nợ' : 'Công nợ & thanh toán', short: 'Công nợ' }]
     : []
 
   return [
-    { title: 'Vận hành', items: ops },
+    { title: driver || customer ? 'Công việc' : 'Vận hành', items: ops },
     { title: 'Quản lý', items: manage },
     { title: 'Tài chính', items: finance },
   ].filter((g) => g.items.length > 0)
@@ -71,6 +89,18 @@ export default function MainLayout() {
   const screens = Grid.useBreakpoint()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const session = getSession()
+  const contentRef = useRef<HTMLElement>(null)
+  const firstRender = useRef(true)
+
+  // Đổi trang: đưa focus về vùng nội dung để trình đọc màn hình / bàn phím bắt đầu từ trang mới
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    contentRef.current?.focus({ preventScroll: true })
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   if (!session) return null // ProtectedRoute sẽ chuyển hướng về trang đăng nhập
   const { role } = session
@@ -107,7 +137,7 @@ export default function MainLayout() {
       disabled: true,
       label: (
         <div style={{ lineHeight: 1.4 }}>
-          <div style={{ fontWeight: 600, color: BRAND.ink }}>{session.fullName}</div>
+          <div style={{ fontWeight: 600 }}>{session.fullName}</div>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {ROLE_LABELS[role]}
           </Typography.Text>
@@ -121,7 +151,7 @@ export default function MainLayout() {
 
   const brand = (
     <div className="brand">
-      <div className="brand-logo">
+      <div className="brand-logo" aria-hidden>
         <img src={logo} alt="" />
       </div>
       <div>
@@ -143,6 +173,9 @@ export default function MainLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }} className={useBottomNav ? 'with-bottom-nav' : undefined}>
+      <a href="#main-content" className="skip-link">
+        Bỏ qua tới nội dung
+      </a>
       {isDesktop && (
         <Sider width={248} className="app-sider">
           {brand}
@@ -171,16 +204,18 @@ export default function MainLayout() {
                   {initials(session.fullName) || <UserOutlined />}
                 </Avatar>
                 <span className="user-name">{session.fullName}</span>
-                <Tag color="cyan" className="role-tag" style={{ marginInlineEnd: 0 }}>
-                  {ROLE_LABELS[role]}
-                </Tag>
+                <span className="role-tag">
+                  <ToneTag tone="teal">{ROLE_LABELS[role]}</ToneTag>
+                </span>
               </Space>
             </Button>
           </Dropdown>
         </Header>
 
-        <Content className="app-content">
-          <Outlet />
+        <Content className="app-content" id="main-content" ref={contentRef} tabIndex={-1}>
+          <TouchFriendly>
+            <Outlet />
+          </TouchFriendly>
         </Content>
       </Layout>
 

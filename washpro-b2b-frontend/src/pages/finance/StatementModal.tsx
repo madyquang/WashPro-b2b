@@ -37,7 +37,8 @@ export default function StatementModal({ customer, onClose }: Props) {
       title={customer ? `Sao kê công nợ · ${customer.restaurantName}` : ''}
       open={customer !== null}
       onCancel={onClose}
-      width={760}
+      width={{ xs: '100%', md: 760 }}
+      className="sheet-modal"
       destroyOnHidden
       footer={
         <Space>
@@ -55,7 +56,7 @@ export default function StatementModal({ customer, onClose }: Props) {
         </Space>
       }
     >
-      <Space style={{ marginBottom: 16 }}>
+      <Space className="mb-4">
         <span>Tháng:</span>
         <Input type="month" value={month} max={currentMonth()} onChange={(e) => setMonth(e.target.value)} style={{ width: 180 }} />
       </Space>

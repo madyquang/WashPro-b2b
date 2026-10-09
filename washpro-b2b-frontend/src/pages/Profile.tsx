@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Descriptions, Form, Input, Tag, Typography, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Form, Input, message } from 'antd'
 import { LogoutOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
+import PageHeader from '../components/PageHeader'
+import ToneTag from '../components/ToneTag'
 import { clearSession, getSession } from '../utils/auth'
 import { getErrorMessage } from '../utils/format'
 import { ROLE_LABELS } from '../types'
@@ -40,24 +42,22 @@ export default function Profile() {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <Typography.Title level={3} className="page-title">
-        Thông tin tài khoản
-      </Typography.Title>
+    <div className="narrow">
+      <PageHeader title="Thông tin tài khoản" description="Thông tin đăng nhập và đổi mật khẩu của bạn." />
 
-      <Card size="small" style={{ marginBottom: 16 }}>
+      <Card size="small" className="mb-4">
         <Descriptions column={1} size="small">
           <Descriptions.Item label="Tên đăng nhập">{session.username}</Descriptions.Item>
           <Descriptions.Item label="Họ tên">{session.fullName}</Descriptions.Item>
           <Descriptions.Item label="Vai trò">
-            <Tag color="cyan">{ROLE_LABELS[session.role]}</Tag>
+            <ToneTag tone="navy">{ROLE_LABELS[session.role]}</ToneTag>
           </Descriptions.Item>
           {session.restaurantName && <Descriptions.Item label="Khách hàng">{session.restaurantName}</Descriptions.Item>}
         </Descriptions>
       </Card>
 
       <Card size="small" title="Đổi mật khẩu">
-        {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} />}
+        {error && <Alert type="error" showIcon className="mb-4" title={error} />}
         <Form<PasswordForm> form={form} layout="vertical" onFinish={submit}>
           <Form.Item name="currentPassword" label="Mật khẩu hiện tại" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu hiện tại' }]}>
             <Input.Password autoComplete="current-password" />
@@ -83,7 +83,7 @@ export default function Profile() {
           >
             <Input.Password autoComplete="new-password" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" loading={saving}>
+          <Button type="primary" htmlType="submit" loading={saving} block>
             Đổi mật khẩu
           </Button>
         </Form>

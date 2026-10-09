@@ -70,7 +70,8 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
       okText="Tạo đơn"
       cancelText="Hủy"
       confirmLoading={submitting}
-      width={720}
+      width={{ xs: '100%', md: 720 }}
+      className="sheet-modal"
       destroyOnHidden
       afterClose={() => form.resetFields()}
     >
@@ -85,7 +86,7 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
         }}
       >
         {fromPickup?.note && (
-          <Alert type="info" showIcon style={{ marginBottom: 12 }} title={`Khách dặn: ${fromPickup.note}`} />
+          <Alert type="info" showIcon className="mb-3" title={`Khách dặn: ${fromPickup.note}`} />
         )}
         <Form.Item name="restaurantId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
           <Select
@@ -105,7 +106,7 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
           label="Đếm đồ theo từng loại"
           required
           extra="Chăn ga, đồng phục tính theo kg thì nhập số cân (được lẻ, VD 12,5). Khách hàng sẽ đối chiếu từng dòng khi xác nhận."
-          style={{ marginBottom: 16 }}
+          className="mb-4"
         >
           <CatalogLines name="items" catalog={catalog} loading={loadingCatalog} minLines={1} />
         </Form.Item>

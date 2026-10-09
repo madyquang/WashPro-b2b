@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd'
+import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Tabs, Typography, message } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
+import LoadError from '../components/LoadError'
+import CategoryTag from '../components/CategoryTag'
+import PageHeader from '../components/PageHeader'
+import ResponsiveTable from '../components/ResponsiveTable'
+import ToneTag from '../components/ToneTag'
 import { formatCurrency, getErrorMessage, moneyFormatter, moneyParser } from '../utils/format'
 import {
   CATEGORY_META,
@@ -33,20 +38,22 @@ const UNIT_OPTIONS = (Object.keys(UNIT_META) as PriceUnit[]).map((u) => ({ value
 const categoryColumn = {
   title: 'Nhóm đồ',
   dataIndex: 'category',
-  width: 170,
-  filters: CATEGORY_OPTIONS.map((o) => ({ text: o.label, value: o.value })),
-  onFilter: (value: unknown, r: { category: ItemCategory }) => r.category === value,
-  render: (c: ItemCategory) => <Tag color={CATEGORY_META[c].color}>{CATEGORY_META[c].label}</Tag>,
+  width: 190,
+  render: (c: ItemCategory) => <CategoryTag category={c} />,
+}
+
+/** Lọc theo nhóm đồ (đặt ở thanh lọc thay vì tiêu đề cột để dùng được cả trên điện thoại). */
+function CategoryFilter({ value, onChange }: { value?: ItemCategory; onChange: (v?: ItemCategory) => void }) {
+  return <Select allowClear aria-label="Lọc theo nhóm đồ" placeholder="Lọc theo nhóm đồ" style={{ width: 200 }} options={CATEGORY_OPTIONS} value={value} onChange={onChange} />
 }
 
 export default function Prices() {
   return (
     <>
-      <div className="page-toolbar">
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Bảng giá dịch vụ
-        </Typography.Title>
-      </div>
+      <PageHeader
+        title="Bảng giá dịch vụ"
+        description="Giá chung cho từng loại đồ và dịch vụ; giá riêng theo hợp đồng của từng khách hàng."
+      />
       <Tabs
         items={[
           { key: 'base', label: 'Bảng giá chung', children: <BasePrices /> },
@@ -57,12 +64,15 @@ export default function Prices() {
   )
 }
 
+const activeTag = (active: boolean) => (active ? <ToneTag tone="green">Đang áp dụng</ToneTag> : <ToneTag tone="gray">Đã ẩn</ToneTag>)
+
 /** Bảng giá chung: mỗi dòng là một loại đồ + dịch vụ + đơn vị tính. */
 function BasePrices() {
   const [rows, setRows] = useState<ServicePrice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [category, setCategory] = useState<ItemCategory | undefined>()
   const [editing, setEditing] = useState<ServicePrice | 'new' | null>(null)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm<PriceForm>()
@@ -86,8 +96,8 @@ function BasePrices() {
 
   const visible = useMemo(() => {
     const k = search.trim().toLowerCase()
-    return rows.filter((r) => !k || r.name.toLowerCase().includes(k))
-  }, [rows, search])
+    return rows.filter((r) => (!category || r.category === category) && (!k || r.name.toLowerCase().includes(k)))
+  }, [rows, search, category])
 
   const openEditor = (target: ServicePrice | 'new') => {
     setEditing(target)
@@ -133,7 +143,7 @@ function BasePrices() {
     { title: 'Loại đồ', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name, 'vi') },
     { title: 'Dịch vụ', dataIndex: 'serviceType', render: (s: ServiceType) => SERVICE_TYPE_LABELS[s] },
     { title: 'Đơn giá', dataIndex: 'unitPrice', align: 'right', render: (v: number, p) => `${formatCurrency(v)}/${UNIT_META[p.unit].label}`, sorter: (a, b) => a.unitPrice - b.unitPrice },
-    { title: 'Trạng thái', dataIndex: 'active', width: 120, render: (a: boolean) => (a ? <Tag color="green">Đang áp dụng</Tag> : <Tag>Đã ẩn</Tag>) },
+    { title: 'Trạng thái', dataIndex: 'active', width: 130, render: (a: boolean) => activeTag(a) },
     {
       title: 'Thao tác',
       key: 'actions',
@@ -154,26 +164,34 @@ function BasePrices() {
 
   return (
     <>
-      <Space wrap style={{ marginBottom: 16 }}>
-        <Input.Search allowClear placeholder="Tìm loại đồ" style={{ width: 220 }} onChange={(e) => setSearch(e.target.value)} />
+      <div className="filter-bar">
+        <Input.Search allowClear aria-label="Tìm loại đồ" placeholder="Tìm loại đồ" style={{ width: 240 }} onChange={(e) => setSearch(e.target.value)} />
+        <CategoryFilter value={category} onChange={setCategory} />
+        <span style={{ flex: '1 0 0' }} aria-hidden />
         <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
           Làm mới
         </Button>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor('new')}>
           Thêm vào bảng giá
         </Button>
-      </Space>
+      </div>
 
-      {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />}
+      <LoadError error={error} onRetry={load} />
 
-      <Table<ServicePrice>
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={visible}
-        scroll={{ x: 'max-content' }}
-        pagination={{ pageSize: 20, showSizeChanger: false }}
-        locale={{ emptyText: 'Chưa có mục nào trong bảng giá' }}
+      <ResponsiveTable<ServicePrice>
+        table={{
+          rowKey: 'id',
+          loading,
+          columns,
+          dataSource: visible,
+          scroll: { x: 'max-content' },
+          pagination: { pageSize: 20, showSizeChanger: false },
+        }}
+        cardTitle={(p) => p.name}
+        cardExtra={(p) => activeTag(p.active)}
+        hideInCard={['name', 'active']}
+        emptyText={search || category ? 'Không có mục nào khớp bộ lọc.' : 'Chưa có mục nào trong bảng giá.'}
+        emptyAction={search || category ? undefined : { label: 'Thêm vào bảng giá', icon: <PlusOutlined />, onClick: () => openEditor('new') }}
       />
 
       <Modal
@@ -184,6 +202,8 @@ function BasePrices() {
         okText="Lưu"
         cancelText="Hủy"
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         forceRender
       >
         <Form<PriceForm> form={form} layout="vertical" onFinish={save}>
@@ -219,6 +239,7 @@ function CustomerPrices() {
   const [price, setPrice] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [onlyCustom, setOnlyCustom] = useState(false)
+  const [category, setCategory] = useState<ItemCategory | undefined>()
 
   useEffect(() => {
     axiosClient
@@ -273,7 +294,7 @@ function CustomerPrices() {
     }
   }
 
-  const visible = onlyCustom ? rows.filter((r) => r.customPrice !== null) : rows
+  const visible = rows.filter((r) => (!onlyCustom || r.customPrice !== null) && (!category || r.category === category))
 
   const columns: TableColumnsType<CustomerPriceRow> = [
     categoryColumn,
@@ -282,7 +303,7 @@ function CustomerPrices() {
       key: 'name',
       render: (_: unknown, r) => (
         <>
-          {r.name} · {SERVICE_TYPE_LABELS[r.serviceType]} {!r.active && <Tag>Đã ẩn</Tag>}
+          {r.name} · {SERVICE_TYPE_LABELS[r.serviceType]} {!r.active && <ToneTag tone="gray">Đã ẩn</ToneTag>}
         </>
       ),
     },
@@ -322,16 +343,19 @@ function CustomerPrices() {
 
   return (
     <>
-      <Space wrap style={{ marginBottom: 16 }}>
+      <div className="filter-bar">
         <Select
           showSearch={{ optionFilterProp: 'label' }}
+          aria-label="Chọn khách hàng"
           placeholder="Chọn khách hàng"
           style={{ width: 320, maxWidth: '100%' }}
           value={customerId}
           onChange={setCustomerId}
           options={customers.map((c) => ({ value: c.id, label: `${c.name} (${CUSTOMER_TYPE_LABELS[c.customerType]})` }))}
         />
+        <CategoryFilter value={category} onChange={setCategory} />
         <Select
+          aria-label="Phạm vi bảng giá"
           style={{ width: 200 }}
           value={onlyCustom}
           onChange={setOnlyCustom}
@@ -345,26 +369,31 @@ function CustomerPrices() {
             Làm mới
           </Button>
         )}
-      </Space>
+      </div>
 
       <Typography.Paragraph type="secondary">
         Khách hàng có hợp đồng giá khác (ví dụ khách sạn gửi chăn ga số lượng lớn) thì đặt giá riêng tại đây. Khi tài xế tạo đơn hoặc kế toán chọn loại đồ,
         hệ thống tự áp giá riêng; mục không có giá riêng dùng giá chung. Đổi giá không làm thay đổi đơn đã nhập giá.
       </Typography.Paragraph>
 
-      {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} />}
+      {error && <Alert type="error" showIcon className="mb-4" title={error} />}
 
       {customerId === undefined ? (
         <Alert type="info" showIcon title="Chọn một khách hàng để xem và đặt giá riêng." />
       ) : (
-        <Table<CustomerPriceRow>
-          rowKey="servicePriceId"
-          loading={loading}
-          columns={columns}
-          dataSource={visible}
-          scroll={{ x: 'max-content' }}
-          pagination={{ pageSize: 20, showSizeChanger: false }}
-          locale={{ emptyText: onlyCustom ? 'Khách hàng này chưa có giá riêng nào' : 'Bảng giá chung đang trống' }}
+        <ResponsiveTable<CustomerPriceRow>
+          table={{
+            rowKey: 'servicePriceId',
+            loading,
+            columns,
+            dataSource: visible,
+            scroll: { x: 'max-content' },
+            pagination: { pageSize: 20, showSizeChanger: false },
+          }}
+          cardTitle={(r) => `${r.name} · ${SERVICE_TYPE_LABELS[r.serviceType]}`}
+          cardExtra={(r) => (!r.active ? <ToneTag tone="gray">Đã ẩn</ToneTag> : null)}
+          hideInCard={['name']}
+          emptyText={onlyCustom ? 'Khách hàng này chưa có giá riêng nào.' : category ? 'Không có mục nào thuộc nhóm này.' : 'Bảng giá chung đang trống.'}
         />
       )}
 
@@ -377,6 +406,8 @@ function CustomerPrices() {
         cancelText="Hủy"
         okButtonProps={{ disabled: price === null }}
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         destroyOnHidden
       >
         {editing && (

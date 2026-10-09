@@ -87,7 +87,8 @@ export default function ItemsModal({ order, onClose, onDone }: Props) {
       okText="Lưu"
       cancelText="Hủy"
       confirmLoading={submitting}
-      width={860}
+      width={{ xs: '100%', md: 860 }}
+      className="sheet-modal"
       destroyOnHidden
     >
       {order && (

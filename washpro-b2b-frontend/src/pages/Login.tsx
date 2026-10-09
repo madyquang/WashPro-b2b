@@ -50,45 +50,41 @@ export default function Login() {
       <section className="login-brand">
         <div>
           <div className="brand" style={{ padding: 0 }}>
-            <div className="brand-logo">
+            <div className="brand-logo" aria-hidden>
               <img src={logo} alt="" />
             </div>
             <div>
-              <div className="brand-name" style={{ fontSize: 22 }}>
-                {BRAND.name}
-              </div>
+              <div className="brand-name">{BRAND.name}</div>
               <div className="brand-tagline">{BRAND.tagline}</div>
             </div>
           </div>
-          <h1>Sạch tinh tươm, đúng hẹn, minh bạch từng món đồ.</h1>
-          <p>Hệ thống quản lý giặt là cho nhà hàng, khách sạn, spa và doanh nghiệp.</p>
+          <p className="login-slogan">Sạch tinh tươm, đúng hẹn, minh bạch từng món đồ.</p>
+          <p className="login-desc">Hệ thống quản lý giặt là cho nhà hàng, khách sạn, spa và doanh nghiệp.</p>
           <div className="login-points">
             {POINTS.map((p) => (
               <div className="login-point" key={p}>
-                <CheckCircleFilled />
+                <CheckCircleFilled aria-hidden />
                 <span>{p}</span>
               </div>
             ))}
           </div>
         </div>
-        <Typography.Text style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}>
+        <span className="login-copyright">
           © {new Date().getFullYear()} {BRAND.name}
-        </Typography.Text>
+        </span>
       </section>
 
       <section className="login-form-side">
         <div className="login-form">
-          <Typography.Title level={2} style={{ marginBottom: 4, fontWeight: 700 }}>
-            Đăng nhập
-          </Typography.Title>
+          <h1 className="login-title">Đăng nhập</h1>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 28 }}>
             Dùng tài khoản do xưởng {BRAND.name} cấp.
           </Typography.Paragraph>
 
           {params.get('expired') && !error && (
-            <Alert type="warning" showIcon style={{ marginBottom: 16 }} title="Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại" />
+            <Alert type="warning" showIcon className="mb-4" title="Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại" />
           )}
-          {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} />}
+          {error && <Alert type="error" showIcon className="mb-4" title={error} />}
 
           <Form<LoginValues> layout="vertical" onFinish={onFinish} autoComplete="on" requiredMark={false} size="large">
             <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên đăng nhập' }]}>
@@ -97,7 +93,7 @@ export default function Login() {
             <Form.Item name="password" label="Mật khẩu" rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }]}>
               <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
             </Form.Item>
-            <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 8, height: 46 }}>
+            <Button type="primary" htmlType="submit" block loading={loading} style={{ marginTop: 8, height: 48 }}>
               Đăng nhập
             </Button>
           </Form>

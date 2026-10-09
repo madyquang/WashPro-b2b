@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Form, Input, Modal, Popconfirm, Select, Space, message } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
+import LoadError from '../components/LoadError'
+import PageHeader from '../components/PageHeader'
+import ResponsiveTable from '../components/ResponsiveTable'
+import ToneTag from '../components/ToneTag'
 import { getSession, isRestaurantRole } from '../utils/auth'
 import { formatDate, getErrorMessage } from '../utils/format'
 import { ROLE_LABELS, type Restaurant, type Role, type UserAccount } from '../types'
@@ -15,6 +19,9 @@ interface CreateForm {
   role: Role
   restaurantId?: number
 }
+
+/** Trạng thái tài khoản: chữ + màu đạt tương phản. */
+const enabledTag = (enabled: boolean) => (enabled ? <ToneTag tone="green">Hoạt động</ToneTag> : <ToneTag tone="red">Đã khóa</ToneTag>)
 
 const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as Role[]).map((r) => ({ value: r, label: ROLE_LABELS[r] }))
 
@@ -115,14 +122,14 @@ export default function Accounts() {
   const columns: TableColumnsType<UserAccount> = [
     { title: 'Tên đăng nhập', dataIndex: 'username' },
     { title: 'Họ tên', dataIndex: 'fullName', responsive: ['md'], render: (v: string | null) => v || '—' },
-    { title: 'Vai trò', dataIndex: 'role', render: (r: Role) => <Tag color="blue">{ROLE_LABELS[r]}</Tag> },
+    { title: 'Vai trò', dataIndex: 'role', render: (r: Role) => <ToneTag tone="navy">{ROLE_LABELS[r]}</ToneTag> },
     { title: 'Khách hàng', dataIndex: 'restaurantName', responsive: ['md'], render: (v: string | null) => v || '—' },
     { title: 'Ngày tạo', dataIndex: 'createdAt', responsive: ['lg'], render: (v: string) => formatDate(v) },
     {
       title: 'Trạng thái',
       dataIndex: 'enabled',
       width: 110,
-      render: (e: boolean) => (e ? <Tag color="green">Hoạt động</Tag> : <Tag color="red">Đã khóa</Tag>),
+      render: (e: boolean) => enabledTag(e),
     },
     {
       title: 'Thao tác',
@@ -162,41 +169,49 @@ export default function Accounts() {
     },
   ]
 
+  const openCreate = () => {
+    form.resetFields()
+    form.setFieldsValue({ role: 'DRIVER' })
+    setCreating(true)
+  }
+
   return (
     <>
-      <div className="page-toolbar">
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Quản lý tài khoản
-        </Typography.Title>
-        <Space wrap>
-          <Input.Search allowClear placeholder="Tìm tài khoản" style={{ width: 200 }} onChange={(e) => setSearch(e.target.value)} />
-          <Select allowClear placeholder="Lọc theo vai trò" style={{ width: 200 }} options={ROLE_OPTIONS} value={roleFilter} onChange={setRoleFilter} />
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Làm mới
-          </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              form.resetFields()
-              form.setFieldsValue({ role: 'DRIVER' })
-              setCreating(true)
-            }}
-          >
-            Tạo tài khoản
-          </Button>
-        </Space>
+      <PageHeader
+        title="Tài khoản"
+        description="Tài khoản của tài xế, kế toán, quản lý xưởng và người dùng phía khách hàng."
+        actions={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+              Làm mới
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+              Tạo tài khoản
+            </Button>
+          </>
+        }
+      />
+
+      <div className="filter-bar">
+        <Input.Search allowClear aria-label="Tìm tài khoản" placeholder="Tìm tên đăng nhập, họ tên, khách hàng" style={{ width: 280 }} onChange={(e) => setSearch(e.target.value)} />
+        <Select allowClear aria-label="Lọc theo vai trò" placeholder="Lọc theo vai trò" style={{ width: 200 }} options={ROLE_OPTIONS} value={roleFilter} onChange={setRoleFilter} />
       </div>
 
-      {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />}
+      <LoadError error={error} onRetry={load} />
 
-      <Table<UserAccount>
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={visible}
-        scroll={{ x: 'max-content' }}
-        pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} tài khoản` }}
+      <ResponsiveTable<UserAccount>
+        table={{
+          rowKey: 'id',
+          loading,
+          columns,
+          dataSource: visible,
+          scroll: { x: 'max-content' },
+          pagination: { pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} tài khoản` },
+        }}
+        cardTitle={(u) => u.username}
+        cardExtra={(u) => enabledTag(u.enabled)}
+        hideInCard={['username', 'enabled']}
+        emptyText={search || roleFilter ? 'Không có tài khoản nào khớp bộ lọc.' : 'Chưa có tài khoản nào.'}
       />
 
       <Modal
@@ -207,6 +222,8 @@ export default function Accounts() {
         okText="Tạo tài khoản"
         cancelText="Hủy"
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         forceRender
       >
         <Form<CreateForm> form={form} layout="vertical" onFinish={create}>
@@ -257,6 +274,8 @@ export default function Accounts() {
         okText="Đặt lại"
         cancelText="Hủy"
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         forceRender
       >
         <Form form={resetForm} layout="vertical" onFinish={resetPassword}>

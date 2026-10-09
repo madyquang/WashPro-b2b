@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Card, Col, Drawer, Dropdown, Form, Input, InputNumber, Modal, Row, Space, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Card, Col, Drawer, Dropdown, Form, Grid, Input, InputNumber, Modal, Row, Space, Table, Tooltip, Typography, message } from 'antd'
 import type { TableColumnsType } from 'antd'
 import {
   CheckCircleOutlined,
@@ -11,7 +11,11 @@ import {
   WarningOutlined,
 } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
-import KpiCard from '../components/KpiCard'
+import LoadError from '../components/LoadError'
+import PageHeader from '../components/PageHeader'
+import ResponsiveTable from '../components/ResponsiveTable'
+import StatStrip from '../components/StatStrip'
+import ToneTag from '../components/ToneTag'
 import { AgingCard, RevenueChart } from './finance/Charts'
 import StatementModal from './finance/StatementModal'
 import { getSession } from '../utils/auth'
@@ -27,6 +31,7 @@ interface PaymentForm {
 export default function Finance() {
   const role = getSession()?.role
   const canRecord = role === 'WORKSHOP_ADMIN' || role === 'WORKSHOP_ACCOUNTANT'
+  const screens = Grid.useBreakpoint()
 
   const [rows, setRows] = useState<DebtRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -146,7 +151,7 @@ export default function Finance() {
       dataIndex: 'restaurantName',
       render: (name: string, r) => (
         <>
-          {name} {!r.active && <Tag>Ngừng hợp tác</Tag>}
+          {name} {!r.active && <ToneTag tone="gray">Ngừng hợp tác</ToneTag>}
         </>
       ),
     },
@@ -184,9 +189,7 @@ export default function Finance() {
               </Typography.Text>
               {r.overdueOver60 > 0 && (
                 <div>
-                  <Tag color="red" style={{ marginInlineEnd: 0, marginTop: 2 }}>
-                    có nợ &gt;60 ngày
-                  </Tag>
+                  <ToneTag tone="red">có nợ &gt;60 ngày</ToneTag>
                 </div>
               )}
             </div>
@@ -231,57 +234,85 @@ export default function Finance() {
     },
   ]
 
+  // "Cách tính" là nút (bấm / Tab được) thay vì chữ chỉ có hover
+  const howItWorks = (
+    <Tooltip title="Hạn thanh toán mỗi đơn = ngày hoàn thành + kỳ thanh toán của khách. Tiền trả được trừ vào đơn cũ nhất trước. Khách quá hạn nhiều nhất xếp đầu.">
+      <Button type="link" size="small" icon={<InfoCircleOutlined />} style={{ paddingInline: 0 }}>
+        Cách tính
+      </Button>
+    </Tooltip>
+  )
+
+  const debtTable = (
+    <ResponsiveTable<DebtRow>
+      table={{
+        rowKey: 'restaurantId',
+        loading,
+        columns,
+        dataSource: rows,
+        scroll: { x: 1000 },
+        pagination: { pageSize: 10, showSizeChanger: false, style: { paddingInline: 16 } },
+      }}
+      cardTitle={(r) => r.restaurantName}
+      hideInCard={['restaurantName']}
+      emptyText="Chưa có dữ liệu công nợ"
+    />
+  )
+
   return (
     <>
-      <div className="page-toolbar">
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Công nợ & thanh toán
-        </Typography.Title>
-        <Space wrap>
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Làm mới
-          </Button>
-          <Dropdown
-            trigger={['click']}
-            menu={{
-              items: [
-                { key: 'debts', label: 'Công nợ theo khách (CSV)', onClick: () => download('/reports/debts/export', 'cong-no') },
-                { key: 'orders', label: 'Danh sách đơn (CSV)', onClick: () => download('/reports/orders/export', 'don-hang') },
-                { key: 'items', label: 'Chi tiết đồ giặt (CSV)', onClick: () => download('/reports/items/export', 'chi-tiet-do-giat') },
-              ],
-            }}
-          >
-            <Button type="primary" icon={<DownloadOutlined />} loading={exporting !== null}>
-              Xuất báo cáo
+      <PageHeader
+        title="Công nợ & thanh toán"
+        description={
+          canRecord
+            ? 'Công nợ từng khách hàng, ghi nhận thanh toán, sao kê tháng và xuất báo cáo.'
+            : 'Công nợ của bạn với xưởng, sao kê tháng và lịch sử thanh toán.'
+        }
+        actions={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+              Làm mới
             </Button>
-          </Dropdown>
-        </Space>
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                items: [
+                  { key: 'debts', label: 'Công nợ theo khách (CSV)', onClick: () => download('/reports/debts/export', 'cong-no') },
+                  { key: 'orders', label: 'Danh sách đơn (CSV)', onClick: () => download('/reports/orders/export', 'don-hang') },
+                  { key: 'items', label: 'Chi tiết đồ giặt (CSV)', onClick: () => download('/reports/items/export', 'chi-tiet-do-giat') },
+                ],
+              }}
+            >
+              <Button type="primary" icon={<DownloadOutlined />} loading={exporting !== null}>
+                Xuất báo cáo
+              </Button>
+            </Dropdown>
+          </>
+        }
+      />
+
+      <LoadError error={error} onRetry={load} />
+
+      <div className="mb-4">
+        <StatStrip
+          aria-label="Tổng hợp công nợ"
+          items={[
+            { key: 'billed', icon: <DollarOutlined />, tone: 'navy', label: 'Tổng tiền đơn hoàn thành', value: formatCurrency(totalBilled) },
+            { key: 'paid', icon: <CheckCircleOutlined />, tone: 'green', label: 'Đã thanh toán', value: formatCurrency(totalPaid) },
+            { key: 'balance', icon: <WalletOutlined />, tone: 'teal', label: 'Còn nợ', value: formatCurrency(totalBalance) },
+            {
+              key: 'overdue',
+              icon: <WarningOutlined />,
+              tone: totalOverdue > 0 ? 'red' : 'gray',
+              emphasize: totalOverdue > 0,
+              label: 'Nợ quá hạn',
+              value: formatCurrency(totalOverdue),
+            },
+          ]}
+        />
       </div>
 
-      {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />}
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={12} lg={6}>
-          <KpiCard icon={<DollarOutlined />} tone="navy" label="Tổng tiền đơn hoàn thành" value={formatCurrency(totalBilled)} />
-        </Col>
-        <Col xs={12} lg={6}>
-          <KpiCard icon={<CheckCircleOutlined />} tone="green" label="Đã thanh toán" value={formatCurrency(totalPaid)} />
-        </Col>
-        <Col xs={12} lg={6}>
-          <KpiCard icon={<WalletOutlined />} tone="teal" label="Còn nợ" value={formatCurrency(totalBalance)} />
-        </Col>
-        <Col xs={12} lg={6}>
-          <KpiCard
-            icon={<WarningOutlined />}
-            tone={totalOverdue > 0 ? 'red' : 'gray'}
-            label="Nợ quá hạn"
-            value={formatCurrency(totalOverdue)}
-            valueColor={totalOverdue > 0 ? '#C2341B' : undefined}
-          />
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+      <Row gutter={[16, 16]} className="mb-4">
         <Col xs={24} lg={14}>
           <RevenueChart months={revenue} />
         </Col>
@@ -290,27 +321,20 @@ export default function Finance() {
         </Col>
       </Row>
 
-      <Card
-        title="Công nợ theo khách hàng"
-        styles={{ body: { padding: 0 } }}
-        extra={
-          <Tooltip title="Hạn thanh toán mỗi đơn = ngày hoàn thành + kỳ thanh toán của khách. Tiền trả được trừ vào đơn cũ nhất trước. Khách quá hạn nhiều nhất xếp đầu.">
-            <Typography.Text type="secondary" style={{ cursor: 'help' }}>
-              <InfoCircleOutlined /> Cách tính
-            </Typography.Text>
-          </Tooltip>
-        }
-      >
-        <Table<DebtRow>
-          rowKey="restaurantId"
-          loading={loading}
-          columns={columns}
-          dataSource={rows}
-          scroll={{ x: 1000 }}
-          pagination={{ pageSize: 10, showSizeChanger: false, style: { paddingInline: 16 } }}
-          locale={{ emptyText: 'Chưa có dữ liệu công nợ' }}
-        />
-      </Card>
+      {screens.md !== false ? (
+        <Card title="Công nợ theo khách hàng" styles={{ body: { padding: 0 } }} extra={howItWorks}>
+          {debtTable}
+        </Card>
+      ) : (
+        // Điện thoại: mỗi khách một thẻ (không lồng thẻ trong thẻ, không kéo ngang)
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <h2 className="section-title">Công nợ theo khách hàng</h2>
+            {howItWorks}
+          </div>
+          {debtTable}
+        </>
+      )}
 
       <Modal
         title={payFor ? `Ghi nhận thanh toán · ${payFor.restaurantName}` : ''}
@@ -321,8 +345,10 @@ export default function Finance() {
         cancelText="Hủy"
         confirmLoading={saving}
         forceRender
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
       >
-        {payFor && <Alert type="info" showIcon style={{ marginBottom: 16 }} title={`Công nợ hiện tại: ${formatCurrency(payFor.balance)}`} />}
+        {payFor && <Alert type="info" showIcon className="mb-4" title={`Công nợ hiện tại: ${formatCurrency(payFor.balance)}`} />}
         <Form<PaymentForm> form={form} layout="vertical" onFinish={pay}>
           <Form.Item
             name="amount"
@@ -370,7 +396,7 @@ export default function Finance() {
               title: 'Ghi chú',
               dataIndex: 'note',
               render: (v: string | null, p) =>
-                p.voided ? <Tag color="red">Đã hủy: {p.voidReason} ({p.voidedBy})</Tag> : v || '—',
+                p.voided ? <ToneTag tone="red">Đã hủy: {p.voidReason} ({p.voidedBy})</ToneTag> : v || '—',
             },
             {
               title: '',

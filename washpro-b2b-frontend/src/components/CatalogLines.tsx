@@ -1,5 +1,5 @@
-import { Button, Form, Input, InputNumber, Select, Space } from 'antd'
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons'
+import { Button, Form, Input, InputNumber, Select } from 'antd'
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { CUSTOM_ITEM, catalogOptions, lineUnit, type LineValue } from '../utils/catalog'
 import { moneyFormatter, moneyParser } from '../utils/format'
 import { UNIT_META, type CatalogItem, type PriceUnit } from '../types'
@@ -44,14 +44,15 @@ export default function CatalogLines({ name, catalog, loading, withPrice, priceO
             const decimal = UNIT_META[unit].decimal
             const custom = line?.servicePriceId === CUSTOM_ITEM
             return (
-              <Space key={field.key} align="baseline" wrap style={{ display: 'flex', marginBottom: 4 }}>
-                <Form.Item name={[field.name, 'servicePriceId']} rules={[{ required: true, message: 'Chọn loại đồ' }]} style={{ marginBottom: 8 }}>
+              // Mỗi dòng tự xuống hàng theo bề rộng: máy tính một hàng, điện thoại loại đồ một hàng + số lượng / giá một hàng
+              <div key={field.key} className="line-row">
+                <Form.Item name={[field.name, 'servicePriceId']} rules={[{ required: true, message: 'Chọn loại đồ' }]} className="line-item">
                   <Select
                     showSearch={{ optionFilterProp: 'label' }}
+                    aria-label={`Loại đồ dòng ${index + 1}`}
                     placeholder="Chọn loại đồ"
                     loading={loading}
                     options={options}
-                    style={{ width: 290 }}
                     popupMatchSelectWidth={false}
                     onChange={(id: number) => onPick(index, id)}
                     notFoundContent="Bảng giá chưa có mục nào"
@@ -59,19 +60,20 @@ export default function CatalogLines({ name, catalog, loading, withPrice, priceO
                 </Form.Item>
                 {custom && (
                   <>
-                    <Form.Item name={[field.name, 'itemName']} rules={[{ required: true, whitespace: true, message: 'Nhập tên đồ' }]} style={{ marginBottom: 8 }}>
-                      <Input placeholder="Tên đồ (VD: Rèm cửa)" maxLength={100} style={{ width: 170 }} />
+                    <Form.Item name={[field.name, 'itemName']} rules={[{ required: true, whitespace: true, message: 'Nhập tên đồ' }]} className="line-name">
+                      <Input aria-label={`Tên đồ dòng ${index + 1}`} placeholder="Tên đồ (VD: Rèm cửa)" maxLength={100} />
                     </Form.Item>
-                    <Form.Item name={[field.name, 'unit']} initialValue="PIECE" style={{ marginBottom: 8 }}>
+                    <Form.Item name={[field.name, 'unit']} initialValue="PIECE" className="line-unit">
                       <Select
-                        style={{ width: 80 }}
+                        aria-label={`Đơn vị dòng ${index + 1}`}
                         options={(Object.keys(UNIT_META) as PriceUnit[]).map((u) => ({ value: u, label: UNIT_META[u].label }))}
                       />
                     </Form.Item>
                   </>
                 )}
-                <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, message: 'Nhập SL' }]} style={{ marginBottom: 8 }}>
+                <Form.Item name={[field.name, 'quantity']} rules={[{ required: true, message: 'Nhập SL' }]} className="line-qty">
                   <InputNumber
+                    aria-label={`Số lượng dòng ${index + 1}`}
                     min={decimal ? 0.01 : 1}
                     max={100000}
                     precision={decimal ? 2 : 0}
@@ -79,24 +81,35 @@ export default function CatalogLines({ name, catalog, loading, withPrice, priceO
                     placeholder="SL"
                     inputMode={decimal ? 'decimal' : 'numeric'}
                     suffix={UNIT_META[unit].label}
-                    style={{ width: 130 }}
+                    style={{ width: '100%' }}
                   />
                 </Form.Item>
                 {withPrice && (
-                  <Form.Item name={[field.name, 'unitPrice']} style={{ marginBottom: 8 }}>
+                  <Form.Item name={[field.name, 'unitPrice']} className="line-price">
                     <InputNumber
+                      aria-label={`Đơn giá dòng ${index + 1}`}
                       min={0}
                       precision={0}
                       placeholder="Đơn giá (đ)"
-                      style={{ width: 150 }}
+                      style={{ width: '100%' }}
                       formatter={moneyFormatter}
                       parser={moneyParser}
                       suffix={`/${UNIT_META[unit].label}`}
                     />
                   </Form.Item>
                 )}
-                {fields.length > minLines && <MinusCircleOutlined onClick={() => remove(field.name)} />}
-              </Space>
+                {fields.length > minLines && (
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    className="line-remove"
+                    aria-label={`Xóa dòng ${index + 1}`}
+                    title="Xóa dòng"
+                    onClick={() => remove(field.name)}
+                  />
+                )}
+              </div>
             )
           })}
           <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ quantity: 1 })} block>

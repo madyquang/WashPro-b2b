@@ -58,7 +58,8 @@ export default function DiscrepancyModal({ order, onClose, onDone }: Props) {
       cancelText="Hủy"
       okButtonProps={{ danger: true }}
       confirmLoading={submitting}
-      width={760}
+      width={{ xs: '100%', md: 760 }}
+      className="sheet-modal"
       destroyOnHidden
     >
       {order && (
@@ -74,7 +75,7 @@ export default function DiscrepancyModal({ order, onClose, onDone }: Props) {
           <Alert
             type="info"
             showIcon
-            style={{ marginBottom: 16 }}
+            className="mb-4"
             title="Sửa cột “Thực tế” cho những loại đồ bị lệch (nhập 0 nếu không có). Lịch sử thay đổi được lưu lại để đối soát."
           />
           <Form.Item name="totalBags" label="Số túi / bao thực tế" rules={[{ required: true, message: 'Vui lòng nhập số túi' }]}>
@@ -115,7 +116,7 @@ export default function DiscrepancyModal({ order, onClose, onDone }: Props) {
             name="note"
             label="Lý do sai lệch"
             rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập lý do' }]}
-            style={{ marginTop: 16 }}
+            className="mt-4"
           >
             <Input.TextArea rows={3} maxLength={500} showCount placeholder="Ví dụ: thiếu 2 vỏ gối, thừa 1 bộ đồng phục bếp..." />
           </Form.Item>

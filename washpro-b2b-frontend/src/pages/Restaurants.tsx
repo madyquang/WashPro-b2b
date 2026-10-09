@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, message } from 'antd'
 import type { TableColumnsType } from 'antd'
 import { PlusOutlined, ReloadOutlined, UserAddOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
+import LoadError from '../components/LoadError'
+import PageHeader from '../components/PageHeader'
+import ResponsiveTable from '../components/ResponsiveTable'
+import ToneTag from '../components/ToneTag'
 import { formatDate, getErrorMessage } from '../utils/format'
 import {
   CUSTOMER_TYPE_LABELS,
@@ -39,6 +43,7 @@ export default function Restaurants() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState<CustomerType | undefined>()
 
   const [editing, setEditing] = useState<Restaurant | 'new' | null>(null)
   const [accountFor, setAccountFor] = useState<Restaurant | null>(null)
@@ -65,8 +70,10 @@ export default function Restaurants() {
 
   const visible = useMemo(() => {
     const k = search.trim().toLowerCase()
-    return rows.filter((r) => !k || r.name.toLowerCase().includes(k) || r.address?.toLowerCase().includes(k))
-  }, [rows, search])
+    return rows.filter(
+      (r) => (!typeFilter || r.customerType === typeFilter) && (!k || r.name.toLowerCase().includes(k) || r.address?.toLowerCase().includes(k)),
+    )
+  }, [rows, search, typeFilter])
 
   const openEditor = (target: Restaurant | 'new') => {
     setEditing(target)
@@ -148,8 +155,6 @@ export default function Restaurants() {
     {
       title: 'Loại khách',
       dataIndex: 'customerType',
-      filters: CUSTOMER_TYPE_OPTIONS.map((o) => ({ text: o.label, value: o.value })),
-      onFilter: (value, r) => r.customerType === value,
       render: (t: CustomerType) => CUSTOMER_TYPE_LABELS[t],
     },
     { title: 'Địa chỉ', dataIndex: 'address', responsive: ['md'] },
@@ -161,7 +166,7 @@ export default function Restaurants() {
       title: 'Trạng thái',
       dataIndex: 'active',
       width: 130,
-      render: (a: boolean) => (a ? <Tag color="green">Đang hợp tác</Tag> : <Tag>Ngừng hợp tác</Tag>),
+      render: (a: boolean) => (a ? <ToneTag tone="green">Đang hợp tác</ToneTag> : <ToneTag tone="gray">Ngừng hợp tác</ToneTag>),
     },
     {
       title: 'Thao tác',
@@ -203,31 +208,50 @@ export default function Restaurants() {
 
   return (
     <>
-      <div className="page-toolbar">
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Khách hàng
-        </Typography.Title>
-        <Space wrap>
-          <Input.Search allowClear placeholder="Tìm theo tên, địa chỉ" style={{ width: 240 }} onChange={(e) => setSearch(e.target.value)} />
-          <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
-            Làm mới
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor('new')}>
-            Thêm khách hàng
-          </Button>
-        </Space>
+      <PageHeader
+        title="Khách hàng"
+        description="Nhà hàng, khách sạn, spa… đang hợp tác: thời gian trả đồ, kỳ thanh toán và tài khoản đăng nhập."
+        actions={
+          <>
+            <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
+              Làm mới
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => openEditor('new')}>
+              Thêm khách hàng
+            </Button>
+          </>
+        }
+      />
+
+      <div className="filter-bar">
+        <Input.Search allowClear aria-label="Tìm khách hàng" placeholder="Tìm theo tên, địa chỉ" style={{ width: 260 }} onChange={(e) => setSearch(e.target.value)} />
+        <Select
+          allowClear
+          aria-label="Lọc theo loại khách"
+          placeholder="Lọc theo loại khách"
+          style={{ width: 200 }}
+          options={CUSTOMER_TYPE_OPTIONS}
+          value={typeFilter}
+          onChange={setTypeFilter}
+        />
       </div>
 
-      {error && <Alert type="error" showIcon style={{ marginBottom: 16 }} title={error} action={<Button size="small" onClick={load}>Thử lại</Button>} />}
+      <LoadError error={error} onRetry={load} />
 
-      <Table<Restaurant>
-        rowKey="id"
-        loading={loading}
-        columns={columns}
-        dataSource={visible}
-        scroll={{ x: 'max-content' }}
-        pagination={{ pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} khách hàng` }}
-        locale={{ emptyText: 'Chưa có khách hàng nào' }}
+      <ResponsiveTable<Restaurant>
+        table={{
+          rowKey: 'id',
+          loading,
+          columns,
+          dataSource: visible,
+          scroll: { x: 'max-content' },
+          pagination: { pageSize: 10, showSizeChanger: false, showTotal: (t) => `${t} khách hàng` },
+        }}
+        cardTitle={(r) => r.name}
+        cardExtra={(r) => (r.active ? <ToneTag tone="green">Đang hợp tác</ToneTag> : <ToneTag tone="gray">Ngừng hợp tác</ToneTag>)}
+        hideInCard={['name', 'active']}
+        emptyText={search || typeFilter ? 'Không có khách hàng nào khớp bộ lọc.' : 'Chưa có khách hàng nào.'}
+        emptyAction={search || typeFilter ? undefined : { label: 'Thêm khách hàng', icon: <PlusOutlined />, onClick: () => openEditor('new') }}
       />
 
       <Modal
@@ -238,6 +262,8 @@ export default function Restaurants() {
         okText="Lưu"
         cancelText="Hủy"
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         forceRender
       >
         <Form<RestaurantForm> form={form} layout="vertical" onFinish={saveRestaurant}>
@@ -256,14 +282,19 @@ export default function Restaurants() {
           <Form.Item name="contactName" label="Người liên hệ">
             <Input maxLength={100} placeholder="VD: Chị Lan - quản lý buồng phòng" />
           </Form.Item>
-          <Space wrap size={16} style={{ width: '100%' }}>
-            <Form.Item name="turnaroundHours" label="Cam kết trả đồ sau" rules={[{ required: true }]} style={{ minWidth: 200 }}>
-              <Select options={TURNAROUND_OPTIONS.map((h) => ({ value: h, label: `${h} giờ` }))} />
-            </Form.Item>
-            <Form.Item name="paymentTermDays" label="Kỳ thanh toán" rules={[{ required: true }]} style={{ minWidth: 200 }}>
-              <Select options={PAYMENT_TERM_OPTIONS.map((d) => ({ value: d, label: paymentTermLabel(d) }))} />
-            </Form.Item>
-          </Space>
+          {/* Hai trường ngắn liên quan: cạnh nhau trên máy tính, xếp dọc trên điện thoại */}
+          <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="turnaroundHours" label="Cam kết trả đồ sau" rules={[{ required: true }]}>
+                <Select options={TURNAROUND_OPTIONS.map((h) => ({ value: h, label: `${h} giờ` }))} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="paymentTermDays" label="Kỳ thanh toán" rules={[{ required: true }]}>
+                <Select options={PAYMENT_TERM_OPTIONS.map((d) => ({ value: d, label: paymentTermLabel(d) }))} />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 
@@ -275,6 +306,8 @@ export default function Restaurants() {
         okText="Tạo tài khoản"
         cancelText="Hủy"
         confirmLoading={saving}
+        className="sheet-modal"
+        width={{ xs: '100%', md: 520 }}
         forceRender
       >
         <Form<AccountForm> form={accountForm} layout="vertical" onFinish={createAccount}>

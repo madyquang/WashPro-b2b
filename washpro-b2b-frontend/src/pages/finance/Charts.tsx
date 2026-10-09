@@ -71,7 +71,7 @@ export function AgingCard({ rows }: { rows: DebtRow[] }) {
       ) : (
         <>
           <Typography.Text type="secondary">Tổng còn nợ</Typography.Text>
-          <div className="kpi-value" style={{ marginBottom: 12 }}>
+          <div className="stat-value" style={{ marginBottom: 12 }}>
             {formatCurrency(total)}
           </div>
           <div className="stack-bar" role="img" aria-label={parts.map((p) => `${p.label}: ${formatCurrency(p.value)}`).join('; ')}>

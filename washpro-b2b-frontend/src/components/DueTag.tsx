@@ -1,5 +1,6 @@
-import { Tag, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import { ClockCircleOutlined, WarningOutlined } from '@ant-design/icons'
+import ToneTag from './ToneTag'
 import { formatDateTime } from '../utils/format'
 import type { Order } from '../types'
 
@@ -19,18 +20,22 @@ export default function DueTag({ order }: { order: Pick<Order, 'dueAt' | 'overdu
   if (order.overdue || left < 0) {
     return (
       <Tooltip title={title}>
-        <Tag color="red" icon={<WarningOutlined />}>
-          Trễ {span(left)}
-        </Tag>
+        <span>
+          <ToneTag tone="red" icon={<WarningOutlined />}>
+            Trễ {span(left)}
+          </ToneTag>
+        </span>
       </Tooltip>
     )
   }
   if (left < 6 * HOUR) {
     return (
       <Tooltip title={title}>
-        <Tag color="orange" icon={<ClockCircleOutlined />}>
-          Còn {span(left)}
-        </Tag>
+        <span>
+          <ToneTag tone="orange" icon={<ClockCircleOutlined />}>
+            Còn {span(left)}
+          </ToneTag>
+        </span>
       </Tooltip>
     )
   }
