@@ -31,7 +31,8 @@ public class PaymentService {
     @Transactional
     public PaymentResponse create(PaymentRequest request) {
         User user = currentUserService.getCurrentUser();
-        Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
+        // Khóa dòng khách hàng tới hết giao dịch: thanh toán của cùng một khách được kiểm tra công nợ lần lượt
+        Restaurant restaurant = restaurantRepository.findByIdForUpdate(request.restaurantId())
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
 
         BigDecimal amount = request.amount().setScale(2, RoundingMode.HALF_UP);
@@ -54,7 +55,7 @@ public class PaymentService {
     @Transactional
     public PaymentResponse voidPayment(Long id, String reason) {
         User user = currentUserService.getCurrentUser();
-        Payment payment = paymentRepository.findById(id)
+        Payment payment = paymentRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy khoản thanh toán"));
         if (payment.isVoided()) {
             throw ApiException.badRequest("Khoản thanh toán này đã được hủy trước đó");
