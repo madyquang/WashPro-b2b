@@ -26,14 +26,19 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
 
   useEffect(() => {
     if (orderId === null) return
+    // Chuyển nhanh sang đơn khác: bỏ phản hồi của đơn cũ đến muộn (tránh hiện đơn A dưới tiêu đề đơn B)
+    let ignore = false
     setLoading(true)
     setError(null)
     setOrder(null)
     axiosClient
       .get<Order>(`/orders/${orderId}`)
-      .then((res) => setOrder(res.data))
-      .catch((e) => setError(getErrorMessage(e, 'Không tải được chi tiết đơn')))
-      .finally(() => setLoading(false))
+      .then((res) => !ignore && setOrder(res.data))
+      .catch((e) => !ignore && setError(getErrorMessage(e, 'Không tải được chi tiết đơn')))
+      .finally(() => !ignore && setLoading(false))
+    return () => {
+      ignore = true
+    }
   }, [orderId])
 
   return (
@@ -82,7 +87,7 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
                 formatDateTime(order.dueAt)
               ) : (
                 <>
-                  {formatDateTime(order.dueAt)} {order.dueAt && (order.overdue || new Date(order.dueAt).getTime() - Date.now() < 6 * 3600_000) && <DueTag order={order} />}
+                  {formatDateTime(order.dueAt)} <DueTag order={order} onlyUrgent />
                 </>
               )}
             </Descriptions.Item>

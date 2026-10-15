@@ -21,13 +21,19 @@ export default function StatementModal({ customer, onClose }: Props) {
 
   useEffect(() => {
     if (!customer || !month) return
+    // Xóa sao kê đang hiện (của khách / tháng trước) và bỏ phản hồi cũ đến muộn khi đổi khách hoặc đổi tháng nhanh
+    let ignore = false
     setLoading(true)
     setError(null)
+    setData(null)
     axiosClient
       .get<Statement>('/reports/statement', { params: { restaurantId: customer.restaurantId, month } })
-      .then((res) => setData(res.data))
-      .catch((e) => setError(getErrorMessage(e, 'Không tải được sao kê')))
-      .finally(() => setLoading(false))
+      .then((res) => !ignore && setData(res.data))
+      .catch((e) => !ignore && setError(getErrorMessage(e, 'Không tải được sao kê')))
+      .finally(() => !ignore && setLoading(false))
+    return () => {
+      ignore = true
+    }
   }, [customer, month])
 
   const [y, m] = month.split('-')

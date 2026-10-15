@@ -25,12 +25,18 @@ export default function ItemsModal({ order, onClose, onDone }: Props) {
 
   useEffect(() => {
     if (!order) return
+    // Bảng giá thuộc khách của đơn: bỏ bảng giá của đơn trước (có thể là khách khác) để không tự điền nhầm giá
+    let ignore = false
     setLoading(true)
+    setPrices([])
     axiosClient
       .get<CustomerPriceRow[]>(`/prices/customers/${order.restaurantId}`)
-      .then((res) => setPrices(res.data))
-      .catch((e) => message.error(getErrorMessage(e, 'Không tải được bảng giá của khách hàng')))
-      .finally(() => setLoading(false))
+      .then((res) => !ignore && setPrices(res.data))
+      .catch((e) => !ignore && message.error(getErrorMessage(e, 'Không tải được bảng giá của khách hàng')))
+      .finally(() => !ignore && setLoading(false))
+    return () => {
+      ignore = true
+    }
   }, [order])
 
   // Mục đang áp dụng, cộng các mục đã ẩn nhưng đơn này vẫn đang dùng

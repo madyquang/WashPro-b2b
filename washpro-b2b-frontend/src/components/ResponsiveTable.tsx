@@ -118,9 +118,11 @@ function MobileCards({
   const [own, setOwn] = useState(1)
   // Có total và current từ ngoài = phân trang phía máy chủ: rows đã là đúng một trang
   const serverPaged = total !== undefined && current !== undefined
-  const page = current ?? own
-  const shown = serverPaged ? rows : rows.slice((page - 1) * pageSize, page * pageSize)
   const count = serverPaged ? total : rows.length
+  // Danh sách ngắn lại (lọc, tìm kiếm) khi đang ở trang sau: lùi về trang cuối còn dữ liệu thay vì hiện trang trống
+  const lastPage = Math.max(1, Math.ceil(count / pageSize))
+  const page = Math.min(current ?? own, lastPage)
+  const shown = serverPaged ? rows : rows.slice((page - 1) * pageSize, page * pageSize)
   return (
     <>
       <div className="data-card-list">{shown.map((r, i) => render(r, i))}</div>

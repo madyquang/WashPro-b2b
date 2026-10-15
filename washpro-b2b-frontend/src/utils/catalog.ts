@@ -79,12 +79,16 @@ export function useCatalog(enabled = true) {
 
   useEffect(() => {
     if (!enabled) return
+    let ignore = false
     setLoading(true)
     axiosClient
       .get<CatalogItem[]>('/prices/catalog')
-      .then((res) => setCatalog(res.data))
-      .catch((e) => message.error(getErrorMessage(e, 'Không tải được danh mục đồ giặt')))
-      .finally(() => setLoading(false))
+      .then((res) => !ignore && setCatalog(res.data))
+      .catch((e) => !ignore && message.error(getErrorMessage(e, 'Không tải được danh mục đồ giặt')))
+      .finally(() => !ignore && setLoading(false))
+    return () => {
+      ignore = true
+    }
   }, [enabled])
 
   return { catalog, loading }

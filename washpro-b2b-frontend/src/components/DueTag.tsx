@@ -2,6 +2,7 @@ import { Tooltip } from 'antd'
 import { ClockCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import ToneTag from './ToneTag'
 import { formatDateTime } from '../utils/format'
+import { useNow } from '../utils/useNow'
 import type { Order } from '../types'
 
 const HOUR = 3600_000
@@ -12,10 +13,17 @@ const span = (ms: number) => {
   return hours < 48 ? `${hours} giờ` : `${Math.round(hours / 24)} ngày`
 }
 
-/** Hạn trả đồ của đơn: trễ (đỏ), sắp đến hạn trong 6 giờ (cam), còn lại hiện ngày giờ. */
-export default function DueTag({ order }: { order: Pick<Order, 'dueAt' | 'overdue' | 'status'> }) {
-  if (!order.dueAt || order.status === 'COMPLETED') return <span>—</span>
-  const left = new Date(order.dueAt).getTime() - Date.now()
+interface Props {
+  order: Pick<Order, 'dueAt' | 'overdue' | 'status'>
+  /** Chỉ hiện khi trễ hạn hoặc sắp đến hạn (đặt cạnh ngày giờ đã hiển thị ở nơi khác). */
+  onlyUrgent?: boolean
+}
+
+/** Hạn trả đồ của đơn: trễ (đỏ), sắp đến hạn trong 6 giờ (cam), còn lại hiện ngày giờ. Tự cập nhật mỗi phút. */
+export default function DueTag({ order, onlyUrgent }: Props) {
+  const now = useNow()
+  if (!order.dueAt || order.status === 'COMPLETED') return onlyUrgent ? null : <span>—</span>
+  const left = new Date(order.dueAt).getTime() - now
   const title = `Hạn trả: ${formatDateTime(order.dueAt)}`
   if (order.overdue || left < 0) {
     return (
@@ -39,6 +47,7 @@ export default function DueTag({ order }: { order: Pick<Order, 'dueAt' | 'overdu
       </Tooltip>
     )
   }
+  if (onlyUrgent) return null
   const d = new Date(order.dueAt)
   const pad = (n: number) => String(n).padStart(2, '0')
   return (
