@@ -268,12 +268,13 @@ cd washpro-b2b
 ./mvnw test
 ```
 
-Hiện có 18 test đơn vị và 4 test tích hợp. Test tích hợp dùng H2 trong bộ nhớ (profile `it`,
+Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 trong bộ nhớ (profile `it`,
 `src/test/resources/application-it.properties`), không cần MySQL:
 
 | Lớp test | Nội dung |
 |---|---|
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
+| `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
 | `PriceUnitTest` | Số lượng hợp lệ theo đơn vị, đọc đơn vị dạng chữ của dữ liệu cũ |
 | `DebtAgingTest` | Phân nhóm tuổi nợ, trừ thanh toán theo FIFO |
@@ -281,6 +282,15 @@ Hiện có 18 test đơn vị và 4 test tích hợp. Test tích hợp dùng H2 
 | `ReportServiceCsvTest` | Escape CSV và chặn CSV injection |
 
 Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng `npm run lint`; chưa có test tự động cho giao diện.
+
+**Lỗi đỏ ở `@RequiredArgsConstructor` trong VS Code** (`The Java feature 'Flexible Constructor Bodies' is only
+available with source level 25 and above`). Đây là lỗi của extension *Language Support for Java* bản **1.57.0**: trình
+biên dịch Eclipse đi kèm (ECJ 3.46.200) không tương thích với Lombok ở mức Java 21 (đã thử Lombok 1.18.39 → 1.18.48 đều
+lỗi; ECJ 3.44 → 3.46.100 đều dịch được). Mã nguồn không có lỗi, Maven (`javac`) vẫn build bình thường.
+Cách xử lý: cài bản 1.56.0 và ghim lại (`code --install-extension redhat.java@1.56.0 --force`, hoặc Extensions →
+Language Support for Java → biểu tượng bánh răng → *Install Specific Version…* → 1.56.0), rồi *Developer: Reload Window*.
+Nếu ứng dụng / test báo `Unresolved compilation problems` hoặc `Invalid method Code length 0` (lớp do bản lỗi biên dịch
+còn nằm trong `target/`), build lại sạch bằng `./mvnw clean test` hoặc `./mvnw clean spring-boot:run`.
 
 ## Hạn chế hiện tại
 
