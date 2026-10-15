@@ -46,7 +46,7 @@ interface Chip {
  * đơn cần xử lý có nút làm ngay, yêu cầu lấy đồ chưa có tài xế phân công ngay tại đây.
  */
 export default function AdminHome() {
-  const session = getSession()!
+  const session = getSession()
   const navigate = useNavigate()
   const screens = Grid.useBreakpoint()
   const [data, setData] = useState<Dashboard | null>(null)
@@ -56,6 +56,7 @@ export default function AdminHome() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!getSession()) return // đã đăng xuất: không gửi request không có token
     setLoading(true)
     setError(null)
     try {
@@ -89,6 +90,9 @@ export default function AdminHome() {
 
   const orderActions = useOrderActions(load)
   const pickupActions = usePickupActions(load)
+
+  // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
+  if (!session) return null
 
   const header = (
     <PageHeader

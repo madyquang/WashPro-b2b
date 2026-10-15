@@ -23,7 +23,7 @@ import type { Dashboard, Order, OrderPage, PickupRequest } from '../../types'
  * Tạo đơn; sau đó là việc đang chờ tài xế (nhận ngay tại đây) và đơn đang chờ khách xác nhận.
  */
 export default function DriverHome() {
-  const session = getSession()!
+  const session = getSession()
   const [pickups, setPickups] = useState<PickupRequest[]>([])
   const [waiting, setWaiting] = useState<Order[]>([])
   const [stats, setStats] = useState<Dashboard | null>(null)
@@ -32,6 +32,7 @@ export default function DriverHome() {
   const [creating, setCreating] = useState(false)
 
   const load = useCallback(async () => {
+    if (!getSession()) return // đã đăng xuất: không gửi request không có token
     setLoading(true)
     setError(null)
     try {
@@ -56,6 +57,9 @@ export default function DriverHome() {
 
   const pickupActions = usePickupActions(load)
   const orderActions = useOrderActions(load)
+
+  // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
+  if (!session) return null
 
   const byDate = (a: PickupRequest, b: PickupRequest) => a.preferredDate.localeCompare(b.preferredDate) || a.id - b.id
   const mine = pickups.filter((p) => p.status === 'ACCEPTED').sort(byDate)

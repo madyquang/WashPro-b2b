@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { message } from 'antd'
+import { message } from './message'
 import axiosClient from '../api/axiosClient'
 import { getErrorMessage } from './format'
 import {

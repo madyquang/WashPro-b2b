@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Descriptions, Divider, Empty, Input, Modal, Skeleton, Space, Table, Typography, message } from 'antd'
+import { Alert, Button, Descriptions, Divider, Empty, Input, Modal, Skeleton, Space, Table, Typography } from 'antd'
+import { message } from '../../utils/message'
 import { PrinterOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
 import { currentMonth, formatCurrency, formatDate, formatDateTime, getErrorMessage } from '../../utils/format'

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Card, Col, Drawer, Dropdown, Form, Grid, Input, InputNumber, Modal, Row, Space, Table, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Card, Col, Drawer, Dropdown, Form, Grid, Input, InputNumber, Modal, Row, Space, Table, Tooltip, Typography } from 'antd'
+import { message } from '../utils/message'
 import type { TableColumnsType } from 'antd'
 import {
   CheckCircleOutlined,
@@ -370,7 +371,7 @@ export default function Finance() {
         </Form>
       </Modal>
 
-      <Drawer title={historyFor ? `Lịch sử thanh toán · ${historyFor.restaurantName}` : ''} open={historyFor !== null} onClose={() => setHistoryFor(null)} size={Math.min(520, window.innerWidth)} destroyOnHidden>
+      <Drawer title={historyFor ? `Lịch sử thanh toán · ${historyFor.restaurantName}` : ''} open={historyFor !== null} onClose={() => setHistoryFor(null)} size={Math.min(760, window.innerWidth)} destroyOnHidden>
         <Table<Payment>
           rowKey="id"
           size="small"
@@ -395,15 +396,19 @@ export default function Finance() {
             {
               title: 'Ghi chú',
               dataIndex: 'note',
+              width: 240,
               render: (v: string | null, p) =>
                 p.voided ? <ToneTag tone="red">Đã hủy: {p.voidReason} ({p.voidedBy})</ToneTag> : v || '—',
             },
             {
-              title: '',
+              // Cố định bên phải: nút hủy luôn nhìn thấy, không bị đẩy ra ngoài khi bảng rộng hơn drawer
+              title: 'Thao tác',
               key: 'void',
+              fixed: 'right',
+              width: 84,
               render: (_: unknown, p) =>
                 canRecord && !p.voided ? (
-                  <Button size="small" danger type="text" onClick={() => setVoidTarget(p)}>
+                  <Button size="small" danger type="text" aria-label={`Hủy khoản thanh toán ngày ${formatDate(p.paidDate)}`} onClick={() => setVoidTarget(p)}>
                     Hủy
                   </Button>
                 ) : null,
@@ -428,7 +433,7 @@ export default function Finance() {
         <Typography.Paragraph>
           Khoản {voidTarget ? formatCurrency(voidTarget.amount) : ''} sẽ không còn được tính vào công nợ nhưng vẫn lưu lại để đối soát.
         </Typography.Paragraph>
-        <Input.TextArea rows={3} maxLength={500} showCount placeholder="Lý do hủy (bắt buộc)" value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />
+        <Input.TextArea rows={3} maxLength={500} showCount aria-label="Lý do hủy khoản thanh toán" placeholder="Lý do hủy (bắt buộc)" value={voidReason} onChange={(e) => setVoidReason(e.target.value)} />
       </Modal>
     </>
   )

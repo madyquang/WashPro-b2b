@@ -55,7 +55,8 @@ export default function CatalogLines({ name, catalog, loading, withPrice, priceO
                     options={options}
                     popupMatchSelectWidth={false}
                     onChange={(id: number) => onPick(index, id)}
-                    notFoundContent="Bảng giá chưa có mục nào"
+                    // Đang tải thì báo đang tải, tránh hiện nhầm "bảng giá trống"
+                    notFoundContent={loading ? 'Đang tải danh mục…' : 'Bảng giá chưa có mục nào'}
                   />
                 </Form.Item>
                 {custom && (

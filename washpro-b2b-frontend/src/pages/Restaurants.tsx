@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Col, Form, Input, Modal, Popconfirm, Row, Select, Space, message } from 'antd'
+import { Button, Col, Form, Input, Modal, Popconfirm, Row, Select, Space } from 'antd'
+import { message } from '../utils/message'
 import type { TableColumnsType } from 'antd'
 import { PlusOutlined, ReloadOutlined, UserAddOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'

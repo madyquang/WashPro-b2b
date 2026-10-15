@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Descriptions, Form, Input, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Form, Input } from 'antd'
+import { message } from '../utils/message'
 import { LogoutOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
 import PageHeader from '../components/PageHeader'

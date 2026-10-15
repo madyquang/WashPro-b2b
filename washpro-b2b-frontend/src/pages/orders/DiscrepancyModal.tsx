@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Alert, Divider, Form, Input, InputNumber, Modal, Table, Typography, message } from 'antd'
+import { Alert, Divider, Form, Input, InputNumber, Modal, Table, Typography } from 'antd'
+import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import CatalogLines from '../../components/CatalogLines'
 import { catalogLabel, formatQuantity, toItemRequest, useCatalog, type LineValue } from '../../utils/catalog'
@@ -87,19 +88,28 @@ export default function DiscrepancyModal({ order, onClose, onDone }: Props) {
             rowKey="id"
             pagination={false}
             dataSource={order.items}
-            scroll={{ x: 'max-content' }}
+            // Chia cột cố định, tên đồ tự xuống dòng: ô "Thực tế" luôn nằm trọn trong màn hình điện thoại
+            tableLayout="fixed"
             columns={[
               { title: 'Loại đồ', key: 'name', render: (_: unknown, i) => catalogLabel(i) },
-              { title: 'Đã ghi', key: 'qty', align: 'right', render: (_: unknown, i) => formatQuantity(i.quantity, i.unit) },
+              { title: 'Đã ghi', key: 'qty', align: 'right', width: 76, render: (_: unknown, i) => formatQuantity(i.quantity, i.unit) },
               {
                 title: 'Thực tế',
                 key: 'actual',
-                width: 160,
+                width: 128,
                 render: (_: unknown, i) => {
                   const decimal = UNIT_META[i.unit].decimal
                   return (
                     <Form.Item name={['actual', i.id]} rules={[{ required: true, message: 'Nhập SL' }]} style={{ margin: 0 }}>
-                      <InputNumber min={0} max={100000} precision={decimal ? 2 : 0} suffix={UNIT_META[i.unit].label} style={{ width: 140 }} />
+                      <InputNumber
+                        aria-label={`Số lượng thực tế: ${catalogLabel(i)}`}
+                        min={0}
+                        max={100000}
+                        precision={decimal ? 2 : 0}
+                        inputMode={decimal ? 'decimal' : 'numeric'}
+                        suffix={UNIT_META[i.unit].label}
+                        style={{ width: '100%' }}
+                      />
                     </Form.Item>
                   )
                 },

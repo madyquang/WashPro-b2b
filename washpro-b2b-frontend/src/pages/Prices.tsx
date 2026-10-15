@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Tabs, Typography, message } from 'antd'
+import { Alert, Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Tabs, Typography } from 'antd'
+import { message } from '../utils/message'
 import type { TableColumnsType } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
@@ -416,6 +417,7 @@ function CustomerPrices() {
               Giá chung: <b>{formatCurrency(editing.basePrice)}/{UNIT_META[editing.unit].label}</b>
             </Typography.Paragraph>
             <InputNumber
+              aria-label="Giá riêng cho khách hàng (đ)"
               autoFocus
               min={0}
               precision={0}

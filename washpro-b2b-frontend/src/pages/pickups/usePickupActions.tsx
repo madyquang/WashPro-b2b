@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Radio, Select, Typography, message } from 'antd'
+import { Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Radio, Select, Typography } from 'antd'
+import { message } from '../../utils/message'
 import { CalendarOutlined, CarOutlined, EnvironmentOutlined, PhoneOutlined, PlusOutlined, UserOutlined, WarningOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
 import PickupStatusTag from '../../components/PickupStatusTag'

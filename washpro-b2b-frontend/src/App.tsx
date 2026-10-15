@@ -1,10 +1,11 @@
-import { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, Suspense, useEffect, type ReactElement } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
-import { ConfigProvider, Spin } from 'antd'
+import { App as AntApp, ConfigProvider, Spin } from 'antd'
 import viVN from 'antd/locale/vi_VN'
 import MainLayout from './components/MainLayout'
 import Login from './pages/Login'
 import { antdTheme } from './theme'
+import { bindMessage } from './utils/message'
 
 // Mỗi trang là một gói JS riêng, chỉ tải khi người dùng mở trang đó
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -37,61 +38,71 @@ function PageSuspense() {
   )
 }
 
+/** Gắn instance message theo theme (App.useApp) cho utils/message để mọi toast dùng đúng màu của ứng dụng. */
+function MessageBridge() {
+  const { message } = AntApp.useApp()
+  useEffect(() => bindMessage(message), [message])
+  return null
+}
+
 export default function App() {
   return (
     <ConfigProvider locale={viVN} theme={antdTheme}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            element={
-              <ProtectedRoute>
-                <MainLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route element={<PageSuspense />}>
-              <Route index element={<Dashboard />} />
-              <Route path="orders" element={<Orders />} />
-              <Route path="pickups" element={<Pickups />} />
-              <Route
-                path="restaurants"
-                element={
-                  <RoleRoute roles={['WORKSHOP_ADMIN']}>
-                    <Restaurants />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path="accounts"
-                element={
-                  <RoleRoute roles={['WORKSHOP_ADMIN']}>
-                    <Accounts />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path="prices"
-                element={
-                  <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT']}>
-                    <Prices />
-                  </RoleRoute>
-                }
-              />
-              <Route
-                path="finance"
-                element={
-                  <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER']}>
-                    <Finance />
-                  </RoleRoute>
-                }
-              />
-              <Route path="profile" element={<Profile />} />
+      <AntApp>
+        <MessageBridge />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route
+              element={
+                <ProtectedRoute>
+                  <MainLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route element={<PageSuspense />}>
+                <Route index element={<Dashboard />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="pickups" element={<Pickups />} />
+                <Route
+                  path="restaurants"
+                  element={
+                    <RoleRoute roles={['WORKSHOP_ADMIN']}>
+                      <Restaurants />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="accounts"
+                  element={
+                    <RoleRoute roles={['WORKSHOP_ADMIN']}>
+                      <Accounts />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="prices"
+                  element={
+                    <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT']}>
+                      <Prices />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="finance"
+                  element={
+                    <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER']}>
+                      <Finance />
+                    </RoleRoute>
+                  }
+                />
+                <Route path="profile" element={<Profile />} />
+              </Route>
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AntApp>
     </ConfigProvider>
   )
 }

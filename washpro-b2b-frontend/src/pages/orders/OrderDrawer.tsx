@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, Descriptions, Divider, Drawer, Empty, Skeleton, Table, Timeline, Typography, message } from 'antd'
+import { Alert, Button, Descriptions, Divider, Drawer, Empty, Skeleton, Table, Timeline, Typography } from 'antd'
+import { message } from '../../utils/message'
 import { PrinterOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
 import CategoryTag from '../../components/CategoryTag'

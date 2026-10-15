@@ -26,8 +26,8 @@ import type { DebtRow, Order, OrderPage, PickupRequest } from '../../types'
  * đồ đang ở xưởng và (chỉ quản lý) công nợ + sao kê. Không có số liệu vận hành của xưởng.
  */
 export default function CustomerHome() {
-  const session = getSession()!
-  const isManager = session.role === 'RESTAURANT_MANAGER'
+  const session = getSession()
+  const isManager = session?.role === 'RESTAURANT_MANAGER'
   const [pickups, setPickups] = useState<PickupRequest[]>([])
   const [todo, setTodo] = useState<Order[]>([])
   const [todoTotal, setTodoTotal] = useState(0)
@@ -40,6 +40,7 @@ export default function CustomerHome() {
   const [statementOpen, setStatementOpen] = useState(false)
 
   const load = useCallback(async () => {
+    if (!getSession()) return // đã đăng xuất: không gửi request không có token
     setLoading(true)
     setError(null)
     try {
@@ -72,6 +73,9 @@ export default function CustomerHome() {
 
   const pickupActions = usePickupActions(load)
   const orderActions = useOrderActions(load)
+
+  // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
+  if (!session) return null
   const activePickups = pickups.filter(isActivePickup).sort((a, b) => a.preferredDate.localeCompare(b.preferredDate))
 
   return (

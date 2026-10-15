@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Form, Modal, Typography, message } from 'antd'
+import { Form, Modal, Typography } from 'antd'
+import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import CatalogLines from '../../components/CatalogLines'
 import { CUSTOM_ITEM, toItemRequest, type LineValue } from '../../utils/catalog'

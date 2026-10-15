@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { Input, Modal, Space, Typography, message } from 'antd'
+import { Input, Modal, Space, Typography } from 'antd'
+import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import DiscrepancyModal from './DiscrepancyModal'
 import ItemsModal from './ItemsModal'
@@ -237,7 +238,7 @@ export function useOrderActions(onChanged: () => void) {
         okButtonProps={{ disabled: !dueValue }}
         destroyOnHidden
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
+        <Space orientation="vertical" style={{ width: '100%' }}>
           <Input type="datetime-local" aria-label="Hạn trả mới" value={dueValue} onChange={(e) => setDueValue(e.target.value)} />
           <Input.TextArea rows={2} maxLength={500} aria-label="Lý do đổi hạn" placeholder="Lý do (VD: khách đồng ý lùi hạn)" value={dueNote} onChange={(e) => setDueNote(e.target.value)} />
         </Space>

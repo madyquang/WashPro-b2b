@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Alert, Form, Input, InputNumber, Modal, Select, Typography, message } from 'antd'
+import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
+import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import CatalogLines from '../../components/CatalogLines'
 import { toItemRequest, useCatalog, type LineValue } from '../../utils/catalog'

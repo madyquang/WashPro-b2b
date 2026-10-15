@@ -21,7 +21,7 @@ import type { Dashboard, Order, OrderPage } from '../../types'
  * sau đó là tài chính. Đơn đang giặt phải đủ giá trước khi giao.
  */
 export default function AccountantHome() {
-  const session = getSession()!
+  const session = getSession()
   const navigate = useNavigate()
   const screens = Grid.useBreakpoint()
   const [data, setData] = useState<Dashboard | null>(null)
@@ -30,6 +30,7 @@ export default function AccountantHome() {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!getSession()) return // đã đăng xuất: không gửi request không có token
     setLoading(true)
     setError(null)
     try {
@@ -52,6 +53,9 @@ export default function AccountantHome() {
   }, [load])
 
   const orderActions = useOrderActions(load)
+
+  // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
+  if (!session) return null
   const washingFirst = [...needPrice].sort((a, b) => Number(b.status === 'WASHING') - Number(a.status === 'WASHING'))
 
   const overdueDebt = data?.overdueDebt ?? 0
