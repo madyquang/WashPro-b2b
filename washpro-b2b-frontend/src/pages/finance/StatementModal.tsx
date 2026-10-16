@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Descriptions, Divider, Empty, Input, Modal, Skeleton, Space, Table, Typography } from 'antd'
 import { message } from '../../utils/message'
-import { PrinterOutlined } from '@ant-design/icons'
+import { FilePdfOutlined, PrinterOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
 import { currentMonth, formatCurrency, formatDate, formatDateTime, getErrorMessage } from '../../utils/format'
 import { printStatement } from '../../utils/print'
@@ -19,6 +19,7 @@ export default function StatementModal({ customer, onClose }: Props) {
   const [data, setData] = useState<Statement | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     if (!customer || !month) return
@@ -39,6 +40,27 @@ export default function StatementModal({ customer, onClose }: Props) {
 
   const [y, m] = month.split('-')
 
+  /** Hóa đơn tháng (PDF) do máy chủ dựng: cùng số liệu với sao kê, kèm chi tiết dịch vụ và thông tin chuyển khoản. */
+  const downloadInvoice = async () => {
+    if (!customer) return
+    setDownloading(true)
+    try {
+      const res = await axiosClient.get<Blob>('/reports/invoice', { params: { customerId: customer.customerId, month }, responseType: 'blob' })
+      const url = URL.createObjectURL(res.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `hoa-don-${y}-${m}-${customer.customerName.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      message.error(getErrorMessage(e, 'Không tải được hóa đơn'))
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <Modal
       title={customer ? `Sao kê công nợ · ${customer.customerName}` : ''}
@@ -50,6 +72,9 @@ export default function StatementModal({ customer, onClose }: Props) {
       footer={
         <Space>
           <Button onClick={onClose}>Đóng</Button>
+          <Button icon={<FilePdfOutlined />} disabled={!data} loading={downloading} onClick={downloadInvoice}>
+            Hóa đơn PDF
+          </Button>
           <Button
             type="primary"
             icon={<PrinterOutlined />}

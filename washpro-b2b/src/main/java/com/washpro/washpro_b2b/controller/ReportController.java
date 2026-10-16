@@ -6,6 +6,7 @@ import com.washpro.washpro_b2b.dto.FinanceDtos.MonthRevenue;
 import com.washpro.washpro_b2b.dto.FinanceDtos.StatementResponse;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.dto.PerformanceDtos.Report;
+import com.washpro.washpro_b2b.service.InvoiceService;
 import com.washpro.washpro_b2b.service.PerformanceService;
 import com.washpro.washpro_b2b.service.ReportService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class ReportController {
 
     private final ReportService reportService;
     private final PerformanceService performanceService;
+    private final InvoiceService invoiceService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardResponse> dashboard() {
@@ -41,6 +43,25 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<List<DebtRow>> debts() {
         return ResponseEntity.ok(reportService.debts());
+    }
+
+    /** Hóa đơn tháng (PDF) của một khách. Quản lý phía khách luôn nhận hóa đơn của khách mình. */
+    @GetMapping("/reports/invoice")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
+    public ResponseEntity<byte[]> invoice(@RequestParam(required = false) Long customerId,
+            @RequestParam String month) {
+        YearMonth ym;
+        try {
+            ym = YearMonth.parse(month);
+        } catch (DateTimeParseException e) {
+            throw ApiException.badRequest("Tháng không hợp lệ (định dạng yyyy-MM)");
+        }
+        InvoiceService.InvoicePdf pdf = invoiceService.pdf(customerId, ym);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment().filename(pdf.fileName()).build().toString())
+                .body(pdf.content());
     }
 
     /** Báo cáo hiệu suất từ ngày from tới hết ngày to (yyyy-MM-dd; mặc định đầu tháng này tới hôm nay). */

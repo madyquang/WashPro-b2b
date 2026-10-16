@@ -535,6 +535,14 @@ if (want('finance')) {
     await page.locator('tr').filter({ hasText: 'Hoa Sen' }).getByRole('button', { name: 'Sao kê' }).click()
     await modal(page).getByText(`#${o.id}`).first().waitFor()
   }, page)
+  await step('finance: tải hóa đơn tháng PDF từ sao kê', async () => {
+    const dl = page.waitForEvent('download')
+    await modal(page).getByRole('button', { name: 'Hóa đơn PDF' }).click()
+    const d = await dl
+    expect(d.suggestedFilename().startsWith('hoa-don-') && d.suggestedFilename().endsWith('.pdf'), 'tên file: ' + d.suggestedFilename())
+    const head = (await import('node:fs')).readFileSync(await d.path()).subarray(0, 5).toString()
+    expect(head === '%PDF-', 'không phải file PDF: ' + head)
+  }, page)
   for (const [label, file] of [['Công nợ theo khách (CSV)', 'cong-no'], ['Danh sách đơn (CSV)', 'don-hang'], ['Chi tiết đồ giặt (CSV)', 'chi-tiet']]) {
     await step(`finance: xuất ${label}`, async () => {
       await page.goto(APP + '/finance')

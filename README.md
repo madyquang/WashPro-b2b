@@ -129,6 +129,8 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `MAX_LOGIN_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | | `5` / `5` | Số lần đăng nhập sai trước khi khóa tạm, thời gian khóa |
 | `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` | Lần đầu | | Tài khoản Quản lý xưởng đầu tiên |
 | `DEMO_DATA` | | `false` | `true` hoặc `reset` để sinh dữ liệu mẫu (xem bên dưới) |
+| `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_TAX_CODE` | | `Xưởng giặt là THANHXUAN` | Thông tin xưởng in trên hóa đơn tháng |
+| `COMPANY_BANK_NAME`, `COMPANY_BANK_ACCOUNT`, `COMPANY_ACCOUNT_HOLDER` | | | Thông tin chuyển khoản in trên hóa đơn (không đặt thì không in) |
 | `UPLOADS_DIR` | | `uploads` | Thư mục lưu ảnh / chữ ký đính kèm đơn (Docker: volume `uploads`). Cần sao lưu cùng CSDL |
 | `NOTIFICATION_DIGEST_CRON` | | `0 0 7 * * *` | Giờ gửi bản tin thông báo hằng ngày (cron Spring, giờ Việt Nam) |
 
@@ -257,6 +259,19 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Hóa đơn tháng (PDF)
+
+Trong hộp thoại **Sao kê** (trang Công nợ), nút **Hóa đơn PDF** tải hóa đơn tháng của khách: thông tin xưởng, khách
+hàng, các dịch vụ trong tháng gộp theo loại đồ / dịch vụ / đơn giá, tổng tiền kèm số tiền bằng chữ, công nợ đầu kỳ /
+phát sinh / đã thanh toán / còn phải trả (cùng số liệu với sao kê), thông tin chuyển khoản với nội dung là số hóa đơn
+(`HD-<năm><tháng>-<mã khách>`), danh sách đơn để đối chiếu và chỗ ký xác nhận. Quản lý phía khách tải được hóa đơn của
+khách mình. PDF nhúng phông Be Vietnam Pro (giấy phép SIL OFL, `src/main/resources/fonts/OFL.txt`).
+
+Đây là bảng kê kiêm đề nghị thanh toán, **chưa phải hóa đơn điện tử** (chưa nối nhà cung cấp hóa đơn điện tử, chưa
+tính thuế GTGT riêng). Điểm nối đã có sẵn: interface `EInvoiceGateway` (mặc định `NoEInvoiceGateway` không làm gì) nhận
+`InvoiceData` (đủ thông tin người bán, người mua, từng dòng dịch vụ, tổng tiền). Khi có tài khoản VNPT / Viettel /
+MISA..., viết một lớp cài đặt interface này (đánh dấu `@Primary`) gọi API của nhà cung cấp.
+
 ### Báo cáo hiệu suất
 
 Trang **Hiệu suất** (quản lý xưởng, kế toán) và **Chất lượng dịch vụ** (quản lý phía khách, chỉ số của khách mình; vào
@@ -326,7 +341,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
-| Báo cáo | `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
+| Báo cáo | `GET /reports/invoice?customerId=&month=` (PDF), `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
 
@@ -364,6 +379,8 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
 | `ReportApiIntegrationTest` | Số liệu tổng quan theo vai trò, công nợ và tuổi nợ (trả FIFO, kỳ thanh toán khác nhau), sao kê tháng, chặn thu vượt nợ; bỏ đơn đã hủy / khoản đã hủy / dòng chưa có giá, đơn cũ chưa có ngày hoàn thành |
+| `InvoiceApiIntegrationTest` | Hóa đơn tháng PDF: đọc lại chữ trong PDF để kiểm tra tên xưởng, số hóa đơn, khách, dòng dịch vụ gộp, tổng tiền, số tiền bằng chữ, công nợ; quản lý phía khách luôn nhận hóa đơn của mình; quyền, tháng không hợp lệ |
+| `VietnameseNumberWordsTest` | Đọc số tiền bằng chữ (linh, mười, mốt, tư, lăm, không trăm, tỷ...) |
 | `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
 | `AttachmentApiIntegrationTest` | Ảnh / chữ ký: loại được đính kèm theo vai trò, ngoài phạm vi đơn trả 404 (cả file), chỉ nhận ảnh thật, xóa cả file trên đĩa, chỉ người tải lên / quản lý xưởng được xóa |
 | `NotificationApiIntegrationTest` | Đúng người nhận theo sự kiện (không gửi cho người gây ra, khách khác, tài khoản khóa), đọc / đọc hết, không đánh dấu được thông báo của người khác, bản tin hằng ngày không gửi trùng |
@@ -379,9 +396,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(56 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(57 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell
@@ -397,7 +414,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 44 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 65 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
@@ -412,7 +429,7 @@ rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend đư�
   gộp sẵn theo khách và ngày hoàn thành). Riêng xuất CSV danh sách đơn / chi tiết đồ giặt vẫn tải toàn bộ đơn trong
   phạm vi (bản chất là xuất hết dữ liệu).
 - Thông báo chỉ có trong ứng dụng (kiểm tra định kỳ 30 giây), chưa gửi email / SMS / push.
-- Chưa xuất hóa đơn điện tử.
+- Hóa đơn tháng là PDF (bảng kê kiêm đề nghị thanh toán), chưa nối nhà cung cấp hóa đơn điện tử (đã có `EInvoiceGateway`).
 - Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).
   Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB); phần lõi antd dùng chung vẫn là gói
   lớn nhất (~390 KB). Hệ thiết kế và trạng thái triển khai: `DESIGN_PLAN.md`.

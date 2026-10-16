@@ -35,6 +35,13 @@ services:
       DEMO_DATA: ${DEMO_DATA:-false}
       # Truy cập qua địa chỉ khác (tên miền, HTTPS ở proxy ngoài): khai báo địa chỉ đó trong CORS_ALLOWED_ORIGINS
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      COMPANY_NAME: ${COMPANY_NAME:-Xưởng giặt là THANHXUAN}
+      COMPANY_ADDRESS: ${COMPANY_ADDRESS:-}
+      COMPANY_PHONE: ${COMPANY_PHONE:-}
+      COMPANY_TAX_CODE: ${COMPANY_TAX_CODE:-}
+      COMPANY_BANK_NAME: ${COMPANY_BANK_NAME:-}
+      COMPANY_BANK_ACCOUNT: ${COMPANY_BANK_ACCOUNT:-}
+      COMPANY_ACCOUNT_HOLDER: ${COMPANY_ACCOUNT_HOLDER:-}
     volumes:
       # Ảnh / chữ ký đính kèm đơn
       - uploads:/app/uploads
