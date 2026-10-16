@@ -46,6 +46,13 @@ async function findOrder(note) {
   if (!o) throw new Error(`không tìm thấy đơn có ghi chú "${note}"`)
   return o
 }
+/** Mở chuông thông báo, bấm thông báo đầu tiên có tiêu đề khớp. */
+async function openNotification(page, title) {
+  await page.getByRole('button', { name: /^Thông báo, \d+ chưa đọc$/ }).click()
+  const item = page.locator('.notif-item').filter({ hasText: title }).first()
+  await item.waitFor()
+  await item.click()
+}
 async function orderStatus(id) {
   return (await api('admin', `/orders/${id}`)).status
 }
@@ -240,6 +247,10 @@ if (want('pickup')) {
 if (want('driver')) {
   const { ctx, page } = await open('taixe.tai', MOBILE, 'tài xế')
   const card = () => page.locator('.ant-card').filter({ hasText: `${TAG} lấy ở cửa sau` }).first()
+  await step('driver: chuông báo yêu cầu lấy đồ mới, bấm mở trang lấy đồ', async () => {
+    await openNotification(page, 'Yêu cầu lấy đồ mới: Khách sạn Hoa Sen')
+    await page.waitForURL(/\/pickups/)
+  }, page)
   await step('driver: nhận việc ở tab "Chờ nhận"', async () => {
     await page.goto(APP + '/pickups?tab=open')
     await card().getByRole('button', { name: 'Nhận việc' }).click()
@@ -302,6 +313,15 @@ if (want('driver')) {
 if (want('confirm')) {
   const { ctx, page } = await open('hoasen.nv', MOBILE, 'nhân viên khách')
   const cardOf = (id) => page.locator('.order-card').filter({ hasText: `Đơn #${id}` }).first()
+  await step('confirm: thông báo đơn chờ xác nhận mở đúng đơn', async () => {
+    const o = await findOrder(`${TAG} từ yêu cầu`)
+    await openNotification(page, `Đơn #${o.id} chờ bạn xác nhận số lượng`)
+    await page.waitForURL(/\/orders/)
+    await drawer(page).getByText('Lịch sử xử lý').waitFor()
+    await drawer(page).getByText(`#${o.id}`).first().waitFor()
+    await page.keyboard.press('Escape')
+    await cardOf(o.id).waitFor()
+  }, page)
   await step('confirm: báo "Số lượng không đúng" cho đơn lẻ', async () => {
     const o = await findOrder(`${TAG} đơn lẻ`)
     await gotoOrder(page, '/orders?view=todo', o.id)

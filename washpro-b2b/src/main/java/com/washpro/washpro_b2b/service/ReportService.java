@@ -286,17 +286,20 @@ public class ReportService {
      * CSDL gộp sẵn tiền theo [khách, ngày hoàn thành] nên số dòng phải xử lý không tăng theo số đơn.
      */
     private List<DebtRow> debtRowsFor(User user) {
-        List<Customer> customers;
-        List<CompletedDay> completed;
         if (user.getRole() == Role.CUSTOMER_MANAGER) {
             Customer own = requireCustomer(user);
-            customers = List.of(own);
-            completed = completedByDay(own.getId());
-        } else {
-            customers = customerRepository.findAllByOrderByNameAsc();
-            completed = completedByDay(null);
+            return debtRows(List.of(own), completedByDay(own.getId()));
         }
+        return allDebts();
+    }
 
+    /** Công nợ của mọi khách (không phụ thuộc người đăng nhập; dùng cho bản tin hằng ngày). */
+    @Transactional(readOnly = true)
+    public List<DebtRow> allDebts() {
+        return debtRows(customerRepository.findAllByOrderByNameAsc(), completedByDay(null));
+    }
+
+    private List<DebtRow> debtRows(List<Customer> customers, List<CompletedDay> completed) {
         Map<Long, List<CompletedDay>> byCustomer = completed.stream()
                 .collect(Collectors.groupingBy(CompletedDay::customerId));
         Map<Long, BigDecimal> paid = paidByCustomer();

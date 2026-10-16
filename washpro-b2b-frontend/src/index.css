@@ -207,6 +207,113 @@ button:focus-visible,
   padding: var(--space-1) var(--space-2) !important;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* ===== Thông báo ===== */
+.notif-bell {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+.notif-panel {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) 0;
+}
+
+.notif-error {
+  color: var(--danger);
+  padding: var(--space-2) 0;
+}
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(480px, 70vh);
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-2);
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+}
+
+.notif-item:hover,
+.notif-item:focus-visible {
+  background: var(--surface-muted);
+}
+
+.notif-item.unread {
+  background: var(--primary-soft);
+}
+
+.notif-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--primary);
+  font-size: 16px;
+}
+
+.notif-icon.warn {
+  color: var(--warning);
+}
+
+.notif-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notif-item.unread .notif-title {
+  font-weight: 600;
+}
+
+.notif-body {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.notif-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .user-avatar {
   background: var(--primary) !important;
   font-weight: 600;

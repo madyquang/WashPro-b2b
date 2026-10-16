@@ -94,6 +94,32 @@ export const TURNAROUND_OPTIONS = [12, 24, 48, 72, 96]
 export const PAYMENT_TERM_OPTIONS = [0, 7, 15, 30, 45, 60]
 export const paymentTermLabel = (days: number) => (days === 0 ? 'Thanh toán ngay' : `Công nợ ${days} ngày`)
 
+export type NotificationType =
+  | 'PICKUP_NEW'
+  | 'PICKUP_ACCEPTED'
+  | 'PICKUP_ASSIGNED'
+  | 'PICKUP_CANCELLED'
+  | 'ORDER_TO_CONFIRM'
+  | 'ORDER_DISCREPANCY'
+  | 'ORDER_DELIVERING'
+  | 'ORDER_RECEIPT_ISSUE'
+  | 'ORDER_CANCELLED'
+  | 'PAYMENT_RECORDED'
+  | 'OVERDUE_ORDERS'
+  | 'OVERDUE_DEBT'
+
+/** Thông báo trong ứng dụng (đặt tên khác Notification của trình duyệt). */
+export interface AppNotification {
+  id: number
+  type: NotificationType
+  title: string
+  body: string | null
+  /** Đường dẫn mở khi bấm, VD /orders?open=12 */
+  link: string | null
+  createdAt: string
+  read: boolean
+}
+
 export interface Session {
   token: string
   username: string

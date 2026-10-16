@@ -71,6 +71,7 @@ public class OrderService {
     private final PriceService priceService;
     private final PickupService pickupService;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     // ===================== Tạo đơn =====================
 
@@ -108,6 +109,7 @@ public class OrderService {
         if (request.pickupRequestId() != null) {
             pickupService.completeWithOrder(request.pickupRequestId(), saved, driver);
         }
+        notificationService.orderCreated(saved, driver);
         return Response.from(saved, true);
     }
 
@@ -237,6 +239,7 @@ public class OrderService {
         OrderStatus from = order.getStatus();
         order.setStatus(OrderStatus.DISCREPANCY);
         order.addHistory(from, OrderStatus.DISCREPANCY, user.getUsername(), "Báo sai lệch: " + detail);
+        notificationService.orderDiscrepancy(order, user, detail);
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
 
@@ -268,6 +271,7 @@ public class OrderService {
         String line = "[%s - %s] Sự cố giao trả: %s".formatted(TS.format(LocalDateTime.now()), user.getUsername(), note);
         order.setDescription(order.getDescription() == null ? line : order.getDescription() + "\n" + line);
         moveTo(order, OrderStatus.DELIVERY_ISSUE, user.getUsername(), "Khách báo sự cố khi nhận đồ: " + note);
+        notificationService.orderReceiptIssue(order, user, note);
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
 
@@ -293,6 +297,9 @@ public class OrderService {
             complete(order, user.getUsername(), note != null ? note : "Xưởng chốt hoàn thành đơn");
         } else {
             moveTo(order, target, user.getUsername(), note != null ? note : "Chuyển sang \"" + target.getLabel() + "\"");
+            if (target == OrderStatus.DELIVERING) {
+                notificationService.orderDelivering(order, user);
+            }
         }
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
@@ -324,6 +331,7 @@ public class OrderService {
         order.setDeleted(true);
         String why = blankToNull(reason) != null ? reason.trim() : "Không nêu lý do";
         order.addHistory(order.getStatus(), order.getStatus(), user.getUsername(), "Hủy đơn. Lý do: " + why);
+        notificationService.orderCancelled(order, user, blankToNull(reason));
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
 

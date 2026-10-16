@@ -27,6 +27,7 @@ public class PaymentService {
     private final CustomerRepository customerRepository;
     private final ReportService reportService;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     @Transactional
     public PaymentResponse create(PaymentRequest request) {
@@ -49,7 +50,9 @@ public class PaymentService {
                 .note(request.note() == null || request.note().isBlank() ? null : request.note().trim())
                 .createdBy(user.getUsername())
                 .build();
-        return PaymentResponse.from(paymentRepository.save(payment));
+        Payment saved = paymentRepository.save(payment);
+        notificationService.paymentRecorded(saved, user);
+        return PaymentResponse.from(saved);
     }
 
     @Transactional

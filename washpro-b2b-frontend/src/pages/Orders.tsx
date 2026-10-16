@@ -67,6 +67,23 @@ export default function Orders() {
   const view = views.find((v) => v.key === viewKey) ?? views[0]
   const statuses = view.statuses.join(',')
 
+  // Mở từ thông báo (/orders?status=...&open=12): tìm đúng đơn đó trong nhóm của nó và mở chi tiết
+  const openParam = params.get('open')
+  const { openDetail } = orderActions
+  useEffect(() => {
+    const id = Number(openParam)
+    if (!openParam || !Number.isInteger(id) || id <= 0) return
+    setSearch(`#${id}`)
+    openDetail(id)
+    setParams(
+      (p) => {
+        p.delete('open')
+        return p
+      },
+      { replace: true },
+    )
+  }, [openParam, openDetail, setParams])
+
   // Gõ tìm kiếm: chờ người dùng ngừng gõ một chút rồi mới gọi API
   useEffect(() => {
     const timer = setTimeout(() => setKeyword(search.trim()), 350)

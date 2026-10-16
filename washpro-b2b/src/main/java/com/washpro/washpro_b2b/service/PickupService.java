@@ -34,6 +34,7 @@ public class PickupService {
     private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final NotificationService notificationService;
 
     @Transactional
     public Response create(CreateRequest request) {
@@ -62,7 +63,9 @@ public class PickupService {
                 .estimatedBags(request.estimatedBags())
                 .note(blankToNull(request.note()))
                 .build();
-        return Response.from(pickupRepository.save(pickup));
+        PickupRequest saved = pickupRepository.save(pickup);
+        notificationService.pickupCreated(saved, user);
+        return Response.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -87,6 +90,7 @@ public class PickupService {
         }
         pickup.setDriver(driver);
         pickup.setStatus(PickupStatus.ACCEPTED);
+        notificationService.pickupAccepted(pickup, driver);
         return Response.from(pickupRepository.save(pickup));
     }
 
@@ -107,6 +111,7 @@ public class PickupService {
     /** Quản lý xưởng phân công (hoặc đổi) tài xế. */
     @Transactional
     public Response assign(Long id, Long driverId) {
+        User admin = currentUserService.getCurrentUser();
         PickupRequest pickup = loadForUpdate(id);
         if (!pickup.getStatus().isActive()) {
             throw ApiException.badRequest("Yêu cầu này đã xong hoặc đã hủy");
@@ -116,6 +121,7 @@ public class PickupService {
                 .orElseThrow(() -> ApiException.badRequest("Tài xế không hợp lệ hoặc đã bị khóa"));
         pickup.setDriver(driver);
         pickup.setStatus(PickupStatus.ACCEPTED);
+        notificationService.pickupAssigned(pickup, admin);
         return Response.from(pickupRepository.save(pickup));
     }
 
@@ -134,6 +140,7 @@ public class PickupService {
         pickup.setStatus(PickupStatus.CANCELLED);
         pickup.setCancelledBy(user.getUsername());
         pickup.setCancelReason(blankToNull(reason));
+        notificationService.pickupCancelled(pickup, user);
         return Response.from(pickupRepository.save(pickup));
     }
 

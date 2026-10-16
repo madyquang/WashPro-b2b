@@ -129,6 +129,7 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `MAX_LOGIN_ATTEMPTS` / `LOGIN_LOCK_MINUTES` | | `5` / `5` | Số lần đăng nhập sai trước khi khóa tạm, thời gian khóa |
 | `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` | Lần đầu | | Tài khoản Quản lý xưởng đầu tiên |
 | `DEMO_DATA` | | `false` | `true` hoặc `reset` để sinh dữ liệu mẫu (xem bên dưới) |
+| `NOTIFICATION_DIGEST_CRON` | | `0 0 7 * * *` | Giờ gửi bản tin thông báo hằng ngày (cron Spring, giờ Việt Nam) |
 
 ## Dữ liệu mẫu
 
@@ -255,6 +256,28 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Thông báo
+
+Biểu tượng chuông trên thanh đầu trang hiện số thông báo chưa đọc (tự kiểm tra mỗi 30 giây và khi quay lại tab);
+bấm vào một thông báo để mở đúng trang / đúng đơn. Ai nhận gì:
+
+| Sự kiện | Người nhận |
+|---|---|
+| Khách (hoặc xưởng) gửi yêu cầu lấy đồ | Quản lý xưởng, mọi tài xế |
+| Tài xế nhận việc / được phân công | Tài khoản phía khách; tài xế được phân công |
+| Hủy yêu cầu lấy đồ | Quản lý xưởng, phía khách, tài xế đã nhận |
+| Tài xế tạo đơn | Phía khách (xác nhận số lượng) |
+| Báo sai lệch | Quản lý xưởng, phía khách, tài xế của đơn |
+| Đơn chuyển sang Đang giao | Phía khách (kiểm đồ, xác nhận đã nhận) |
+| Khách báo sự cố khi nhận đồ | Quản lý xưởng |
+| Hủy đơn | Phía khách, tài xế của đơn |
+| Ghi nhận thanh toán | Quản lý phía khách |
+| Bản tin 7h sáng: đơn trễ hạn trả | Quản lý xưởng |
+| Bản tin 7h sáng: nợ quá hạn | Quản lý xưởng, kế toán (tổng hợp); quản lý phía khách (nợ của mình) |
+
+Người gây ra sự kiện không nhận thông báo của chính mình; tài khoản bị khóa không nhận. Bản tin mỗi loại gửi tối đa
+một lần mỗi ngày cho mỗi người; thông báo cũ hơn 90 ngày được dọn tự động. Chưa gửi qua email / SMS / push.
+
 ## API
 
 Tất cả endpoint có tiền tố `/api`, trả JSON, yêu cầu header `Authorization: Bearer <token>` (trừ đăng nhập).
@@ -269,6 +292,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Yêu cầu lấy đồ | `GET/POST /pickups`, `PUT /pickups/{id}/accept`, `/release`, `/assign`, `/cancel` |
 | Đơn hàng | `GET/POST /orders` (xem bên dưới), `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
+| Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 | Báo cáo | `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
@@ -307,6 +331,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
 | `ReportApiIntegrationTest` | Số liệu tổng quan theo vai trò, công nợ và tuổi nợ (trả FIFO, kỳ thanh toán khác nhau), sao kê tháng, chặn thu vượt nợ; bỏ đơn đã hủy / khoản đã hủy / dòng chưa có giá, đơn cũ chưa có ngày hoàn thành |
+| `NotificationApiIntegrationTest` | Đúng người nhận theo sự kiện (không gửi cho người gây ra, khách khác, tài khoản khóa), đọc / đọc hết, không đánh dấu được thông báo của người khác, bản tin hằng ngày không gửi trùng |
 | `AuthApiIntegrationTest` | Đổi mật khẩu đăng xuất thiết bị khác nhưng giữ thiết bị đang dùng; đặt lại mật khẩu, đăng xuất mọi thiết bị thu hồi token; token cũ không có phiên bản bị từ chối |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
 | `PriceUnitTest` | Số lượng hợp lệ theo đơn vị, đọc đơn vị dạng chữ của dữ liệu cũ |
@@ -319,9 +344,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(53 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn, khách xác nhận /
+(55 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn, khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell
@@ -337,7 +362,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 34 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 37 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
@@ -351,7 +376,7 @@ rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend đư�
 - Danh sách đơn, trang tổng quan, công nợ / tuổi nợ và sao kê đều tính trong CSDL (COUNT / SUM / GROUP BY; công nợ
   gộp sẵn theo khách và ngày hoàn thành). Riêng xuất CSV danh sách đơn / chi tiết đồ giặt vẫn tải toàn bộ đơn trong
   phạm vi (bản chất là xuất hết dữ liệu).
-- Chưa có thông báo (email, SMS, push) khi có yêu cầu lấy đồ mới, đơn trễ hạn hoặc nợ quá hạn.
+- Thông báo chỉ có trong ứng dụng (kiểm tra định kỳ 30 giây), chưa gửi email / SMS / push.
 - Chưa hỗ trợ đính kèm ảnh (đồ hư hỏng, chữ ký khi giao nhận) và chưa xuất hóa đơn điện tử.
 - Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).
   Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB); phần lõi antd dùng chung vẫn là gói

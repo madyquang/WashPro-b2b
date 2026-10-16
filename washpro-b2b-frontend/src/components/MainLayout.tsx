@@ -17,6 +17,7 @@ import {
 } from '@ant-design/icons'
 import logo from '../assets/logo-mark.png'
 import { BRAND } from '../theme'
+import NotificationBell from './NotificationBell'
 import ToneTag from './ToneTag'
 import TouchFriendly from './TouchFriendly'
 import { clearSession, canManagePrices, canViewFinance, getSession, isCustomerRole } from '../utils/auth'
@@ -197,6 +198,8 @@ export default function MainLayout() {
               </small>
             </div>
           </div>
+          <div className="header-right">
+          <NotificationBell />
           <Dropdown menu={{ items: userMenu }} trigger={['click']} placement="bottomRight">
             <Button type="text" className="user-button">
               <Space size={8}>
@@ -210,6 +213,7 @@ export default function MainLayout() {
               </Space>
             </Button>
           </Dropdown>
+          </div>
         </Header>
 
         <Content className="app-content" id="main-content" ref={contentRef} tabIndex={-1}>
