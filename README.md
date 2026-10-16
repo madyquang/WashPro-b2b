@@ -257,6 +257,22 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Báo cáo hiệu suất
+
+Trang **Hiệu suất** (quản lý xưởng, kế toán) và **Chất lượng dịch vụ** (quản lý phía khách, chỉ số của khách mình; vào
+từ trang Công nợ trên điện thoại). Chọn tháng này / tháng trước / 30 ngày qua / khoảng tùy chọn (tối đa 366 ngày); tính
+trên các đơn **nhận** trong khoảng đó (đơn đã hủy không tính):
+
+| Chỉ số | Cách tính |
+|---|---|
+| Giao đúng hạn | Trong các đơn đã bắt đầu giao trả: lần chuyển sang "Đang giao" đầu tiên không muộn hơn hạn trả |
+| Thời gian xử lý TB | Từ lúc tài xế nhận đồ (tạo đơn) tới lúc bắt đầu giao trả |
+| Sai lệch số lượng | Đơn từng có báo sai lệch / số đơn nhận |
+| Sự cố khi nhận | Đơn khách báo thiếu / hỏng / số đơn đã giao |
+| Yêu cầu lấy đồ | Đã lấy / đã gửi trong kỳ, số đã hủy; chờ lấy TB: từ lúc khách gửi yêu cầu tới lúc tài xế tạo đơn |
+
+Bảng theo khách hàng và theo tài xế (chỉ phía xưởng). Mỗi đơn chỉ lấy một dòng chỉ số từ CSDL (không tải chi tiết đơn).
+
 ### Ảnh và chữ ký giao nhận
 
 Không bắt buộc, dùng làm bằng chứng khi có tranh chấp. Ảnh được thu nhỏ ngay trên điện thoại (cạnh dài 1600px,
@@ -310,7 +326,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
-| Báo cáo | `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
+| Báo cáo | `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
 
@@ -348,6 +364,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
 | `ReportApiIntegrationTest` | Số liệu tổng quan theo vai trò, công nợ và tuổi nợ (trả FIFO, kỳ thanh toán khác nhau), sao kê tháng, chặn thu vượt nợ; bỏ đơn đã hủy / khoản đã hủy / dòng chưa có giá, đơn cũ chưa có ngày hoàn thành |
+| `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
 | `AttachmentApiIntegrationTest` | Ảnh / chữ ký: loại được đính kèm theo vai trò, ngoài phạm vi đơn trả 404 (cả file), chỉ nhận ảnh thật, xóa cả file trên đĩa, chỉ người tải lên / quản lý xưởng được xóa |
 | `NotificationApiIntegrationTest` | Đúng người nhận theo sự kiện (không gửi cho người gây ra, khách khác, tài khoản khóa), đọc / đọc hết, không đánh dấu được thông báo của người khác, bản tin hằng ngày không gửi trùng |
 | `AuthApiIntegrationTest` | Đổi mật khẩu đăng xuất thiết bị khác nhưng giữ thiết bị đang dùng; đặt lại mật khẩu, đăng xuất mọi thiết bị thu hồi token; token cũ không có phiên bản bị từ chối |
@@ -362,9 +379,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(54 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(56 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell
@@ -380,7 +397,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 41 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 44 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 

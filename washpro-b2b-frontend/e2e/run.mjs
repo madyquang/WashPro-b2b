@@ -545,7 +545,25 @@ if (want('finance')) {
       expect(d.suggestedFilename().includes(file) && d.suggestedFilename().endsWith('.csv'), 'tên file: ' + d.suggestedFilename())
     }, page)
   }
+  await step('finance: báo cáo hiệu suất theo khách và tài xế', async () => {
+    await page.goto(APP + '/performance')
+    await page.getByText('Giao đúng hạn').first().waitFor()
+    await page.locator('tr').filter({ hasText: 'Khách sạn Hoa Sen' }).first().waitFor()
+    await page.getByText('Theo tài xế').waitFor()
+    await page.getByText('Tháng trước').click()
+    await page.getByText('Giao đúng hạn').first().waitFor()
+  }, page)
   await ctx.close()
+
+  const m = await open('hoasen.ql', MOBILE, 'quản lý khách')
+  await step('finance: quản lý khách xem chất lượng dịch vụ (từ trang Công nợ)', async () => {
+    await m.page.goto(APP + '/finance')
+    await m.page.getByRole('button', { name: 'Chất lượng dịch vụ' }).click()
+    await m.page.waitForURL(/\/performance/)
+    await m.page.getByText('Giao đúng hạn').first().waitFor()
+    expect((await m.page.getByText('Theo tài xế').count()) === 0, 'quản lý khách thấy số liệu tài xế')
+  }, m.page)
+  await m.ctx.close()
 }
 
 // ============ M8. Admin: khách hàng, tài khoản, bảng giá ============

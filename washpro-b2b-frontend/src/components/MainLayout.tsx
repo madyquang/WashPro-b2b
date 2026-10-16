@@ -4,6 +4,7 @@ import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Typography
 import type { MenuProps } from 'antd'
 import {
   AppstoreOutlined,
+  BarChartOutlined,
   CarOutlined,
   DollarOutlined,
   FileTextOutlined,
@@ -65,13 +66,16 @@ function navFor(role: Role): NavGroup[] {
   if (canManagePrices(role)) manage.push({ key: '/prices', icon: <TagsOutlined />, label: 'Bảng giá' })
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/accounts', icon: <TeamOutlined />, label: 'Tài khoản' })
   const finance: NavItem[] = canViewFinance(role)
-    ? [{ key: '/finance', icon: <DollarOutlined />, label: customer ? 'Công nợ' : 'Công nợ & thanh toán', short: 'Công nợ' }]
+    ? [
+        { key: '/finance', icon: <DollarOutlined />, label: customer ? 'Công nợ' : 'Công nợ & thanh toán', short: 'Công nợ' },
+        { key: '/performance', icon: <BarChartOutlined />, label: customer ? 'Chất lượng dịch vụ' : 'Hiệu suất' },
+      ]
     : []
 
   return [
     { title: driver || customer ? 'Công việc' : 'Vận hành', items: ops },
     { title: 'Quản lý', items: manage },
-    { title: 'Tài chính', items: finance },
+    { title: 'Tài chính & báo cáo', items: finance },
   ].filter((g) => g.items.length > 0)
 }
 

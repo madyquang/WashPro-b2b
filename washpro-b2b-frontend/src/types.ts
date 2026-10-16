@@ -94,6 +94,57 @@ export const TURNAROUND_OPTIONS = [12, 24, 48, 72, 96]
 export const PAYMENT_TERM_OPTIONS = [0, 7, 15, 30, 45, 60]
 export const paymentTermLabel = (days: number) => (days === 0 ? 'Thanh toán ngay' : `Công nợ ${days} ngày`)
 
+/** Báo cáo hiệu suất. Tỉ lệ 0..1, null khi chưa đủ dữ liệu. */
+export interface PerformanceSummary {
+  orders: number
+  bags: number
+  orderValue: number
+  delivered: number
+  onTime: number
+  onTimeRate: number | null
+  avgTurnaroundHours: number | null
+  discrepancyOrders: number
+  discrepancyRate: number | null
+  issueOrders: number
+  issueRate: number | null
+  pickupsRequested: number
+  pickupsDone: number
+  pickupsCancelled: number
+  avgPickupHours: number | null
+}
+
+export interface PerformanceCustomerRow {
+  customerId: number
+  customerName: string
+  orders: number
+  bags: number
+  orderValue: number
+  delivered: number
+  onTimeRate: number | null
+  avgTurnaroundHours: number | null
+  discrepancyRate: number | null
+  issueRate: number | null
+}
+
+export interface PerformanceDriverRow {
+  driverId: number
+  driverName: string
+  orders: number
+  bags: number
+  pickupsDone: number
+  avgPickupHours: number | null
+  discrepancyRate: number | null
+}
+
+export interface PerformanceReport {
+  from: string
+  to: string
+  summary: PerformanceSummary
+  customers: PerformanceCustomerRow[]
+  /** Chỉ có với tài khoản phía xưởng. */
+  drivers: PerformanceDriverRow[] | null
+}
+
 export type AttachmentKind = 'PICKUP_PHOTO' | 'PICKUP_SIGNATURE' | 'DELIVERY_PHOTO' | 'DELIVERY_SIGNATURE' | 'ISSUE_PHOTO'
 
 export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {

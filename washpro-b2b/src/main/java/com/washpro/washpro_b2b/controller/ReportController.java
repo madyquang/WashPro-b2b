@@ -5,6 +5,8 @@ import com.washpro.washpro_b2b.dto.FinanceDtos.DebtRow;
 import com.washpro.washpro_b2b.dto.FinanceDtos.MonthRevenue;
 import com.washpro.washpro_b2b.dto.FinanceDtos.StatementResponse;
 import com.washpro.washpro_b2b.exception.ApiException;
+import com.washpro.washpro_b2b.dto.PerformanceDtos.Report;
+import com.washpro.washpro_b2b.service.PerformanceService;
 import com.washpro.washpro_b2b.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -28,6 +30,7 @@ import java.util.List;
 public class ReportController {
 
     private final ReportService reportService;
+    private final PerformanceService performanceService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<DashboardResponse> dashboard() {
@@ -38,6 +41,14 @@ public class ReportController {
     @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<List<DebtRow>> debts() {
         return ResponseEntity.ok(reportService.debts());
+    }
+
+    /** Báo cáo hiệu suất từ ngày from tới hết ngày to (yyyy-MM-dd; mặc định đầu tháng này tới hôm nay). */
+    @GetMapping("/reports/performance")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
+    public ResponseEntity<Report> performance(@RequestParam(required = false) LocalDate from,
+            @RequestParam(required = false) LocalDate to) {
+        return ResponseEntity.ok(performanceService.report(from, to));
     }
 
     @GetMapping("/reports/revenue")

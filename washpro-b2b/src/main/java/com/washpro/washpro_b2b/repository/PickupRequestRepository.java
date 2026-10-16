@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,19 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, Lo
     long countByStatusIn(Collection<PickupStatus> statuses);
 
     long countByCustomerIdAndStatusIn(Long customerId, Collection<PickupStatus> statuses);
+
+    /**
+     * Yêu cầu lấy đồ gửi trong khoảng [from, to) (báo cáo hiệu suất): mỗi dòng
+     * [trạng thái, lúc gửi, lúc tạo đơn (null nếu chưa lấy), driverId (null nếu chưa ai nhận)].
+     */
+    @Query("""
+            select p.status, p.createdAt, o.createdAt, d.id
+            from PickupRequest p left join p.order o left join p.driver d
+            where p.createdAt >= :from and p.createdAt < :to
+              and (:customerId is null or p.customer.id = :customerId)
+            """)
+    List<Object[]> performanceRows(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+            @Param("customerId") Long customerId);
 
     /** Khóa dòng để hai tài xế không cùng nhận một yêu cầu. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

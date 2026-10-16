@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Button, Card, Col, Drawer, Dropdown, Form, Grid, Input, InputNumber, Modal, Row, Space, Table, Tooltip, Typography } from 'antd'
 import { message } from '../utils/message'
 import type { TableColumnsType } from 'antd'
+import { Link } from 'react-router-dom'
 import {
+  BarChartOutlined,
   CheckCircleOutlined,
   DollarOutlined,
   DownloadOutlined,
@@ -271,6 +273,12 @@ export default function Finance() {
         }
         actions={
           <>
+            {!canRecord && (
+              // Trên điện thoại, thanh điều hướng dưới không có mục này: vào từ đây
+              <Link to="/performance">
+                <Button icon={<BarChartOutlined />}>Chất lượng dịch vụ</Button>
+              </Link>
+            )}
             <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
               Làm mới
             </Button>
