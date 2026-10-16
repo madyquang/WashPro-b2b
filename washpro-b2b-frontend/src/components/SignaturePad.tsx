@@ -21,28 +21,34 @@ export default function SignaturePad({ onChange, label = 'Khách ký tên' }: Pr
     if (!c || !ctx) return
     // Nền trắng để ảnh chữ ký in / xem trên nền tối vẫn rõ
     ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, c.width, c.height)
+    ctx.fillRect(0, 0, c.clientWidth, HEIGHT)
     setSigned(false)
     onChange(null)
   }
 
-  useEffect(() => {
+  /**
+   * Đặt kích thước vùng vẽ theo kích thước hiển thị (độ nét theo mật độ điểm ảnh màn hình).
+   * Gọi lại khi bắt đầu ký nếu khung được tạo lúc còn ẩn (VD trong panel đang mở ra, rộng 0).
+   */
+  const fit = () => {
     const c = canvas.current
-    if (!c) return
-    // Độ nét theo mật độ điểm ảnh của màn hình
+    const ctx = c?.getContext('2d')
+    if (!c || !ctx) return
     const ratio = window.devicePixelRatio || 1
-    c.width = c.clientWidth * ratio
+    const width = Math.round(c.clientWidth * ratio)
+    if (width === 0 || c.width === width) return
+    c.width = width
     c.height = HEIGHT * ratio
-    const ctx = c.getContext('2d')
-    if (!ctx) return
-    ctx.scale(ratio, ratio)
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
     ctx.lineWidth = 2.2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.strokeStyle = '#0b2545'
     ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, c.width, c.height)
-  }, [])
+    ctx.fillRect(0, 0, c.clientWidth, HEIGHT)
+  }
+
+  useEffect(fit, [])
 
   const point = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect()
@@ -50,6 +56,7 @@ export default function SignaturePad({ onChange, label = 'Khách ký tên' }: Pr
   }
 
   const start = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!signed) fit()
     const ctx = canvas.current?.getContext('2d')
     if (!ctx) return
     e.currentTarget.setPointerCapture(e.pointerId)

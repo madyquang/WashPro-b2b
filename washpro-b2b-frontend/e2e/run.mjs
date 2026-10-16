@@ -43,7 +43,9 @@ async function api(user, path, init = {}) {
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
 /** Ký vào khung chữ ký bằng chuột. */
 async function sign(page, scope) {
-  const box = await scope.locator('.signature-pad canvas').boundingBox()
+  const canvas = scope.locator('.signature-pad canvas')
+  await canvas.scrollIntoViewIfNeeded()
+  const box = await canvas.boundingBox()
   await page.mouse.move(box.x + 20, box.y + 40)
   await page.mouse.down()
   await page.mouse.move(box.x + 140, box.y + 100, { steps: 10 })
@@ -515,8 +517,14 @@ if (want('finance')) {
     await dr.locator('tr').filter({ hasText: `${TAG} chuyển khoản` }).getByRole('button', { name: 'Hủy' }).click()
     await modal(page).getByLabel('Lý do hủy khoản thanh toán').fill('Ghi nhầm')
     await modal(page).getByRole('button', { name: 'Hủy khoản này' }).click()
-    // Chờ đúng dòng vừa hủy đổi trạng thái (dữ liệu mẫu cũng có dòng "Đã hủy: Ghi nhầm khách...")
-    await dr.locator('tr').filter({ hasText: 'Đã hủy: Ghi nhầm (ketoan.mai)' }).first().waitFor()
+    // Chờ đúng khoản của lần chạy này được hủy (CSDL có thể còn khoản đã hủy của lần chạy trước; sau khi hủy,
+    // cột ghi chú hiện lý do hủy thay cho ghi chú gốc nên không tìm theo dòng trên giao diện được)
+    await toast(page, 'Đã hủy')
+    for (let i = 0; i < 20; i++) {
+      const mine = (await api('admin', '/payments')).find((p) => (p.note ?? '').includes(`${TAG} chuyển khoản`))
+      if (mine?.voided) break
+      await page.waitForTimeout(250)
+    }
     const after = (await api('admin', '/reports/debts')).find((r) => r.customerName.includes('Hoa Sen')).balance
     expect(Math.round(after) === Math.round(balanceBefore), `công nợ không trở lại: ${balanceBefore} → ${after}`)
     await dr.locator('..').locator('.ant-drawer-close').click().catch(() => page.keyboard.press('Escape'))
