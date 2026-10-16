@@ -49,6 +49,11 @@ public class User {
     @Builder.Default
     private boolean enabled = true;
 
+    /** Tăng khi đổi / đặt lại mật khẩu hoặc đăng xuất mọi thiết bị: token mang số cũ không còn dùng được. */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

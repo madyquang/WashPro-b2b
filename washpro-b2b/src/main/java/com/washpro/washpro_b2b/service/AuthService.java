@@ -54,7 +54,11 @@ public class AuthService {
         }
 
         loginAttemptService.reset(username);
-        String token = jwtUtils.generateToken(user.getUsername(), user.getRole().name());
+        return issue(user);
+    }
+
+    private AuthResponse issue(User user) {
+        String token = jwtUtils.generateToken(user.getUsername(), user.getRole().name(), user.getTokenVersion());
         return new AuthResponse(
                 token,
                 user.getUsername(),
@@ -69,8 +73,9 @@ public class AuthService {
         return UserDtos.Response.from(currentUserService.getCurrentUser());
     }
 
+    /** Đổi mật khẩu: mọi phiên đăng nhập khác bị đăng xuất; trả token mới để thiết bị đang dùng vẫn tiếp tục. */
     @Transactional
-    public void changePassword(ChangePasswordRequest request) {
+    public AuthResponse changePassword(ChangePasswordRequest request) {
         User user = currentUserService.getCurrentUser();
         if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
             throw ApiException.badRequest("Mật khẩu hiện tại không đúng");
@@ -79,6 +84,15 @@ public class AuthService {
             throw ApiException.badRequest("Mật khẩu mới phải khác mật khẩu hiện tại");
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        return issue(userRepository.save(user));
+    }
+
+    /** Đăng xuất khỏi mọi thiết bị (kể cả thiết bị đang dùng), VD khi nghi bị lộ mật khẩu hoặc mất điện thoại. */
+    @Transactional
+    public void logoutEverywhere() {
+        User user = currentUserService.getCurrentUser();
+        user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
     }
 }

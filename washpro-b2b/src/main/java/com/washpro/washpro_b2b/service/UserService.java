@@ -88,6 +88,8 @@ public class UserService {
     public void resetPassword(Long id, String newPassword) {
         User target = find(id);
         target.setPassword(passwordEncoder.encode(newPassword));
+        // Ai đang đăng nhập bằng mật khẩu cũ đều bị đăng xuất
+        target.setTokenVersion(target.getTokenVersion() + 1);
         userRepository.save(target);
     }
 

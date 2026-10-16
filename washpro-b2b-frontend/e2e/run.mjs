@@ -605,8 +605,9 @@ if (want('admin-manage')) {
   }, page)
   await ctx.close()
 
-  // Tài khoản mới: đăng nhập, đổi mật khẩu, đăng nhập lại
+  // Tài khoản mới: đăng nhập (hai thiết bị), đổi mật khẩu, đăng nhập lại
   const t = await open(user, MOBILE, 'tài xế mới')
+  const other = await open(user, DESKTOP, 'tài xế mới - máy khác')
   await step('profile: tài khoản mới đăng nhập và đổi mật khẩu', async () => {
     await t.page.goto(APP + '/profile')
     await t.page.getByLabel('Mật khẩu hiện tại').fill(PW)
@@ -615,10 +616,29 @@ if (want('admin-manage')) {
     await t.page.getByRole('button', { name: 'Đổi mật khẩu' }).click()
     await toast(t.page, 'Đã đổi mật khẩu')
   }, t.page)
+  await step('profile: đổi mật khẩu xong, thiết bị đang dùng vẫn đăng nhập', async () => {
+    await t.page.goto(APP + '/')
+    await t.page.locator('h1').first().waitFor()
+    await t.page.waitForLoadState('networkidle')
+    if (new URL(t.page.url()).pathname !== '/') throw new Error('bị đăng xuất: ' + t.page.url())
+  }, t.page)
+  await step('profile: thiết bị khác bị đăng xuất sau khi đổi mật khẩu', async () => {
+    other.page.__expectError = true
+    await other.page.goto(APP + '/')
+    await other.page.waitForURL(/\/login/)
+  }, other.page)
+  await other.ctx.close()
   await step('profile: đăng nhập lại bằng mật khẩu mới', async () => {
     await t.ctx.clearCookies()
     await t.page.evaluate(() => localStorage.clear())
     await login(t.page, user, 'MatKhauMoi9')
+  }, t.page)
+  await step('profile: đăng xuất mọi thiết bị', async () => {
+    await t.page.goto(APP + '/profile')
+    await confirmClick(t.page, t.page.getByRole('button', { name: /Đăng xuất mọi thiết bị/ }), 'Đăng xuất hết')
+    await t.page.waitForURL(/\/login/)
+    const token = await t.page.evaluate(() => localStorage.getItem('washpro_session'))
+    if (token) throw new Error('phiên vẫn còn trong trình duyệt')
   }, t.page)
   await t.ctx.close()
 }

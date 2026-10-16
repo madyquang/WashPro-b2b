@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -36,19 +35,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (header != null && header.startsWith("Bearer ")
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
-            Optional<String> username = jwtUtils.extractUsername(header.substring(7));
-            if (username.isPresent()) {
-                try {
-                    UserDetails details = userDetailsService.loadUserByUsername(username.get());
-                    if (details.isEnabled()) {
-                        UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                                details, null, details.getAuthorities());
-                        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                        SecurityContextHolder.getContext().setAuthentication(auth);
-                    }
-                } catch (UsernameNotFoundException ignored) {
-                    // Token hợp lệ nhưng tài khoản đã bị xóa: coi như chưa đăng nhập
-                }
+            // Tài khoản đã bị xóa, hoặc token đã bị thu hồi (đổi mật khẩu...): coi như chưa đăng nhập
+            Optional<UserDetails> details = jwtUtils.parse(header.substring(7))
+                    .flatMap(claims -> userDetailsService.loadForToken(claims.username(), claims.version()));
+            if (details.isPresent() && details.get().isEnabled()) {
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                        details.get(), null, details.get().getAuthorities());
+                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
         filterChain.doFilter(request, response);

@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Descriptions, Form, Input } from 'antd'
+import { Alert, Button, Card, Descriptions, Form, Input, Popconfirm } from 'antd'
 import { message } from '../utils/message'
-import { LogoutOutlined } from '@ant-design/icons'
+import { DisconnectOutlined, LogoutOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
 import PageHeader from '../components/PageHeader'
 import ToneTag from '../components/ToneTag'
-import { clearSession, getSession } from '../utils/auth'
+import { clearSession, getSession, saveSession } from '../utils/auth'
 import { getErrorMessage } from '../utils/format'
-import { ROLE_LABELS } from '../types'
+import { ROLE_LABELS, type Session } from '../types'
 
 interface PasswordForm {
   currentPassword: string
@@ -29,16 +29,33 @@ export default function Profile() {
     setSaving(true)
     setError(null)
     try {
-      await axiosClient.post('/auth/change-password', {
+      // Các thiết bị khác bị đăng xuất; thiết bị này nhận phiên mới để dùng tiếp
+      const { data } = await axiosClient.post<Session>('/auth/change-password', {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       })
-      message.success('Đã đổi mật khẩu')
+      saveSession(data)
+      message.success('Đã đổi mật khẩu. Các thiết bị khác đã bị đăng xuất')
       form.resetFields()
     } catch (e) {
       setError(getErrorMessage(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const logout = () => {
+    clearSession()
+    navigate('/login', { replace: true })
+  }
+
+  const logoutEverywhere = async () => {
+    try {
+      await axiosClient.post('/auth/logout-all')
+      message.success('Đã đăng xuất khỏi mọi thiết bị')
+      logout()
+    } catch (e) {
+      message.error(getErrorMessage(e))
     }
   }
 
@@ -90,18 +107,20 @@ export default function Profile() {
         </Form>
       </Card>
 
-      <Button
-        danger
-        block
-        icon={<LogoutOutlined />}
-        style={{ marginTop: 16 }}
-        onClick={() => {
-          clearSession()
-          navigate('/login', { replace: true })
-        }}
-      >
+      <Button danger block icon={<LogoutOutlined />} style={{ marginTop: 16 }} onClick={logout}>
         Đăng xuất
       </Button>
+      <Popconfirm
+        title="Đăng xuất khỏi mọi thiết bị?"
+        description="Mọi nơi đang đăng nhập tài khoản này (kể cả thiết bị này) phải đăng nhập lại."
+        okText="Đăng xuất hết"
+        cancelText="Không"
+        onConfirm={logoutEverywhere}
+      >
+        <Button block type="text" icon={<DisconnectOutlined />} style={{ marginTop: 8 }}>
+          Đăng xuất mọi thiết bị (khi mất máy / nghi lộ mật khẩu)
+        </Button>
+      </Popconfirm>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 package com.washpro.washpro_b2b.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -32,23 +33,34 @@ public class JwtUtils {
         return expirationMs;
     }
 
-    public String generateToken(String username, String role) {
+    /** Nội dung đã kiểm chữ ký của token: tài khoản và phiên bản token lúc phát hành. */
+    public record TokenClaims(String username, int version) {
+    }
+
+    public String generateToken(String username, String role, int version) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .setSubject(username)
                 .claim("role", role)
+                .claim("ver", version)
                 .setIssuedAt(new Date(now))
                 .setExpiration(new Date(now + expirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    /** Trả về username nếu token hợp lệ (đúng chữ ký, chưa hết hạn), ngược lại trả về rỗng. */
-    public Optional<String> extractUsername(String token) {
+    /**
+     * Trả về tài khoản và phiên bản nếu token hợp lệ (đúng chữ ký, chưa hết hạn), ngược lại trả về rỗng.
+     * Token cũ không có phiên bản bị coi là không hợp lệ (phải đăng nhập lại).
+     */
+    public Optional<TokenClaims> parse(String token) {
         try {
-            String subject = Jwts.parserBuilder().setSigningKey(key).build()
-                    .parseClaimsJws(token).getBody().getSubject();
-            return Optional.ofNullable(subject);
+            Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+            Integer version = claims.get("ver", Integer.class);
+            if (claims.getSubject() == null || version == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new TokenClaims(claims.getSubject(), version));
         } catch (JwtException | IllegalArgumentException e) {
             return Optional.empty();
         }

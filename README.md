@@ -260,7 +260,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 
 | Nhóm | Endpoint chính |
 |---|---|
-| Xác thực | `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password` |
+| Xác thực | `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password` (trả phiên mới), `POST /auth/logout-all` |
 | Tài khoản | `GET/POST /users`, `PATCH /users/{id}/enabled`, `PUT /users/{id}/password` |
 | Khách hàng | `GET/POST /restaurants`, `PUT /restaurants/{id}`, `PATCH /restaurants/{id}/active` |
 | Bảng giá | `GET/POST /prices`, `PUT /prices/{id}`, `PATCH /prices/{id}/active`, `GET /prices/catalog`, `GET /prices/customers/{id}`, `PUT/DELETE /prices/customers/{id}/{priceId}` |
@@ -270,6 +270,11 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Báo cáo | `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
+
+**Thu hồi phiên đăng nhập.** Mỗi tài khoản có số `token_version`, ghi vào token khi đăng nhập và được so lại ở mỗi
+request. Đổi mật khẩu, quản lý xưởng đặt lại mật khẩu, hoặc bấm "Đăng xuất mọi thiết bị" (trang Tài khoản) sẽ tăng số
+này: mọi token cũ hết hiệu lực ngay (thiết bị vừa đổi mật khẩu nhận token mới nên vẫn dùng tiếp). Khóa tài khoản và đổi
+vai trò cũng có hiệu lực ngay vì quyền được nạp lại từ CSDL cho mỗi request.
 
 `GET /orders` lọc và phân trang ngay trong CSDL. Tham số (đều không bắt buộc):
 
@@ -299,6 +304,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 |---|---|
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
+| `AuthApiIntegrationTest` | Đổi mật khẩu đăng xuất thiết bị khác nhưng giữ thiết bị đang dùng; đặt lại mật khẩu, đăng xuất mọi thiết bị thu hồi token; token cũ không có phiên bản bị từ chối |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
 | `PriceUnitTest` | Số lượng hợp lệ theo đơn vị, đọc đơn vị dạng chữ của dữ liệu cũ |
 | `DebtAgingTest` | Phân nhóm tuổi nợ, trừ thanh toán theo FIFO |
@@ -310,9 +316,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(49 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn, khách xác nhận /
+(53 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn, khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, đổi mật khẩu. Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell
@@ -328,7 +334,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 25 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 29 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
@@ -336,7 +342,8 @@ rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend đư�
 
 - Test tích hợp backend bao phủ đơn hàng và thanh toán; lấy đồ, bảng giá được kiểm qua E2E. Migration Flyway chưa có
   test tự động (test H2 dựng bảng từ entity); đã thử trên MySQL với CSDL rỗng và bản sao CSDL đang dùng.
-- JWT lưu trong `localStorage` của trình duyệt (dễ bị ảnh hưởng nếu có lỗ hổng XSS); chưa có refresh token.
+- JWT lưu trong `localStorage` của trình duyệt (dễ bị ảnh hưởng nếu có lỗ hổng XSS); chưa có refresh token
+  (phiên hết hạn sau `JWT_EXPIRATION_MS`, nhưng có thể thu hồi sớm, xem mục API).
 - Bộ đếm đăng nhập sai lưu trong bộ nhớ, không chia sẻ được khi chạy nhiều máy chủ.
 - Danh sách đơn đã phân trang phía máy chủ; trang tổng quan (`/dashboard`) và báo cáo/xuất CSV vẫn tải toàn bộ đơn
   trong phạm vi rồi tính trong bộ nhớ.

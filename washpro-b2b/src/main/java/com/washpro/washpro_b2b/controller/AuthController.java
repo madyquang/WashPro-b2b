@@ -32,9 +32,15 @@ public class AuthController {
         return ResponseEntity.ok(authService.me());
     }
 
+    /** Trả phiên đăng nhập mới cho thiết bị đang dùng; các phiên khác bị đăng xuất. */
     @PostMapping("/change-password")
-    public ResponseEntity<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
-        authService.changePassword(request);
+    public ResponseEntity<AuthResponse> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        return ResponseEntity.ok(authService.changePassword(request));
+    }
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<Void> logoutEverywhere() {
+        authService.logoutEverywhere();
         return ResponseEntity.noContent().build();
     }
 }

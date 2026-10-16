@@ -82,7 +82,7 @@ export default function Login() {
           </Typography.Paragraph>
 
           {params.get('expired') && !error && (
-            <Alert type="warning" showIcon className="mb-4" title="Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại" />
+            <Alert type="warning" showIcon className="mb-4" title="Phiên đăng nhập đã hết hạn hoặc tài khoản vừa đổi mật khẩu, vui lòng đăng nhập lại" />
           )}
           {error && <Alert type="error" showIcon className="mb-4" title={error} />}
 
