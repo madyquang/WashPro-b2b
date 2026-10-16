@@ -1,0 +1,49 @@
+# Chạy toàn bộ hệ thống: MySQL + backend + giao diện.
+#   cp docker.env.example .env      (điền mật khẩu CSDL, JWT_SECRET, tài khoản quản lý xưởng đầu tiên)
+#   docker compose up -d --build
+#   mở http://localhost:3000
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: washpro_b2b
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?Đặt DB_PASSWORD trong file .env}
+      TZ: Asia/Ho_Chi_Minh
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    build: ./washpro-b2b
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/washpro_b2b?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Ho_Chi_Minh
+      DB_USERNAME: root
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?Đặt JWT_SECRET (tối thiểu 32 ký tự) trong file .env}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      DEMO_DATA: ${DEMO_DATA:-false}
+
+  frontend:
+    build:
+      context: ./washpro-b2b-frontend
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${APP_PORT:-3000}:80"
+
+volumes:
+  mysql-data:

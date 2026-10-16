@@ -49,6 +49,23 @@ washpro-b2b-frontend/            Frontend (Vite)
 
 ## Cài đặt và chạy
 
+### Chạy nhanh bằng Docker
+
+Chỉ cần Docker (kèm Docker Compose). Một lệnh dựng MySQL, backend và giao diện:
+
+```bash
+cp docker.env.example .env    # điền DB_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_USERNAME/PASSWORD
+docker compose up -d --build  # lần đầu mất vài phút để build
+```
+
+Mở `http://localhost:3000` (đổi cổng bằng `APP_PORT`). Giao diện (nginx) chuyển các yêu cầu `/api` sang backend nên
+không cần cấu hình CORS. Dữ liệu MySQL nằm trong volume `mysql-data`, giữ nguyên khi `docker compose down`
+(xóa hẳn: `docker compose down -v`). Muốn có dữ liệu demo để xem thử: đặt `DEMO_DATA=true` trong `.env` trước lần chạy
+đầu. Xem log: `docker compose logs -f backend`. Cập nhật phiên bản mới: `git pull` rồi `docker compose up -d --build`
+(Flyway tự nâng cấp cấu trúc CSDL).
+
+Cách chạy từng phần riêng lẻ (để phát triển) như dưới đây.
+
 ### Yêu cầu
 
 - JDK 25 (LTS) trở lên
@@ -312,7 +329,8 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 ### CI
 
 `.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 25 test
-backend (H2, không cần MySQL), build + lint frontend.
+backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
+rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
 ## Hạn chế hiện tại
 

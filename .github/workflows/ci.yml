@@ -40,3 +40,52 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run lint
+
+  e2e:
+    name: Docker Compose + E2E qua giao diện
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
+        run: |
+          cat > .env <<'ENV'
+          DB_PASSWORD=ci-db-password
+          JWT_SECRET=ci-jwt-secret-chi-dung-cho-kiem-thu-tu-dong-0123456789
+          BOOTSTRAP_ADMIN_USERNAME=admin
+          BOOTSTRAP_ADMIN_PASSWORD=11111111
+          DEMO_DATA=true
+          APP_PORT=3000
+          ENV
+          docker compose up -d --build
+      - name: Chờ backend sẵn sàng
+        run: |
+          for i in $(seq 1 90); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/login \
+              -H 'Content-Type: application/json' -d '{"username":"admin","password":"11111111"}' || true)
+            [ "$code" = "200" ] && echo "Sẵn sàng sau ${i}x2s" && exit 0
+            sleep 2
+          done
+          docker compose logs backend | tail -100
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: washpro-b2b-frontend/package-lock.json
+      - name: Chạy bộ E2E
+        working-directory: washpro-b2b-frontend
+        env:
+          E2E_APP_URL: http://localhost:3000
+          E2E_API_URL: http://localhost:3000/api
+        run: |
+          npm ci
+          npx playwright-core install --with-deps chromium
+          npm run test:e2e
+      - name: Lưu ảnh chụp / log khi lỗi
+        if: failure()
+        run: docker compose logs backend > washpro-b2b-frontend/e2e/results/backend.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: washpro-b2b-frontend/e2e/results/
