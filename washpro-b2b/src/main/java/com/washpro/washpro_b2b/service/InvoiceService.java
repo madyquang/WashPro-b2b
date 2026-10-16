@@ -6,6 +6,7 @@ import com.washpro.washpro_b2b.dto.InvoiceDtos.CustomerInfo;
 import com.washpro.washpro_b2b.dto.InvoiceDtos.InvoiceData;
 import com.washpro.washpro_b2b.dto.InvoiceDtos.Line;
 import com.washpro.washpro_b2b.dto.InvoiceDtos.OrderRef;
+import com.washpro.washpro_b2b.dto.InvoiceDtos.PaymentQr;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
@@ -23,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Hóa đơn tháng của một khách: các đơn hoàn thành trong tháng gộp theo dòng dịch vụ, kèm công nợ đầu / cuối kỳ
@@ -44,13 +47,14 @@ public class InvoiceService {
             @Value("${app.company.phone:}") String phone, @Value("${app.company.tax-code:}") String taxCode,
             @Value("${app.company.bank-account:}") String bankAccount,
             @Value("${app.company.bank-name:}") String bankName,
-            @Value("${app.company.account-holder:}") String accountHolder) {
+            @Value("${app.company.account-holder:}") String accountHolder,
+            @Value("${app.company.bank-bin:}") String bankBin) {
         this.reportService = reportService;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepository;
         this.renderer = renderer;
         this.company = new Company(name, blankToNull(address), blankToNull(phone), blankToNull(taxCode),
-                blankToNull(bankAccount), blankToNull(bankName), blankToNull(accountHolder));
+                blankToNull(bankAccount), blankToNull(bankName), blankToNull(accountHolder), blankToNull(bankBin));
     }
 
     public record InvoicePdf(String fileName, byte[] content) {
@@ -96,7 +100,26 @@ public class InvoiceService {
         String number = "HD-%d%02d-%04d".formatted(month.getYear(), month.getMonthValue(), c.getId());
         return new InvoiceData(number, month, LocalDate.now(), company, customer, sorted, refs, st.totalBilled(),
                 VietnameseNumberWords.money(st.totalBilled()), st.openingBalance(), st.totalPaid(),
-                st.closingBalance());
+                st.closingBalance(), qrPayload(st.closingBalance(), number));
+    }
+
+    /** Mã QR chuyển khoản số còn phải thanh toán của tháng (nội dung = số hóa đơn); rỗng nếu không cần / chưa cấu hình. */
+    @Transactional(readOnly = true)
+    public Optional<PaymentQr> paymentQr(Long customerId, YearMonth month) {
+        InvoiceData d = build(customerId, month);
+        if (d.paymentQr() == null) {
+            return Optional.empty();
+        }
+        String image = "data:image/png;base64," + Base64.getEncoder().encodeToString(VietQr.png(d.paymentQr(), 360));
+        return Optional.of(new PaymentQr(d.closingBalance(), d.number(), company.bankName(), company.bankAccount(),
+                company.accountHolder(), image));
+    }
+
+    private String qrPayload(BigDecimal amount, String content) {
+        if (company.bankBin() == null || company.bankAccount() == null || amount.signum() <= 0) {
+            return null;
+        }
+        return VietQr.payload(company.bankBin(), company.bankAccount(), amount, content);
     }
 
     private static String blankToNull(String s) {

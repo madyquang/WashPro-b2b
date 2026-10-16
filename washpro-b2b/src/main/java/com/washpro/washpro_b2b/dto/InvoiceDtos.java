@@ -16,7 +16,9 @@ public final class InvoiceDtos {
     }
 
     public record Company(String name, String address, String phone, String taxCode, String bankAccount,
-            String bankName, String accountHolder) {
+            String bankName, String accountHolder,
+            /** Mã BIN 6 số của ngân hàng (để tạo mã QR VietQR); null = không in QR. */
+            String bankBin) {
     }
 
     public record CustomerInfo(Long id, String name, String type, String address, String phone, String contactName,
@@ -44,6 +46,13 @@ public final class InvoiceDtos {
             String totalInWords,
             BigDecimal openingBalance,
             BigDecimal paidInMonth,
-            BigDecimal closingBalance) {
+            BigDecimal closingBalance,
+            /** Dữ liệu mã QR chuyển khoản số còn phải thanh toán (VietQR); null nếu chưa cấu hình ngân hàng / không còn nợ. */
+            String paymentQr) {
+    }
+
+    /** Thông tin chuyển khoản kèm ảnh QR cho giao diện. */
+    public record PaymentQr(BigDecimal amount, String content, String bankName, String bankAccount,
+            String accountHolder, String image) {
     }
 }

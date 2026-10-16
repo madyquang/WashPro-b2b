@@ -555,6 +555,16 @@ if (want('finance')) {
     await page.locator('tr').filter({ hasText: 'Hoa Sen' }).getByRole('button', { name: 'Sao kê' }).click()
     await modal(page).getByText(`#${o.id}`).first().waitFor()
   }, page)
+  // Cần cấu hình ngân hàng nhận tiền (COMPANY_BANK_BIN / COMPANY_BANK_ACCOUNT) trên backend: E2E_QR=1
+  if (process.env.E2E_QR) {
+    await step('finance: sao kê có mã QR chuyển khoản số còn nợ', async () => {
+      const qr = modal(page).locator('.payment-qr')
+      await qr.locator('img').waitFor()
+      await qr.getByText(/Nội dung: HD-\d{6}-\d{4}/).waitFor()
+      const ok = await qr.locator('img').evaluate((el) => el.complete && el.naturalWidth > 100)
+      expect(ok, 'ảnh QR không hiển thị')
+    }, page)
+  }
   await step('finance: tải hóa đơn tháng PDF từ sao kê', async () => {
     const dl = page.waitForEvent('download')
     await modal(page).getByRole('button', { name: 'Hóa đơn PDF' }).click()

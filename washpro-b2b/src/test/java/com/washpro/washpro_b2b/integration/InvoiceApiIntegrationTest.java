@@ -28,7 +28,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.RGBLuminanceSource;
+import com.google.zxing.common.HybridBinarizer;
+import com.google.zxing.qrcode.QRCodeReader;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
+import java.util.Base64;
 import java.time.YearMonth;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -113,6 +122,40 @@ class InvoiceApiIntegrationTest {
         assertThat(text).contains("Xưởng giặt là THANHXUAN", "HÓA ĐƠN DỊCH VỤ", number, "Nhà hàng Hoa Sen", "12 Lý Thái Tổ, Hà Nội",
                 "15 ngày kể từ khi hoàn thành đơn", "Khăn bàn", "150.000",
                 "Một trăm năm mươi nghìn đồng", "100.000");
+    }
+
+    @Test
+    void paymentQrCarriesRemainingAmountAndInvoiceNumber() throws Exception {
+        String number = "HD-%d%02d-%04d".formatted(lastMonth.getYear(), lastMonth.getMonthValue(), hoaSen.getId());
+        String body = mvc.perform(get("/api/reports/payment-qr")
+                .param("customerId", String.valueOf(hoaSen.getId())).param("month", lastMonth.toString())
+                .header("Authorization", "Bearer " + login("ketoan")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(JsonPath.<Double>read(body, "$.amount")).isEqualTo(100000.0);
+        assertThat(JsonPath.<String>read(body, "$.content")).isEqualTo(number);
+        String image = JsonPath.read(body, "$.image");
+        assertThat(image).startsWith("data:image/png;base64,");
+
+        // Ảnh QR giải mã ra đúng dữ liệu VietQR: ngân hàng, tài khoản, số tiền, nội dung
+        BufferedImage img = ImageIO.read(new ByteArrayInputStream(
+                Base64.getDecoder().decode(image.substring("data:image/png;base64,".length()))));
+        int[] px = img.getRGB(0, 0, img.getWidth(), img.getHeight(), null, 0, img.getWidth());
+        String payload = new QRCodeReader().decode(new BinaryBitmap(new HybridBinarizer(
+                new RGBLuminanceSource(img.getWidth(), img.getHeight(), px)))).getText();
+        assertThat(payload).contains("A000000727", "970436", "0011004012345", "5406100000", number);
+
+        // Hóa đơn PDF in kèm mã QR
+        byte[] pdf = mvc.perform(get("/api/reports/invoice")
+                .param("customerId", String.valueOf(hoaSen.getId())).param("month", lastMonth.toString())
+                .header("Authorization", "Bearer " + login("ketoan")))
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(text(pdf)).contains("Quét mã bằng ứng dụng ngân hàng");
+
+        // Không còn nợ: không có mã QR
+        mvc.perform(get("/api/reports/payment-qr").param("month", lastMonth.toString())
+                .header("Authorization", "Bearer " + login("bienxanh.ql")))
+                .andExpect(status().isNoContent());
     }
 
     @Test

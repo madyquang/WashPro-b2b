@@ -5,6 +5,7 @@ import com.washpro.washpro_b2b.dto.FinanceDtos.DebtRow;
 import com.washpro.washpro_b2b.dto.FinanceDtos.MonthRevenue;
 import com.washpro.washpro_b2b.dto.FinanceDtos.StatementResponse;
 import com.washpro.washpro_b2b.exception.ApiException;
+import com.washpro.washpro_b2b.dto.InvoiceDtos.PaymentQr;
 import com.washpro.washpro_b2b.dto.PerformanceDtos.Report;
 import com.washpro.washpro_b2b.service.InvoiceService;
 import com.washpro.washpro_b2b.service.PerformanceService;
@@ -62,6 +63,21 @@ public class ReportController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         ContentDisposition.attachment().filename(pdf.fileName()).build().toString())
                 .body(pdf.content());
+    }
+
+    /** Mã QR VietQR chuyển khoản số còn phải thanh toán của tháng; 204 nếu không còn nợ / chưa cấu hình ngân hàng. */
+    @GetMapping("/reports/payment-qr")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
+    public ResponseEntity<PaymentQr> paymentQr(@RequestParam(required = false) Long customerId,
+            @RequestParam String month) {
+        YearMonth ym;
+        try {
+            ym = YearMonth.parse(month);
+        } catch (DateTimeParseException e) {
+            throw ApiException.badRequest("Tháng không hợp lệ (định dạng yyyy-MM)");
+        }
+        return invoiceService.paymentQr(customerId, ym).map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     /** Báo cáo hiệu suất từ ngày from tới hết ngày to (yyyy-MM-dd; mặc định đầu tháng này tới hôm nay). */

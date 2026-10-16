@@ -5,7 +5,7 @@ import { FilePdfOutlined, PrinterOutlined } from '@ant-design/icons'
 import axiosClient from '../../api/axiosClient'
 import { currentMonth, formatCurrency, formatDate, formatDateTime, getErrorMessage } from '../../utils/format'
 import { printStatement } from '../../utils/print'
-import { CUSTOMER_TYPE_LABELS, paymentTermLabel, type Statement } from '../../types'
+import { CUSTOMER_TYPE_LABELS, paymentTermLabel, type PaymentQr, type Statement } from '../../types'
 
 interface Props {
   /** Khách cần xem sao kê; null = đóng. */
@@ -20,6 +20,21 @@ export default function StatementModal({ customer, onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [qr, setQr] = useState<PaymentQr | null>(null)
+
+  // Còn nợ cuối kỳ: lấy mã QR chuyển khoản (204 = chưa cấu hình ngân hàng / không còn nợ)
+  useEffect(() => {
+    if (!customer || !data || data.closingBalance <= 0) return
+    let ignore = false
+    axiosClient
+      .get<PaymentQr | ''>('/reports/payment-qr', { params: { customerId: customer.customerId, month } })
+      .then((res) => !ignore && setQr(res.status === 200 && res.data ? res.data : null))
+      .catch(() => !ignore && setQr(null))
+    return () => {
+      ignore = true
+      setQr(null)
+    }
+  }, [customer, data, month])
 
   useEffect(() => {
     if (!customer || !month) return
@@ -109,6 +124,30 @@ export default function StatementModal({ customer, onClose }: Props) {
               </Typography.Text>
             </Descriptions.Item>
           </Descriptions>
+
+          {qr && (
+            <div className="payment-qr">
+              <img src={qr.image} alt={`Mã QR chuyển khoản ${formatCurrency(qr.amount)}`} width={160} height={160} />
+              <div>
+                <Typography.Text strong>Quét mã bằng ứng dụng ngân hàng để thanh toán</Typography.Text>
+                <div>Số tiền: {formatCurrency(qr.amount)}</div>
+                <div>
+                  Tài khoản: {qr.bankAccount}
+                  {qr.bankName && ` · ${qr.bankName}`}
+                  {qr.accountHolder && ` · ${qr.accountHolder}`}
+                </div>
+                <div>Nội dung: {qr.content}</div>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Số tiền và nội dung được điền sẵn (chuẩn VietQR), kế toán đối chiếu theo nội dung chuyển khoản.
+                </Typography.Text>
+                <div style={{ marginTop: 6 }}>
+                  <a href={qr.image} download={`qr-${qr.content}.png`}>
+                    Tải ảnh mã QR
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
 
           <Divider titlePlacement="start">Đơn hoàn thành trong tháng ({data.orders.length})</Divider>
           {data.orders.length === 0 ? (

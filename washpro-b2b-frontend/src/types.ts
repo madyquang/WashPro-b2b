@@ -172,6 +172,16 @@ export interface RoutePlan {
   stops: RouteStop[]
 }
 
+/** Mã QR VietQR chuyển khoản số còn phải thanh toán (ảnh dạng data URL). */
+export interface PaymentQr {
+  amount: number
+  content: string
+  bankName: string | null
+  bankAccount: string
+  accountHolder: string | null
+  image: string
+}
+
 export type AttachmentKind = 'PICKUP_PHOTO' | 'PICKUP_SIGNATURE' | 'DELIVERY_PHOTO' | 'DELIVERY_SIGNATURE' | 'ISSUE_PHOTO'
 
 export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {

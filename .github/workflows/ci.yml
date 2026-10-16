@@ -55,6 +55,9 @@ jobs:
           BOOTSTRAP_ADMIN_PASSWORD=11111111
           DEMO_DATA=true
           APP_PORT=3000
+          COMPANY_BANK_BIN=970436
+          COMPANY_BANK_ACCOUNT=0011004012345
+          COMPANY_BANK_NAME=Vietcombank
           ENV
           docker compose up -d --build
       - name: Chờ backend sẵn sàng
@@ -78,6 +81,7 @@ jobs:
           E2E_APP_URL: http://localhost:3000
           E2E_API_URL: http://localhost:3000/api
           E2E_PWA: '1'
+          E2E_QR: '1'
         run: |
           npm ci
           npx playwright-core install --with-deps chromium

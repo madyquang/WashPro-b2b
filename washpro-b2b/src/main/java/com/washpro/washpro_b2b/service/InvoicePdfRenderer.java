@@ -5,6 +5,7 @@ import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
 import com.lowagie.text.Font;
+import com.lowagie.text.Image;
 import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
@@ -163,6 +164,22 @@ public class InvoicePdfRenderer {
                         + ". Nội dung chuyển khoản: " + d.number();
                 doc.add(spaced(new Paragraph(bank, n), 8, 0));
             }
+            if (d.paymentQr() != null) {
+                PdfPTable qr = table(new float[] { 22, 78 });
+                qr.setSpacingBefore(6);
+                Image img = Image.getInstance(VietQr.png(d.paymentQr(), 300));
+                img.scaleAbsolute(96, 96);
+                PdfPCell imgCell = new PdfPCell(img, false);
+                imgCell.setBorder(PdfPCell.NO_BORDER);
+                qr.addCell(imgCell);
+                PdfPCell text = cell();
+                text.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                text.addElement(new Paragraph("Quét mã bằng ứng dụng ngân hàng để chuyển khoản", h));
+                text.addElement(new Paragraph("Số tiền " + money(d.closingBalance()) + " đ, nội dung " + d.number()
+                        + " được điền sẵn (chuẩn VietQR).", n));
+                qr.addCell(text);
+                doc.add(qr);
+            }
 
             // ----- Danh sách đơn trong tháng (đối chiếu)
             if (!d.orders().isEmpty()) {
@@ -195,7 +212,7 @@ public class InvoicePdfRenderer {
                 sign.addCell(s);
             }
             doc.add(sign);
-        } catch (DocumentException e) {
+        } catch (DocumentException | IOException e) {
             throw new IllegalStateException("Không tạo được PDF hóa đơn", e);
         } finally {
             if (doc.isOpen()) {

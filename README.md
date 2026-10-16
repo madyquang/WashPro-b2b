@@ -161,6 +161,7 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `DEMO_DATA` | | `false` | `true` hoặc `reset` để sinh dữ liệu mẫu (xem bên dưới) |
 | `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_TAX_CODE` | | `Xưởng giặt là THANHXUAN` | Thông tin xưởng in trên hóa đơn tháng |
 | `COMPANY_BANK_NAME`, `COMPANY_BANK_ACCOUNT`, `COMPANY_ACCOUNT_HOLDER` | | | Thông tin chuyển khoản in trên hóa đơn (không đặt thì không in) |
+| `COMPANY_BANK_BIN` | | | Mã BIN 6 số của ngân hàng (VD Vietcombank `970436`, VietinBank `970415`, BIDV `970418`, Techcombank `970407`, MB `970422`): có thì in **mã QR VietQR** |
 | `BACKUP_TIME` / `BACKUP_KEEP_DAYS` / `BACKUP_DIR` | | `02:00` / `14` / `./backups` | Lịch sao lưu tự động (chỉ khi chạy bằng Docker) |
 | `UPLOADS_DIR` | | `uploads` | Thư mục lưu ảnh / chữ ký đính kèm đơn (Docker: volume `uploads`). Cần sao lưu cùng CSDL |
 | `NOTIFICATION_DIGEST_CRON` | | `0 0 7 * * *` | Giờ gửi bản tin thông báo hằng ngày (cron Spring, giờ Việt Nam) |
@@ -331,6 +332,11 @@ phát sinh / đã thanh toán / còn phải trả (cùng số liệu với sao k
 (`HD-<năm><tháng>-<mã khách>`), danh sách đơn để đối chiếu và chỗ ký xác nhận. Quản lý phía khách tải được hóa đơn của
 khách mình. PDF nhúng phông Be Vietnam Pro (giấy phép SIL OFL, `src/main/resources/fonts/OFL.txt`).
 
+**Mã QR chuyển khoản (VietQR):** khi đặt `COMPANY_BANK_BIN` và `COMPANY_BANK_ACCOUNT`, hóa đơn PDF và hộp thoại Sao kê có
+mã QR chuẩn VietQR (NAPAS) với số tiền còn phải thanh toán và nội dung là số hóa đơn được điền sẵn: khách quét bằng bất
+kỳ ứng dụng ngân hàng nào, kế toán đối chiếu theo nội dung. Hệ thống tự dựng dữ liệu QR (EMVCo, có mã kiểm tra CRC), không
+gọi dịch vụ bên ngoài. Không còn nợ thì không hiện mã.
+
 Đây là bảng kê kiêm đề nghị thanh toán, **chưa phải hóa đơn điện tử** (chưa nối nhà cung cấp hóa đơn điện tử, chưa
 tính thuế GTGT riêng). Điểm nối đã có sẵn: interface `EInvoiceGateway` (mặc định `NoEInvoiceGateway` không làm gì) nhận
 `InvoiceData` (đủ thông tin người bán, người mua, từng dòng dịch vụ, tổng tiền). Khi có tài khoản VNPT / Viettel /
@@ -406,7 +412,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 | Lộ trình | `GET /routes?date=&driverId=` (tài xế xem của mình; quản lý xưởng truyền `driverId`) |
-| Báo cáo | `GET /reports/invoice?customerId=&month=` (PDF), `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
+| Báo cáo | `GET /reports/invoice?customerId=&month=` (PDF), `GET /reports/payment-qr?customerId=&month=`, `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
 
@@ -447,6 +453,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `RouteApiIntegrationTest` | Lộ trình: đúng điểm dừng (đã nhận, quá hẹn, đơn đang giao chỉ hôm nay; bỏ việc chưa nhận / đã xong / của tài xế khác), gom theo khu vực, quyền |
 | `AddressAreasTest` | Đoán quận / huyện từ địa chỉ (Q.1, Q1, Quận 03, Huyện, TP. Thủ Đức, không nhầm "Hoàn Kiếm" / "Phú Nhuận" với tiền tố viết tắt) |
 | `InvoiceApiIntegrationTest` | Hóa đơn tháng PDF: đọc lại chữ trong PDF để kiểm tra tên xưởng, số hóa đơn, khách, dòng dịch vụ gộp, tổng tiền, số tiền bằng chữ, công nợ; quản lý phía khách luôn nhận hóa đơn của mình; quyền, tháng không hợp lệ |
+| `VietQrTest` | Dữ liệu VietQR đúng cấu trúc EMVCo / NAPAS, mã kiểm tra CRC, bỏ dấu nội dung, ảnh QR quét ngược ra đúng dữ liệu |
 | `VietnameseNumberWordsTest` | Đọc số tiền bằng chữ (linh, mười, mốt, tư, lăm, không trăm, tỷ...) |
 | `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
 | `AttachmentApiIntegrationTest` | Ảnh / chữ ký: loại được đính kèm theo vai trò, ngoài phạm vi đơn trả 404 (cả file), chỉ nhận ảnh thật, xóa cả file trên đĩa, chỉ người tải lên / quản lý xưởng được xóa |
