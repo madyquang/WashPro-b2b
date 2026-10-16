@@ -20,52 +20,52 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
         OrderRepositoryCustom {
 
     /** Nạp đủ khách, tài xế, chi tiết cho một trang đơn (bước 2 của phân trang, sau khi đã có danh sách id). */
-    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "items" })
     List<Order> findByIdIn(Collection<Long> ids);
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "items" })
     List<Order> findByIsDeletedFalseOrderByCreatedAtDesc();
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "items" })
     List<Order> findByDriverIdAndIsDeletedFalseOrderByCreatedAtDesc(Long driverId);
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
-    List<Order> findByRestaurantIdAndIsDeletedFalseOrderByCreatedAtDesc(Long restaurantId);
+    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    List<Order> findByCustomerIdAndIsDeletedFalseOrderByCreatedAtDesc(Long customerId);
 
     /**
-     * Đơn hoàn thành gộp theo [khách, ngày hoàn thành]: mỗi dòng [restaurantId, ngày, số đơn, tổng tiền].
+     * Đơn hoàn thành gộp theo [khách, ngày hoàn thành]: mỗi dòng [customerId, ngày, số đơn, tổng tiền].
      * Đủ để tính công nợ và tuổi nợ mà không phải tải từng đơn. Đơn cũ chưa có completed_at lấy lần cập nhật cuối
-     * (khớp Order#getEffectiveCompletedAt); dòng chưa có đơn giá không tính tiền. restaurantId null = mọi khách.
+     * (khớp Order#getEffectiveCompletedAt); dòng chưa có đơn giá không tính tiền. customerId null = mọi khách.
      */
     @Query("""
-            select o.restaurant.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate), count(distinct o.id),
+            select o.customer.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate), count(distinct o.id),
                    sum(i.quantity * i.unitPrice)
             from LaundryOrder o left join o.items i
             where o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED and o.isDeleted = false
-              and (:restaurantId is null or o.restaurant.id = :restaurantId)
-            group by o.restaurant.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate)
+              and (:customerId is null or o.customer.id = :customerId)
+            group by o.customer.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate)
             """)
-    List<Object[]> completedByDay(@Param("restaurantId") Long restaurantId);
+    List<Object[]> completedByDay(@Param("customerId") Long customerId);
 
     /** Tổng tiền các đơn của khách hoàn thành trước mốc `before` (nợ đầu kỳ của sao kê). */
     @Query("""
             select coalesce(sum(i.quantity * i.unitPrice), 0)
             from LaundryOrder o join o.items i
-            where o.restaurant.id = :restaurantId and o.isDeleted = false
+            where o.customer.id = :customerId and o.isDeleted = false
               and o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED
               and coalesce(o.completedAt, o.updatedAt) < :before
             """)
-    BigDecimal billedBefore(@Param("restaurantId") Long restaurantId, @Param("before") LocalDateTime before);
+    BigDecimal billedBefore(@Param("customerId") Long customerId, @Param("before") LocalDateTime before);
 
     /** Đơn của khách hoàn thành trong khoảng [from, to), kèm chi tiết (dòng sao kê). */
     @EntityGraph(attributePaths = "items")
     @Query("""
             select o from LaundryOrder o
-            where o.restaurant.id = :restaurantId and o.isDeleted = false
+            where o.customer.id = :customerId and o.isDeleted = false
               and o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED
               and coalesce(o.completedAt, o.updatedAt) >= :from and coalesce(o.completedAt, o.updatedAt) < :to
             """)
-    List<Order> findCompletedBetween(@Param("restaurantId") Long restaurantId, @Param("from") LocalDateTime from,
+    List<Order> findCompletedBetween(@Param("customerId") Long customerId, @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to);
 
     /** Khóa dòng khi đổi trạng thái để hai người thao tác cùng lúc không làm hỏng luồng. */
@@ -73,7 +73,7 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @Query("select o from LaundryOrder o where o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "items" })
     @Query("select o from LaundryOrder o where o.id = :id")
     Optional<Order> findDetailById(@Param("id") Long id);
 
@@ -90,9 +90,9 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             select year(h.createdAt), month(h.createdAt), count(distinct o.id), sum(i.quantity * i.unitPrice)
             from OrderHistory h join h.order o left join o.items i
             where h.toStatus = :status and h.createdAt >= :since and o.isDeleted = false
-              and o.restaurant.id = :restaurantId
+              and o.customer.id = :customerId
             group by year(h.createdAt), month(h.createdAt)
             """)
-    List<Object[]> revenueByMonthForRestaurant(@Param("status") OrderStatus status,
-            @Param("since") LocalDateTime since, @Param("restaurantId") Long restaurantId);
+    List<Object[]> revenueByMonthForCustomer(@Param("status") OrderStatus status,
+            @Param("since") LocalDateTime since, @Param("customerId") Long customerId);
 }

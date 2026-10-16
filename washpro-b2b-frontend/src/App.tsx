@@ -11,7 +11,7 @@ import { bindMessage } from './utils/message'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Orders = lazy(() => import('./pages/Orders'))
 const Pickups = lazy(() => import('./pages/Pickups'))
-const Restaurants = lazy(() => import('./pages/Restaurants'))
+const Customers = lazy(() => import('./pages/Customers'))
 const Accounts = lazy(() => import('./pages/Accounts'))
 const Prices = lazy(() => import('./pages/Prices'))
 const Finance = lazy(() => import('./pages/Finance'))
@@ -65,10 +65,10 @@ export default function App() {
                 <Route path="orders" element={<Orders />} />
                 <Route path="pickups" element={<Pickups />} />
                 <Route
-                  path="restaurants"
+                  path="customers"
                   element={
                     <RoleRoute roles={['WORKSHOP_ADMIN']}>
-                      <Restaurants />
+                      <Customers />
                     </RoleRoute>
                   }
                 />
@@ -91,7 +91,7 @@ export default function App() {
                 <Route
                   path="finance"
                   element={
-                    <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER']}>
+                    <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER']}>
                       <Finance />
                     </RoleRoute>
                   }

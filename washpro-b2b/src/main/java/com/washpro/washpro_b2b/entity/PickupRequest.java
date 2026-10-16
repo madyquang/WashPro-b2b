@@ -26,8 +26,8 @@ public class PickupRequest {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false)
-    private Restaurant restaurant;
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
     /** Tên đăng nhập của người tạo yêu cầu. */
     @Column(name = "requested_by", nullable = false, length = 50)

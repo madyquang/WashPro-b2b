@@ -20,7 +20,7 @@ public final class PickupDtos {
 
     public record CreateRequest(
             /** Chỉ Quản lý xưởng cần gửi (tạo hộ khách gọi điện); tài khoản khách hàng tự lấy theo tài khoản. */
-            Long restaurantId,
+            Long customerId,
             @NotNull(message = "Vui lòng chọn ngày lấy đồ") @FutureOrPresent(message = "Ngày lấy đồ không được ở quá khứ") LocalDate preferredDate,
             TimeSlot timeSlot,
             @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer estimatedBags,
@@ -35,8 +35,8 @@ public final class PickupDtos {
 
     public record Response(
             Long id,
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             CustomerType customerType,
             String address,
             String phone,
@@ -55,7 +55,7 @@ public final class PickupDtos {
             LocalDateTime createdAt) {
 
         public static Response from(PickupRequest p) {
-            var r = p.getRestaurant();
+            var r = p.getCustomer();
             return new Response(
                     p.getId(),
                     r.getId(),

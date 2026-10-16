@@ -70,7 +70,7 @@ export default function Profile() {
           <Descriptions.Item label="Vai trò">
             <ToneTag tone="navy">{ROLE_LABELS[session.role]}</ToneTag>
           </Descriptions.Item>
-          {session.restaurantName && <Descriptions.Item label="Khách hàng">{session.restaurantName}</Descriptions.Item>}
+          {session.customerName && <Descriptions.Item label="Khách hàng">{session.customerName}</Descriptions.Item>}
         </Descriptions>
       </Card>
 

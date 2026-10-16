@@ -8,9 +8,9 @@ import LoadError from '../components/LoadError'
 import PageHeader from '../components/PageHeader'
 import ResponsiveTable from '../components/ResponsiveTable'
 import ToneTag from '../components/ToneTag'
-import { getSession, isRestaurantRole } from '../utils/auth'
+import { getSession, isCustomerRole } from '../utils/auth'
 import { formatDate, getErrorMessage } from '../utils/format'
-import { ROLE_LABELS, type Restaurant, type Role, type UserAccount } from '../types'
+import { ROLE_LABELS, type Customer, type Role, type UserAccount } from '../types'
 
 interface CreateForm {
   username: string
@@ -18,7 +18,7 @@ interface CreateForm {
   fullName?: string
   phone?: string
   role: Role
-  restaurantId?: number
+  customerId?: number
 }
 
 /** Trạng thái tài khoản: chữ + màu đạt tương phản. */
@@ -29,7 +29,7 @@ const ROLE_OPTIONS = (Object.keys(ROLE_LABELS) as Role[]).map((r) => ({ value: r
 export default function Accounts() {
   const me = getSession()
   const [rows, setRows] = useState<UserAccount[]>([])
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -48,10 +48,10 @@ export default function Accounts() {
     try {
       const [users, rest] = await Promise.all([
         axiosClient.get<UserAccount[]>('/users'),
-        axiosClient.get<Restaurant[]>('/restaurants'),
+        axiosClient.get<Customer[]>('/customers'),
       ])
       setRows(users.data)
-      setRestaurants(rest.data.filter((r) => r.active))
+      setCustomers(rest.data.filter((r) => r.active))
     } catch (e) {
       setError(getErrorMessage(e, 'Không tải được danh sách tài khoản'))
     } finally {
@@ -71,7 +71,7 @@ export default function Accounts() {
         (!k ||
           u.username.toLowerCase().includes(k) ||
           (u.fullName ?? '').toLowerCase().includes(k) ||
-          (u.restaurantName ?? '').toLowerCase().includes(k)),
+          (u.customerName ?? '').toLowerCase().includes(k)),
     )
   }, [rows, search, roleFilter])
 
@@ -84,7 +84,7 @@ export default function Accounts() {
         fullName: values.fullName?.trim() || null,
         phone: values.phone?.trim() || null,
         role: values.role,
-        restaurantId: isRestaurantRole(values.role) ? values.restaurantId : null,
+        customerId: isCustomerRole(values.role) ? values.customerId : null,
       })
       message.success('Đã tạo tài khoản')
       setCreating(false)
@@ -124,7 +124,7 @@ export default function Accounts() {
     { title: 'Tên đăng nhập', dataIndex: 'username' },
     { title: 'Họ tên', dataIndex: 'fullName', responsive: ['md'], render: (v: string | null) => v || '—' },
     { title: 'Vai trò', dataIndex: 'role', render: (r: Role) => <ToneTag tone="navy">{ROLE_LABELS[r]}</ToneTag> },
-    { title: 'Khách hàng', dataIndex: 'restaurantName', responsive: ['md'], render: (v: string | null) => v || '—' },
+    { title: 'Khách hàng', dataIndex: 'customerName', responsive: ['md'], render: (v: string | null) => v || '—' },
     { title: 'Ngày tạo', dataIndex: 'createdAt', responsive: ['lg'], render: (v: string) => formatDate(v) },
     {
       title: 'Trạng thái',
@@ -231,12 +231,12 @@ export default function Accounts() {
           <Form.Item name="role" label="Vai trò" rules={[{ required: true, message: 'Vui lòng chọn vai trò' }]}>
             <Select options={ROLE_OPTIONS} />
           </Form.Item>
-          {selectedRole && isRestaurantRole(selectedRole) && (
-            <Form.Item name="restaurantId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
+          {selectedRole && isCustomerRole(selectedRole) && (
+            <Form.Item name="customerId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
               <Select
                 showSearch={{ optionFilterProp: 'label' }}
                 placeholder="Chọn khách hàng"
-                options={restaurants.map((r) => ({ value: r.id, label: r.name }))}
+                options={customers.map((r) => ({ value: r.id, label: r.name }))}
               />
             </Form.Item>
           )}

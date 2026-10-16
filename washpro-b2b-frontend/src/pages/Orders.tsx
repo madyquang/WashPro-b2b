@@ -16,7 +16,7 @@ import CreateOrderModal from './orders/CreateOrderModal'
 import { CompactActions, OrderCard } from './orders/OrderCard'
 import { fieldViews, orderHint, type OrderView } from './orders/hints'
 import { useOrderActions } from './orders/useOrderActions'
-import { getSession, isRestaurantRole } from '../utils/auth'
+import { getSession, isCustomerRole } from '../utils/auth'
 import { formatQuantity, groupByCategory } from '../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage } from '../utils/format'
 import { CATEGORY_META, CATEGORY_ORDER, STATUS_META, STATUS_ORDER, type ItemCategory, type Order, type OrderPage, type OrderStatus } from '../types'
@@ -124,11 +124,11 @@ export default function Orders() {
 
   if (!role) return null
   const isDriver = role === 'DRIVER'
-  const isRestaurant = isRestaurantRole(role)
+  const isCustomer = isCustomerRole(role)
   const isAdmin = role === 'WORKSHOP_ADMIN'
   const isAccountant = role === 'WORKSHOP_ACCOUNTANT'
   // Tài xế và nhân viên phía khách không cần thấy tiền
-  const canSeeMoney = isAdmin || isAccountant || role === 'RESTAURANT_MANAGER'
+  const canSeeMoney = isAdmin || isAccountant || role === 'CUSTOMER_MANAGER'
 
   const setOverdueOnly = (on: boolean) => {
     const next = new URLSearchParams(params)
@@ -148,7 +148,7 @@ export default function Orders() {
 
   const allColumns: TableColumnsType<Order> = [
     { title: 'Mã', dataIndex: 'id', width: 70, render: (id: number) => `#${id}` },
-    { title: 'Khách hàng', dataIndex: 'restaurantName', ellipsis: true },
+    { title: 'Khách hàng', dataIndex: 'customerName', ellipsis: true },
     { title: 'Tài xế', dataIndex: 'driverName', responsive: ['xxl'] },
     { title: 'Túi', dataIndex: 'totalBags', align: 'right', width: 56 },
     {
@@ -217,7 +217,7 @@ export default function Orders() {
     },
   ]
   // Phía khách: mọi đơn đều của chính họ nên bỏ cột khách hàng; chỉ vai trò được xem tiền mới có cột thành tiền
-  const columns = allColumns.filter((c) => (c.key !== 'amount' || canSeeMoney) && (!isRestaurant || !('dataIndex' in c && c.dataIndex === 'restaurantName')))
+  const columns = allColumns.filter((c) => (c.key !== 'amount' || canSeeMoney) && (!isCustomer || !('dataIndex' in c && c.dataIndex === 'customerName')))
 
   const filtered = overdueOnly || !!category || !!keyword
   const empty = filtered ? (
@@ -255,10 +255,10 @@ export default function Orders() {
   return (
     <>
       <PageHeader
-        title={isRestaurant ? 'Đơn giặt' : isDriver ? 'Đơn đã tạo' : 'Đơn hàng'}
+        title={isCustomer ? 'Đơn giặt' : isDriver ? 'Đơn đã tạo' : 'Đơn hàng'}
         description={
           (isDriver && 'Đơn bạn đã tạo khi lấy đồ: theo dõi khách xác nhận, báo sai lệch khi cần.') ||
-          (isRestaurant && 'Xác nhận số lượng khi tài xế lấy đồ, xác nhận khi đã nhận đủ đồ sạch.') ||
+          (isCustomer && 'Xác nhận số lượng khi tài xế lấy đồ, xác nhận khi đã nhận đủ đồ sạch.') ||
           (isAccountant && 'Nhập đơn giá cho đơn đang giặt để xưởng giao trả.') ||
           'Điều phối đơn từ lúc nhận đồ đến khi giao trả.'
         }
@@ -280,7 +280,7 @@ export default function Orders() {
         <Input.Search
           allowClear
           aria-label="Tìm đơn"
-          placeholder={isRestaurant ? 'Tìm loại đồ, mã đơn' : 'Tìm khách hàng, tài xế, loại đồ, mã đơn'}
+          placeholder={isCustomer ? 'Tìm loại đồ, mã đơn' : 'Tìm khách hàng, tài xế, loại đồ, mã đơn'}
           style={{ width: 300 }}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -334,7 +334,7 @@ export default function Orders() {
                 busy={orderActions.busyId === o.id}
                 onDetail={() => orderActions.openDetail(o.id)}
                 showMoney={canSeeMoney}
-                hideCustomer={isRestaurant}
+                hideCustomer={isCustomer}
                 hint={orderHint(o, role)}
                 // Xưởng có nhiều thao tác trên một đơn: thu gọn vào menu "Thêm"
                 onMenuAction={field ? undefined : orderActions.runFromMenu}

@@ -28,7 +28,7 @@ public class PickupController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('RESTAURANT_STAFF', 'RESTAURANT_MANAGER', 'WORKSHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER', 'WORKSHOP_ADMIN')")
     public ResponseEntity<Response> create(@Valid @RequestBody CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(pickupService.create(request));
     }
@@ -52,7 +52,7 @@ public class PickupController {
     }
 
     @PutMapping("/{id}/cancel")
-    @PreAuthorize("hasAnyRole('RESTAURANT_STAFF', 'RESTAURANT_MANAGER', 'WORKSHOP_ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER', 'WORKSHOP_ADMIN')")
     public ResponseEntity<Response> cancel(@PathVariable Long id, @Valid @RequestBody CancelRequest request) {
         return ResponseEntity.ok(pickupService.cancel(id, request.reason()));
     }

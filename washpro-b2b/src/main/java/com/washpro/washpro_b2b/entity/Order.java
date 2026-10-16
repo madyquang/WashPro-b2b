@@ -32,8 +32,8 @@ public class Order {
     private User driver;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false)
-    private Restaurant restaurant;
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
     // Lưu dạng VARCHAR để thêm trạng thái mới không bị vướng kiểu ENUM của MySQL
     @Enumerated(EnumType.STRING)

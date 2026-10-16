@@ -82,7 +82,7 @@ export default function Finance() {
     setHistory([])
     setHistoryLoading(true)
     try {
-      const { data } = await axiosClient.get<Payment[]>('/payments', { params: { restaurantId: r.restaurantId } })
+      const { data } = await axiosClient.get<Payment[]>('/payments', { params: { customerId: r.customerId } })
       setHistory(data)
     } catch (e) {
       message.error(getErrorMessage(e, 'Không tải được lịch sử thanh toán'))
@@ -112,7 +112,7 @@ export default function Finance() {
     setSaving(true)
     try {
       await axiosClient.post('/payments', {
-        restaurantId: payFor.restaurantId,
+        customerId: payFor.customerId,
         amount: values.amount,
         paidDate: values.paidDate,
         note: values.note?.trim() || null,
@@ -149,7 +149,7 @@ export default function Finance() {
   const columns: TableColumnsType<DebtRow> = [
     {
       title: 'Khách hàng',
-      dataIndex: 'restaurantName',
+      dataIndex: 'customerName',
       render: (name: string, r) => (
         <>
           {name} {!r.active && <ToneTag tone="gray">Ngừng hợp tác</ToneTag>}
@@ -247,15 +247,15 @@ export default function Finance() {
   const debtTable = (
     <ResponsiveTable<DebtRow>
       table={{
-        rowKey: 'restaurantId',
+        rowKey: 'customerId',
         loading,
         columns,
         dataSource: rows,
         scroll: { x: 1000 },
         pagination: { pageSize: 10, showSizeChanger: false, style: { paddingInline: 16 } },
       }}
-      cardTitle={(r) => r.restaurantName}
-      hideInCard={['restaurantName']}
+      cardTitle={(r) => r.customerName}
+      hideInCard={['customerName']}
       emptyText="Chưa có dữ liệu công nợ"
     />
   )
@@ -338,7 +338,7 @@ export default function Finance() {
       )}
 
       <Modal
-        title={payFor ? `Ghi nhận thanh toán · ${payFor.restaurantName}` : ''}
+        title={payFor ? `Ghi nhận thanh toán · ${payFor.customerName}` : ''}
         open={payFor !== null}
         onCancel={() => setPayFor(null)}
         onOk={() => form.submit()}
@@ -371,7 +371,7 @@ export default function Finance() {
         </Form>
       </Modal>
 
-      <Drawer title={historyFor ? `Lịch sử thanh toán · ${historyFor.restaurantName}` : ''} open={historyFor !== null} onClose={() => setHistoryFor(null)} size={Math.min(760, window.innerWidth)} destroyOnHidden>
+      <Drawer title={historyFor ? `Lịch sử thanh toán · ${historyFor.customerName}` : ''} open={historyFor !== null} onClose={() => setHistoryFor(null)} size={Math.min(760, window.innerWidth)} destroyOnHidden>
         <Table<Payment>
           rowKey="id"
           size="small"

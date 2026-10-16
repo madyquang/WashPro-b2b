@@ -1,14 +1,14 @@
 package com.washpro.washpro_b2b.integration;
 
 import com.jayway.jsonpath.JsonPath;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,7 +48,7 @@ class OrderApiIntegrationTest {
     @Autowired
     UserRepository userRepository;
     @Autowired
-    RestaurantRepository restaurantRepository;
+    CustomerRepository customerRepository;
     @Autowired
     OrderRepository orderRepository;
     @Autowired
@@ -58,8 +58,8 @@ class OrderApiIntegrationTest {
     @Autowired
     CustomerPriceRepository customerPriceRepository;
 
-    Restaurant hoaSen;
-    Restaurant bienXanh;
+    Customer hoaSen;
+    Customer bienXanh;
 
     @BeforeEach
     void seed() {
@@ -68,18 +68,18 @@ class OrderApiIntegrationTest {
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
         userRepository.deleteAll();
-        restaurantRepository.deleteAll();
+        customerRepository.deleteAll();
 
-        hoaSen = restaurantRepository.save(Restaurant.builder().name("Nhà hàng Hoa Sen").turnaroundHours(24).build());
-        bienXanh = restaurantRepository.save(Restaurant.builder().name("Khách sạn Biển Xanh").build());
+        hoaSen = customerRepository.save(Customer.builder().name("Nhà hàng Hoa Sen").turnaroundHours(24).build());
+        bienXanh = customerRepository.save(Customer.builder().name("Khách sạn Biển Xanh").build());
 
         user("admin", Role.WORKSHOP_ADMIN, null);
         user("ketoan", Role.WORKSHOP_ACCOUNTANT, null);
         user("taixe1", Role.DRIVER, null);
         user("taixe2", Role.DRIVER, null);
-        user("hoasen.nv", Role.RESTAURANT_STAFF, hoaSen);
-        user("hoasen.ql", Role.RESTAURANT_MANAGER, hoaSen);
-        user("bienxanh.nv", Role.RESTAURANT_STAFF, bienXanh);
+        user("hoasen.nv", Role.CUSTOMER_STAFF, hoaSen);
+        user("hoasen.ql", Role.CUSTOMER_MANAGER, hoaSen);
+        user("bienxanh.nv", Role.CUSTOMER_STAFF, bienXanh);
     }
 
     @Test
@@ -170,17 +170,17 @@ class OrderApiIntegrationTest {
 
         // Mặc định mới nhận trước; DUE: hạn trả gần nhất trước (Hoa Sen trả trong 24h, Biển Xanh 48h)
         mvc.perform(auth(get("/api/orders"), admin))
-                .andExpect(jsonPath("$.content[0].restaurantName", is("Khách sạn Biển Xanh")));
+                .andExpect(jsonPath("$.content[0].customerName", is("Khách sạn Biển Xanh")));
         mvc.perform(auth(get("/api/orders").param("sort", "DUE"), admin))
                 .andExpect(jsonPath("$.content[0].id", is((int) first)))
-                .andExpect(jsonPath("$.content[2].restaurantName", is("Khách sạn Biển Xanh")));
+                .andExpect(jsonPath("$.content[2].customerName", is("Khách sạn Biển Xanh")));
 
         mvc.perform(auth(get("/api/orders").param("status", "PENDING_CONFIRM,WASHING").param("q", "khăn BÀN"), admin))
                 .andExpect(jsonPath("$.total", is(2)));
 
         mvc.perform(auth(get("/api/orders").param("q", "biển xanh"), admin))
                 .andExpect(jsonPath("$.total", is(1)))
-                .andExpect(jsonPath("$.content[0].restaurantName", is("Khách sạn Biển Xanh")));
+                .andExpect(jsonPath("$.content[0].customerName", is("Khách sạn Biển Xanh")));
 
         mvc.perform(auth(get("/api/orders").param("q", "#" + first), admin))
                 .andExpect(jsonPath("$.total", is(1)))
@@ -205,13 +205,13 @@ class OrderApiIntegrationTest {
 
     // ===================== Hàm hỗ trợ =====================
 
-    private void user(String username, Role role, Restaurant restaurant) {
+    private void user(String username, Role role, Customer customer) {
         userRepository.save(User.builder()
                 .username(username)
                 .password(passwordEncoder.encode(PASSWORD))
                 .fullName(username)
                 .role(role)
-                .restaurant(restaurant)
+                .customer(customer)
                 .build());
     }
 
@@ -223,18 +223,18 @@ class OrderApiIntegrationTest {
         return JsonPath.read(body, "$.token");
     }
 
-    private long createOrder(String token, Restaurant restaurant, String itemName, int quantity) throws Exception {
+    private long createOrder(String token, Customer customer, String itemName, int quantity) throws Exception {
         String body = mvc.perform(auth(post("/api/orders"), token).contentType(MediaType.APPLICATION_JSON)
-                .content(orderJson(restaurant, itemName, quantity)))
+                .content(orderJson(customer, itemName, quantity)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status", is("PENDING_CONFIRM")))
                 .andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(body, "$.id")).longValue();
     }
 
-    private static String orderJson(Restaurant restaurant, String itemName, int quantity) {
-        return "{\"restaurantId\":%d,\"totalBags\":1,\"items\":[{\"itemName\":\"%s\",\"quantity\":%d}]}"
-                .formatted(restaurant.getId(), itemName, quantity);
+    private static String orderJson(Customer customer, String itemName, int quantity) {
+        return "{\"customerId\":%d,\"totalBags\":1,\"items\":[{\"itemName\":\"%s\",\"quantity\":%d}]}"
+                .formatted(customer.getId(), itemName, quantity);
     }
 
     private static MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request, String token) {

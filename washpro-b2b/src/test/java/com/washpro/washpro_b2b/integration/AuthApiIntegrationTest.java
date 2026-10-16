@@ -7,7 +7,7 @@ import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -49,7 +49,7 @@ class AuthApiIntegrationTest {
     @Autowired
     UserRepository userRepository;
     @Autowired
-    RestaurantRepository restaurantRepository;
+    CustomerRepository customerRepository;
     @Autowired
     OrderRepository orderRepository;
     @Autowired
@@ -70,7 +70,7 @@ class AuthApiIntegrationTest {
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
         userRepository.deleteAll();
-        restaurantRepository.deleteAll();
+        customerRepository.deleteAll();
 
         user("admin", Role.WORKSHOP_ADMIN);
         driver = user("taixe", Role.DRIVER);

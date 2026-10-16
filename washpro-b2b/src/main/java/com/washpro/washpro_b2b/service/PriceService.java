@@ -5,11 +5,11 @@ import com.washpro.washpro_b2b.dto.PriceDtos.CustomerPriceRow;
 import com.washpro.washpro_b2b.dto.PriceDtos.Request;
 import com.washpro.washpro_b2b.dto.PriceDtos.Response;
 import com.washpro.washpro_b2b.entity.CustomerPrice;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.ServicePriceRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +40,7 @@ public class PriceService {
 
     private final ServicePriceRepository priceRepository;
     private final CustomerPriceRepository customerPriceRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final CurrentUserService currentUserService;
 
     // ===================== Bảng giá chung =====================
@@ -95,9 +95,9 @@ public class PriceService {
 
     /** Toàn bộ bảng giá (kể cả mục đã ẩn) kèm giá riêng của khách hàng này. */
     @Transactional(readOnly = true)
-    public List<CustomerPriceRow> customerPrices(Long restaurantId) {
-        findRestaurant(restaurantId);
-        Map<Long, CustomerPrice> custom = customByServicePrice(restaurantId);
+    public List<CustomerPriceRow> customerPrices(Long customerId) {
+        findCustomer(customerId);
+        Map<Long, CustomerPrice> custom = customByServicePrice(customerId);
         return priceRepository.findAll().stream()
                 .sorted(CATALOG_ORDER)
                 .map(p -> CustomerPriceRow.of(p, custom.get(p.getId())))
@@ -105,12 +105,12 @@ public class PriceService {
     }
 
     @Transactional
-    public CustomerPriceRow setCustomerPrice(Long restaurantId, Long servicePriceId, BigDecimal unitPrice) {
-        Restaurant restaurant = findRestaurant(restaurantId);
+    public CustomerPriceRow setCustomerPrice(Long customerId, Long servicePriceId, BigDecimal unitPrice) {
+        Customer customer = findCustomer(customerId);
         ServicePrice price = find(servicePriceId);
         CustomerPrice custom = customerPriceRepository
-                .findByRestaurantIdAndServicePriceId(restaurantId, servicePriceId)
-                .orElseGet(() -> CustomerPrice.builder().restaurant(restaurant).servicePrice(price).build());
+                .findByCustomerIdAndServicePriceId(customerId, servicePriceId)
+                .orElseGet(() -> CustomerPrice.builder().customer(customer).servicePrice(price).build());
         custom.setUnitPrice(money(unitPrice));
         custom.setUpdatedBy(currentUserService.getCurrentUser().getUsername());
         return CustomerPriceRow.of(price, customerPriceRepository.save(custom));
@@ -118,10 +118,10 @@ public class PriceService {
 
     /** Bỏ giá riêng: khách hàng quay về dùng giá chung. */
     @Transactional
-    public CustomerPriceRow removeCustomerPrice(Long restaurantId, Long servicePriceId) {
-        findRestaurant(restaurantId);
+    public CustomerPriceRow removeCustomerPrice(Long customerId, Long servicePriceId) {
+        findCustomer(customerId);
         ServicePrice price = find(servicePriceId);
-        customerPriceRepository.findByRestaurantIdAndServicePriceId(restaurantId, servicePriceId)
+        customerPriceRepository.findByCustomerIdAndServicePriceId(customerId, servicePriceId)
                 .ifPresent(customerPriceRepository::delete);
         return CustomerPriceRow.of(price, null);
     }
@@ -131,8 +131,8 @@ public class PriceService {
      * Giá riêng được nạp một lần, tránh truy vấn lặp cho mỗi dòng.
      */
     @Transactional(readOnly = true)
-    public Function<ServicePrice, BigDecimal> pricerFor(Long restaurantId) {
-        Map<Long, BigDecimal> custom = customByServicePrice(restaurantId).entrySet().stream()
+    public Function<ServicePrice, BigDecimal> pricerFor(Long customerId) {
+        Map<Long, BigDecimal> custom = customByServicePrice(customerId).entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getUnitPrice()));
         return price -> custom.getOrDefault(price.getId(), price.getUnitPrice());
     }
@@ -144,13 +144,13 @@ public class PriceService {
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy mục trong bảng giá"));
     }
 
-    private Restaurant findRestaurant(Long id) {
-        return restaurantRepository.findById(id)
+    private Customer findCustomer(Long id) {
+        return customerRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
     }
 
-    private Map<Long, CustomerPrice> customByServicePrice(Long restaurantId) {
-        return customerPriceRepository.findByRestaurantId(restaurantId).stream()
+    private Map<Long, CustomerPrice> customByServicePrice(Long customerId) {
+        return customerPriceRepository.findByCustomerId(customerId).stream()
                 .collect(Collectors.toMap(c -> c.getServicePrice().getId(), Function.identity()));
     }
 

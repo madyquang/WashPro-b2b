@@ -1,7 +1,7 @@
 package com.washpro.washpro_b2b.dto;
 
 import com.washpro.washpro_b2b.entity.CustomerType;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -10,10 +10,10 @@ import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
 
-/** Khách hàng của xưởng (giữ tên "Restaurant" để tương thích API cũ). */
-public final class RestaurantDtos {
+/** Khách hàng của xưởng (giữ tên "Customer" để tương thích API cũ). */
+public final class CustomerDtos {
 
-    private RestaurantDtos() {
+    private CustomerDtos() {
     }
 
     public record Request(
@@ -41,7 +41,7 @@ public final class RestaurantDtos {
             boolean active,
             LocalDateTime createdAt) {
 
-        public static Response from(Restaurant r) {
+        public static Response from(Customer r) {
             return new Response(r.getId(), r.getName(), r.getCustomerType(), r.getAddress(), r.getPhone(),
                     r.getContactName(), r.getTurnaroundHours(), r.getPaymentTermDays(), r.isActive(),
                     r.getCreatedAt());

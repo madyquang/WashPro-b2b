@@ -5,7 +5,7 @@ import axiosClient from '../../api/axiosClient'
 import DiscrepancyModal from './DiscrepancyModal'
 import ItemsModal from './ItemsModal'
 import OrderDrawer from './OrderDrawer'
-import { getSession, isRestaurantRole } from '../../utils/auth'
+import { getSession, isCustomerRole } from '../../utils/auth'
 import { formatQuantity } from '../../utils/catalog'
 import { getErrorMessage, toLocalInput } from '../../utils/format'
 import { STATUS_META, type Order, type OrderStatus } from '../../types'
@@ -51,7 +51,7 @@ const ADMIN_NEXT: Partial<Record<OrderStatus, AdminStep[]>> = {
 export function useOrderActions(onChanged: () => void) {
   const role = getSession()?.role
   const isDriver = role === 'DRIVER'
-  const isRestaurant = role ? isRestaurantRole(role) : false
+  const isCustomer = role ? isCustomerRole(role) : false
   const isAdmin = role === 'WORKSHOP_ADMIN'
   const isAccountant = role === 'WORKSHOP_ACCOUNTANT'
 
@@ -116,7 +116,7 @@ export function useOrderActions(onChanged: () => void) {
     const waiting = o.status === 'PENDING_CONFIRM' || o.status === 'DISCREPANCY'
     const actions: OrderAction[] = []
 
-    if (isRestaurant && o.status === 'DELIVERING') {
+    if (isCustomer && o.status === 'DELIVERING') {
       actions.push(
         {
           key: 'receipt',
@@ -128,7 +128,7 @@ export function useOrderActions(onChanged: () => void) {
         { key: 'issue', label: 'Báo thiếu / hỏng', danger: true, onClick: () => setIssueOrder(o) },
       )
     }
-    if (isRestaurant && waiting) {
+    if (isCustomer && waiting) {
       actions.push({
         key: 'approve',
         label: 'Xác nhận số lượng',
@@ -145,8 +145,8 @@ export function useOrderActions(onChanged: () => void) {
         onClick: () => run(o, () => axiosClient.put(`/orders/${o.id}/approve`), `Đã xác nhận đơn #${o.id}`),
       })
     }
-    if ((isRestaurant || isDriver) && waiting) {
-      actions.push({ key: 'discrepancy', label: isRestaurant ? 'Số lượng không đúng' : 'Báo sai lệch', danger: true, onClick: () => setDiscrepancyOrder(o) })
+    if ((isCustomer || isDriver) && waiting) {
+      actions.push({ key: 'discrepancy', label: isCustomer ? 'Số lượng không đúng' : 'Báo sai lệch', danger: true, onClick: () => setDiscrepancyOrder(o) })
     }
     if (isAdmin) {
       for (const step of ADMIN_NEXT[o.status] ?? []) {

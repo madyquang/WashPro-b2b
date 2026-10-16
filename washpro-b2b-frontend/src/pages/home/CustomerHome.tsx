@@ -27,7 +27,7 @@ import type { DebtRow, Order, OrderPage, PickupRequest } from '../../types'
  */
 export default function CustomerHome() {
   const session = getSession()
-  const isManager = session?.role === 'RESTAURANT_MANAGER'
+  const isManager = session?.role === 'CUSTOMER_MANAGER'
   const [pickups, setPickups] = useState<PickupRequest[]>([])
   const [todo, setTodo] = useState<Order[]>([])
   const [todoTotal, setTodoTotal] = useState(0)
@@ -82,7 +82,7 @@ export default function CustomerHome() {
     <>
       <PageHeader
         title={greetingFor(session.fullName)}
-        description={`${session.restaurantName ?? ''} · Cần xưởng đến lấy đồ? Gửi yêu cầu chỉ với vài thao tác.`}
+        description={`${session.customerName ?? ''} · Cần xưởng đến lấy đồ? Gửi yêu cầu chỉ với vài thao tác.`}
         actions={
           <>
             <Button icon={<ReloadOutlined />} onClick={load} loading={loading} aria-label="Làm mới" />

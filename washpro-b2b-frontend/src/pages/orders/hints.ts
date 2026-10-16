@@ -1,4 +1,4 @@
-import { isRestaurantRole } from '../../utils/auth'
+import { isCustomerRole } from '../../utils/auth'
 import type { Order, OrderStatus, Role } from '../../types'
 
 /** Một nhóm việc trên trang Đơn hàng: gom nhiều trạng thái theo cách người dùng nghĩ về công việc. */
@@ -26,14 +26,14 @@ const DRIVER_VIEWS: OrderView[] = [
 
 /** Nhóm việc cho tài khoản phía khách và tài xế; xưởng dùng tab theo từng trạng thái (null). */
 export function fieldViews(role: Role): OrderView[] | null {
-  if (isRestaurantRole(role)) return CUSTOMER_VIEWS
+  if (isCustomerRole(role)) return CUSTOMER_VIEWS
   if (role === 'DRIVER') return DRIVER_VIEWS
   return null
 }
 
 /** Lời nhắc ngắn trên thẻ đơn: người dùng cần làm gì tiếp theo (hoặc đang chờ ai). */
 export function orderHint(o: Order, role: Role): string | undefined {
-  if (isRestaurantRole(role)) {
+  if (isCustomerRole(role)) {
     if (o.status === 'PENDING_CONFIRM') return 'Tài xế đã đếm đồ. Kiểm lại số lượng rồi xác nhận để xưởng bắt đầu giặt.'
     if (o.status === 'DISCREPANCY') return 'Số lượng đang có sai lệch. Kiểm lại rồi xác nhận, hoặc báo lại nếu vẫn chưa đúng.'
     if (o.status === 'DELIVERING') return 'Đồ sạch đang được giao. Kiểm đủ rồi bấm "Đã nhận đủ đồ".'

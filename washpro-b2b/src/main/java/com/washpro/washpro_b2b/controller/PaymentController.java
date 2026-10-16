@@ -35,8 +35,8 @@ public class PaymentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
-    public ResponseEntity<List<PaymentResponse>> list(@RequestParam(required = false) Long restaurantId) {
-        return ResponseEntity.ok(paymentService.list(restaurantId));
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
+    public ResponseEntity<List<PaymentResponse>> list(@RequestParam(required = false) Long customerId) {
+        return ResponseEntity.ok(paymentService.list(customerId));
     }
 }

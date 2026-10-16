@@ -53,20 +53,20 @@ public class PriceController {
 
     // ===== Giá hợp đồng riêng theo khách hàng =====
 
-    @GetMapping("/customers/{restaurantId}")
-    public ResponseEntity<List<CustomerPriceRow>> customerPrices(@PathVariable Long restaurantId) {
-        return ResponseEntity.ok(priceService.customerPrices(restaurantId));
+    @GetMapping("/customers/{customerId}")
+    public ResponseEntity<List<CustomerPriceRow>> customerPrices(@PathVariable Long customerId) {
+        return ResponseEntity.ok(priceService.customerPrices(customerId));
     }
 
-    @PutMapping("/customers/{restaurantId}/{servicePriceId}")
-    public ResponseEntity<CustomerPriceRow> setCustomerPrice(@PathVariable Long restaurantId,
+    @PutMapping("/customers/{customerId}/{servicePriceId}")
+    public ResponseEntity<CustomerPriceRow> setCustomerPrice(@PathVariable Long customerId,
             @PathVariable Long servicePriceId, @Valid @RequestBody CustomerPriceRequest request) {
-        return ResponseEntity.ok(priceService.setCustomerPrice(restaurantId, servicePriceId, request.unitPrice()));
+        return ResponseEntity.ok(priceService.setCustomerPrice(customerId, servicePriceId, request.unitPrice()));
     }
 
-    @DeleteMapping("/customers/{restaurantId}/{servicePriceId}")
-    public ResponseEntity<CustomerPriceRow> removeCustomerPrice(@PathVariable Long restaurantId,
+    @DeleteMapping("/customers/{customerId}/{servicePriceId}")
+    public ResponseEntity<CustomerPriceRow> removeCustomerPrice(@PathVariable Long customerId,
             @PathVariable Long servicePriceId) {
-        return ResponseEntity.ok(priceService.removeCustomerPrice(restaurantId, servicePriceId));
+        return ResponseEntity.ok(priceService.removeCustomerPrice(customerId, servicePriceId));
     }
 }

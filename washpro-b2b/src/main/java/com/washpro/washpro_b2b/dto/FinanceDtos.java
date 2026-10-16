@@ -21,7 +21,7 @@ public final class FinanceDtos {
     }
 
     public record PaymentRequest(
-            @NotNull(message = "Vui lòng chọn khách hàng") Long restaurantId,
+            @NotNull(message = "Vui lòng chọn khách hàng") Long customerId,
             @NotNull(message = "Vui lòng nhập số tiền") @DecimalMin(value = "0.01", message = "Số tiền phải lớn hơn 0") @Digits(integer = 12, fraction = 2, message = "Số tiền không hợp lệ") BigDecimal amount,
             @PastOrPresent(message = "Ngày thanh toán không được ở tương lai") LocalDate paidDate,
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
@@ -37,8 +37,8 @@ public final class FinanceDtos {
 
     public record PaymentResponse(
             Long id,
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             BigDecimal amount,
             LocalDate paidDate,
             String note,
@@ -51,8 +51,8 @@ public final class FinanceDtos {
         public static PaymentResponse from(Payment p) {
             return new PaymentResponse(
                     p.getId(),
-                    p.getRestaurant().getId(),
-                    p.getRestaurant().getName(),
+                    p.getCustomer().getId(),
+                    p.getCustomer().getName(),
                     p.getAmount(),
                     p.getPaidDate(),
                     p.getNote(),
@@ -69,8 +69,8 @@ public final class FinanceDtos {
      * (phần còn nợ chia theo số ngày quá hạn thanh toán).
      */
     public record DebtRow(
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             CustomerType customerType,
             boolean active,
             int paymentTermDays,
@@ -115,8 +115,8 @@ public final class FinanceDtos {
 
     /** Sao kê: nợ đầu kỳ + phát sinh trong tháng - thanh toán trong tháng = nợ cuối kỳ. */
     public record StatementResponse(
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             CustomerType customerType,
             String address,
             int paymentTermDays,

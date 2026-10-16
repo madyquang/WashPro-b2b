@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface CustomerPriceRepository extends JpaRepository<CustomerPrice, Long> {
 
-    List<CustomerPrice> findByRestaurantId(Long restaurantId);
+    List<CustomerPrice> findByCustomerId(Long customerId);
 
-    Optional<CustomerPrice> findByRestaurantIdAndServicePriceId(Long restaurantId, Long servicePriceId);
+    Optional<CustomerPrice> findByCustomerIdAndServicePriceId(Long customerId, Long servicePriceId);
 }

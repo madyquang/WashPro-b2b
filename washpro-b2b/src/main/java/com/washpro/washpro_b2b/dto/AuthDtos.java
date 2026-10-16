@@ -18,7 +18,7 @@ public final class AuthDtos {
             String username,
             String fullName,
             String role,
-            String restaurantName,
+            String customerName,
             long expiresAt) {
     }
 

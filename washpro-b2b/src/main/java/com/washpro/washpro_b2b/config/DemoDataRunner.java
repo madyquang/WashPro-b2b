@@ -11,7 +11,7 @@ import com.washpro.washpro_b2b.entity.Payment;
 import com.washpro.washpro_b2b.entity.PickupRequest;
 import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.entity.ServiceType;
@@ -21,7 +21,7 @@ import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.ServicePriceRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.slf4j.Logger;
@@ -62,7 +62,7 @@ public class DemoDataRunner implements ApplicationRunner {
 
     private final ServicePriceRepository priceRepository;
     private final CustomerPriceRepository customerPriceRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
@@ -83,14 +83,14 @@ public class DemoDataRunner implements ApplicationRunner {
     private final List<Order> activeOrders = new ArrayList<>();
 
     public DemoDataRunner(ServicePriceRepository priceRepository, CustomerPriceRepository customerPriceRepository,
-            RestaurantRepository restaurantRepository, UserRepository userRepository, OrderRepository orderRepository,
+            CustomerRepository customerRepository, UserRepository userRepository, OrderRepository orderRepository,
             PaymentRepository paymentRepository, PickupRequestRepository pickupRepository,
             PasswordEncoder passwordEncoder, JdbcTemplate jdbc,
             @Value("${app.demo-data.enabled:false}") String mode) {
         this.mode = mode == null ? "false" : mode.trim();
         this.priceRepository = priceRepository;
         this.customerPriceRepository = customerPriceRepository;
-        this.restaurantRepository = restaurantRepository;
+        this.customerRepository = customerRepository;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
@@ -115,7 +115,7 @@ public class DemoDataRunner implements ApplicationRunner {
         }
         if ("reset".equalsIgnoreCase(mode)) {
             deleteDemoData();
-        } else if (restaurantRepository.findByNameIgnoreCase(MARKER_CUSTOMER).isPresent()) {
+        } else if (customerRepository.findByNameIgnoreCase(MARKER_CUSTOMER).isPresent()) {
             log.info("Dữ liệu demo đã có sẵn, bỏ qua. Đặt DEMO_DATA=reset để xóa và sinh lại.");
             return;
         }
@@ -132,7 +132,7 @@ public class DemoDataRunner implements ApplicationRunner {
         int orderCount = 0;
         int paymentCount = 0;
         for (Profile p : profiles) {
-            Restaurant r = seedCustomer(p, catalog);
+            Customer r = seedCustomer(p, catalog);
             List<Order> completed = new ArrayList<>();
             orderCount += seedOrders(p, r, catalog, drivers, now, completed);
             paymentCount += seedPayments(p, r, completed, now.toLocalDate());
@@ -146,19 +146,19 @@ public class DemoDataRunner implements ApplicationRunner {
     private void deleteDemoData() {
         List<String> names = profiles().stream().map(Profile::name).toList();
         String placeholders = String.join(",", names.stream().map(n -> "?").toList());
-        List<Long> customers = jdbc.queryForList("SELECT id FROM restaurants WHERE name IN (" + placeholders + ")",
+        List<Long> customers = jdbc.queryForList("SELECT id FROM customers WHERE name IN (" + placeholders + ")",
                 Long.class, names.toArray());
         if (!customers.isEmpty()) {
             String ids = String.join(",", customers.stream().map(String::valueOf).toList());
-            String orders = "SELECT id FROM orders WHERE restaurant_id IN (" + ids + ")";
-            jdbc.update("DELETE FROM pickup_requests WHERE restaurant_id IN (" + ids + ")");
+            String orders = "SELECT id FROM orders WHERE customer_id IN (" + ids + ")";
+            jdbc.update("DELETE FROM pickup_requests WHERE customer_id IN (" + ids + ")");
             jdbc.update("DELETE FROM order_history WHERE order_id IN (" + orders + ")");
             jdbc.update("DELETE FROM order_items WHERE order_id IN (" + orders + ")");
-            jdbc.update("DELETE FROM orders WHERE restaurant_id IN (" + ids + ")");
-            jdbc.update("DELETE FROM payments WHERE restaurant_id IN (" + ids + ")");
-            jdbc.update("DELETE FROM customer_prices WHERE restaurant_id IN (" + ids + ")");
-            jdbc.update("DELETE FROM users WHERE restaurant_id IN (" + ids + ")");
-            jdbc.update("DELETE FROM restaurants WHERE id IN (" + ids + ")");
+            jdbc.update("DELETE FROM orders WHERE customer_id IN (" + ids + ")");
+            jdbc.update("DELETE FROM payments WHERE customer_id IN (" + ids + ")");
+            jdbc.update("DELETE FROM customer_prices WHERE customer_id IN (" + ids + ")");
+            jdbc.update("DELETE FROM users WHERE customer_id IN (" + ids + ")");
+            jdbc.update("DELETE FROM customers WHERE id IN (" + ids + ")");
         }
         jdbc.update("DELETE FROM users WHERE username IN ('taixe.tai', 'taixe.hung', 'taixe.phuc', 'ketoan.mai')");
         log.info("Đã xóa dữ liệu demo cũ ({} khách hàng)", customers.size());
@@ -218,14 +218,14 @@ public class DemoDataRunner implements ApplicationRunner {
         return drivers;
     }
 
-    private User user(String username, String fullName, String phone, Role role, Restaurant restaurant) {
+    private User user(String username, String fullName, String phone, Role role, Customer customer) {
         return userRepository.findByUsername(username).orElseGet(() -> userRepository.save(User.builder()
                 .username(username)
                 .password(passwordEncoder.encode(PASSWORD))
                 .fullName(fullName)
                 .phone(phone)
                 .role(role)
-                .restaurant(restaurant)
+                .customer(customer)
                 .build()));
     }
 
@@ -259,8 +259,8 @@ public class DemoDataRunner implements ApplicationRunner {
                         List.of("Ga giường đôi", "Vỏ chăn", "Vỏ gối", "Khăn tắm", "Áo vest lễ tân")));
     }
 
-    private Restaurant seedCustomer(Profile p, Map<String, ServicePrice> catalog) {
-        Restaurant r = restaurantRepository.save(Restaurant.builder()
+    private Customer seedCustomer(Profile p, Map<String, ServicePrice> catalog) {
+        Customer r = customerRepository.save(Customer.builder()
                 .name(p.name())
                 .customerType(p.type())
                 .address(p.address())
@@ -269,16 +269,16 @@ public class DemoDataRunner implements ApplicationRunner {
                 .turnaroundHours(p.turnaround())
                 .paymentTermDays(p.term())
                 .build());
-        user(p.managerUser(), p.contact().split(" - ")[0], p.phone(), Role.RESTAURANT_MANAGER, r);
+        user(p.managerUser(), p.contact().split(" - ")[0], p.phone(), Role.CUSTOMER_MANAGER, r);
         managerOf.put(r.getId(), p.managerUser());
         if (p.staffUser() != null) {
-            user(p.staffUser(), "Nhân viên " + p.name(), null, Role.RESTAURANT_STAFF, r);
+            user(p.staffUser(), "Nhân viên " + p.name(), null, Role.CUSTOMER_STAFF, r);
         }
         // Khách lớn có giá hợp đồng riêng (giảm ~10%) cho món gửi nhiều nhất
         if (p.ordersPerWeek() >= 2 && p.type() != CustomerType.RESTAURANT) {
             ServicePrice main = catalog.get(p.items().get(0));
             customerPriceRepository.save(CustomerPrice.builder()
-                    .restaurant(r)
+                    .customer(r)
                     .servicePrice(main)
                     .unitPrice(main.getUnitPrice().multiply(BigDecimal.valueOf(0.9)).setScale(-2, RoundingMode.HALF_UP)
                             .setScale(2, RoundingMode.HALF_UP))
@@ -291,10 +291,10 @@ public class DemoDataRunner implements ApplicationRunner {
     // ===================== Đơn hàng =====================
 
     /** Đơn 6 tháng gần nhất: đơn cũ đã hoàn thành, vài ngày gần đây đủ mọi trạng thái (có cả đơn trễ hạn). */
-    private int seedOrders(Profile p, Restaurant r, Map<String, ServicePrice> catalog, List<User> drivers,
+    private int seedOrders(Profile p, Customer r, Map<String, ServicePrice> catalog, List<User> drivers,
             LocalDateTime now, List<Order> completed) {
         Map<Long, BigDecimal> custom = new HashMap<>();
-        customerPriceRepository.findByRestaurantId(r.getId())
+        customerPriceRepository.findByCustomerId(r.getId())
                 .forEach(c -> custom.put(c.getServicePrice().getId(), c.getUnitPrice()));
 
         int count = 0;
@@ -326,7 +326,7 @@ public class DemoDataRunner implements ApplicationRunner {
         return count;
     }
 
-    private Order createOrder(Profile p, Restaurant r, Map<String, ServicePrice> catalog, Map<Long, BigDecimal> custom,
+    private Order createOrder(Profile p, Customer r, Map<String, ServicePrice> catalog, Map<Long, BigDecimal> custom,
             List<User> drivers, LocalDateTime pickup, OrderStatus target, boolean late) {
         User driver = drivers.get(rnd.nextInt(drivers.size()));
         String admin = adminUser;
@@ -334,7 +334,7 @@ public class DemoDataRunner implements ApplicationRunner {
 
         Order order = Order.builder()
                 .driver(driver)
-                .restaurant(r)
+                .customer(r)
                 .status(target)
                 .totalBags(2 + rnd.nextInt(7))
                 .dueAt(pickup.plusHours(p.turnaround()))
@@ -423,7 +423,7 @@ public class DemoDataRunner implements ApplicationRunner {
      * Khách thanh toán theo tháng: tổng các đơn hoàn thành trong tháng, trả sau kỳ thanh toán.
      * Khách trả chậm / nợ dây dưa để lại các khoản quá hạn ở nhiều mức tuổi nợ.
      */
-    private int seedPayments(Profile p, Restaurant r, List<Order> completed, LocalDate today) {
+    private int seedPayments(Profile p, Customer r, List<Order> completed, LocalDate today) {
         Map<YearMonth, BigDecimal> byMonth = new TreeMap<>();
         for (Order o : completed) {
             byMonth.merge(YearMonth.from(o.getCompletedAt()), o.getTotalAmount(), BigDecimal::add);
@@ -444,7 +444,7 @@ public class DemoDataRunner implements ApplicationRunner {
                     ? e.getValue().multiply(BigDecimal.valueOf(0.6)).setScale(-3, RoundingMode.DOWN).setScale(2)
                     : e.getValue().setScale(2, RoundingMode.HALF_UP);
             Payment payment = paymentRepository.save(Payment.builder()
-                    .restaurant(r)
+                    .customer(r)
                     .amount(amount)
                     .paidDate(paid)
                     .note("Chuyển khoản thanh toán tháng " + e.getKey().getMonthValue() + "/" + e.getKey().getYear())
@@ -456,7 +456,7 @@ public class DemoDataRunner implements ApplicationRunner {
         // Một khoản ghi nhầm đã hủy, để thấy nghiệp vụ hủy thanh toán
         if (p.habit() == PayHabit.ON_TIME && p.ordersPerWeek() >= 3) {
             Payment wrong = paymentRepository.save(Payment.builder()
-                    .restaurant(r)
+                    .customer(r)
                     .amount(money(1500000))
                     .paidDate(today.minusDays(20))
                     .note("Tiền mặt")
@@ -475,11 +475,11 @@ public class DemoDataRunner implements ApplicationRunner {
     // ===================== Yêu cầu lấy đồ =====================
 
     private int seedPickups(List<User> drivers, LocalDateTime now) {
-        Restaurant hoaSen = restaurantRepository.findByNameIgnoreCase(MARKER_CUSTOMER).orElseThrow();
-        Restaurant bienXanh = restaurantRepository.findByNameIgnoreCase("Nhà hàng Biển Xanh").orElseThrow();
-        Restaurant ngocLan = restaurantRepository.findByNameIgnoreCase("Spa Ngọc Lan").orElseThrow();
-        Restaurant anTam = restaurantRepository.findByNameIgnoreCase("Phòng khám Đa khoa An Tâm").orElseThrow();
-        Restaurant doiThong = restaurantRepository.findByNameIgnoreCase("Homestay Đồi Thông").orElseThrow();
+        Customer hoaSen = customerRepository.findByNameIgnoreCase(MARKER_CUSTOMER).orElseThrow();
+        Customer bienXanh = customerRepository.findByNameIgnoreCase("Nhà hàng Biển Xanh").orElseThrow();
+        Customer ngocLan = customerRepository.findByNameIgnoreCase("Spa Ngọc Lan").orElseThrow();
+        Customer anTam = customerRepository.findByNameIgnoreCase("Phòng khám Đa khoa An Tâm").orElseThrow();
+        Customer doiThong = customerRepository.findByNameIgnoreCase("Homestay Đồi Thông").orElseThrow();
         LocalDate today = now.toLocalDate();
 
         List<PickupRequest> list = new ArrayList<>();
@@ -498,8 +498,8 @@ public class DemoDataRunner implements ApplicationRunner {
 
         // Một số đơn demo đang xử lý được tạo từ yêu cầu lấy đồ (chỉ đơn demo, không đụng đơn thật)
         for (Order o : activeOrders.stream().filter(o -> o.getStatus() != OrderStatus.PENDING_CONFIRM).limit(6).toList()) {
-            PickupRequest done = pickup(o.getRestaurant(), managerOf.get(o.getRestaurant().getId()),
-                    o.getDueAt().minusHours(o.getRestaurant().getTurnaroundHours()).toLocalDate(), TimeSlot.MORNING,
+            PickupRequest done = pickup(o.getCustomer(), managerOf.get(o.getCustomer().getId()),
+                    o.getDueAt().minusHours(o.getCustomer().getTurnaroundHours()).toLocalDate(), TimeSlot.MORNING,
                     o.getTotalBags(), null, PickupStatus.DONE, o.getDriver());
             done.setOrder(o);
             list.add(done);
@@ -512,10 +512,10 @@ public class DemoDataRunner implements ApplicationRunner {
         return list.size();
     }
 
-    private PickupRequest pickup(Restaurant r, String by, LocalDate date, TimeSlot slot, Integer bags, String note,
+    private PickupRequest pickup(Customer r, String by, LocalDate date, TimeSlot slot, Integer bags, String note,
             PickupStatus status, User driver) {
         return PickupRequest.builder()
-                .restaurant(r)
+                .customer(r)
                 .requestedBy(by)
                 .preferredDate(date)
                 .timeSlot(slot)

@@ -9,7 +9,7 @@ import { CUSTOMER_TYPE_LABELS, paymentTermLabel, type Statement } from '../../ty
 
 interface Props {
   /** Khách cần xem sao kê; null = đóng. */
-  customer: { restaurantId: number; restaurantName: string } | null
+  customer: { customerId: number; customerName: string } | null
   onClose: () => void
 }
 
@@ -28,7 +28,7 @@ export default function StatementModal({ customer, onClose }: Props) {
     setError(null)
     setData(null)
     axiosClient
-      .get<Statement>('/reports/statement', { params: { restaurantId: customer.restaurantId, month } })
+      .get<Statement>('/reports/statement', { params: { customerId: customer.customerId, month } })
       .then((res) => !ignore && setData(res.data))
       .catch((e) => !ignore && setError(getErrorMessage(e, 'Không tải được sao kê')))
       .finally(() => !ignore && setLoading(false))
@@ -41,7 +41,7 @@ export default function StatementModal({ customer, onClose }: Props) {
 
   return (
     <Modal
-      title={customer ? `Sao kê công nợ · ${customer.restaurantName}` : ''}
+      title={customer ? `Sao kê công nợ · ${customer.customerName}` : ''}
       open={customer !== null}
       onCancel={onClose}
       width={{ xs: '100%', md: 760 }}

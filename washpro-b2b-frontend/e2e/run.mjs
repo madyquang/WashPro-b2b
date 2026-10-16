@@ -447,7 +447,7 @@ if (want('finance')) {
   }, page)
   let balanceBefore = 0
   await step('finance: ghi nhận thanh toán 1.000 đ cho Hoa Sen', async () => {
-    balanceBefore = (await api('admin', '/reports/debts')).find((r) => r.restaurantName.includes('Hoa Sen')).balance
+    balanceBefore = (await api('admin', '/reports/debts')).find((r) => r.customerName.includes('Hoa Sen')).balance
     await page.goto(APP + '/finance')
     await page.locator('tr').filter({ hasText: 'Hoa Sen' }).getByRole('button', { name: 'Thu tiền' }).click()
     const d = modal(page)
@@ -455,7 +455,7 @@ if (want('finance')) {
     await d.getByLabel('Ghi chú').fill(`${TAG} chuyển khoản`)
     await d.getByRole('button', { name: 'Ghi nhận' }).click()
     await toast(page, 'Đã')
-    const after = (await api('admin', '/reports/debts')).find((r) => r.restaurantName.includes('Hoa Sen')).balance
+    const after = (await api('admin', '/reports/debts')).find((r) => r.customerName.includes('Hoa Sen')).balance
     expect(Math.round(balanceBefore - after) === 1000, `công nợ không giảm 1.000: ${balanceBefore} → ${after}`)
   }, page)
   await step('finance: không cho thu vượt công nợ', async () => {
@@ -474,7 +474,7 @@ if (want('finance')) {
     await modal(page).getByRole('button', { name: 'Hủy khoản này' }).click()
     // Chờ đúng dòng vừa hủy đổi trạng thái (dữ liệu mẫu cũng có dòng "Đã hủy: Ghi nhầm khách...")
     await dr.locator('tr').filter({ hasText: 'Đã hủy: Ghi nhầm (ketoan.mai)' }).first().waitFor()
-    const after = (await api('admin', '/reports/debts')).find((r) => r.restaurantName.includes('Hoa Sen')).balance
+    const after = (await api('admin', '/reports/debts')).find((r) => r.customerName.includes('Hoa Sen')).balance
     expect(Math.round(after) === Math.round(balanceBefore), `công nợ không trở lại: ${balanceBefore} → ${after}`)
     await dr.locator('..').locator('.ant-drawer-close').click().catch(() => page.keyboard.press('Escape'))
   }, page)
@@ -503,7 +503,7 @@ if (want('admin-manage')) {
   const cust = `${TAG} Khách thử`
   const user = `${TAG.toLowerCase().replace(/[^a-z0-9]/g, '')}.tx`
   await step('manage: thêm khách hàng', async () => {
-    await page.goto(APP + '/restaurants')
+    await page.goto(APP + '/customers')
     await page.getByRole('button', { name: 'Thêm khách hàng' }).first().click()
     const d = modal(page)
     await d.getByLabel('Tên khách hàng').fill(cust)

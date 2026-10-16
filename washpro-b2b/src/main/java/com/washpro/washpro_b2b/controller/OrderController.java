@@ -64,14 +64,14 @@ public class OrderController {
 
     /** Khách hàng xác nhận số lượng: đơn chuyển sang xưởng giặt. */
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('RESTAURANT_STAFF', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER')")
     public ResponseEntity<Response> approve(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.approveOrder(id));
     }
 
     /** Tài xế (đơn của mình) hoặc khách hàng (đơn của khách hàng) báo lệch số lượng. */
     @PutMapping("/{id}/discrepancy")
-    @PreAuthorize("hasAnyRole('DRIVER', 'RESTAURANT_STAFF', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('DRIVER', 'CUSTOMER_STAFF', 'CUSTOMER_MANAGER')")
     public ResponseEntity<Response> reportDiscrepancy(@PathVariable Long id,
             @Valid @RequestBody DiscrepancyRequest request) {
         return ResponseEntity.ok(orderService.reportDiscrepancy(id, request));
@@ -79,14 +79,14 @@ public class OrderController {
 
     /** Khách hàng xác nhận đã nhận đủ đồ sạch: đơn hoàn thành. */
     @PutMapping("/{id}/confirm-receipt")
-    @PreAuthorize("hasAnyRole('RESTAURANT_STAFF', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER')")
     public ResponseEntity<Response> confirmReceipt(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.confirmReceipt(id));
     }
 
     /** Khách hàng báo thiếu/hỏng khi nhận đồ sạch. */
     @PutMapping("/{id}/receipt-issue")
-    @PreAuthorize("hasAnyRole('RESTAURANT_STAFF', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER')")
     public ResponseEntity<Response> reportReceiptIssue(@PathVariable Long id,
             @Valid @RequestBody ReceiptIssueRequest request) {
         return ResponseEntity.ok(orderService.reportReceiptIssue(id, request));

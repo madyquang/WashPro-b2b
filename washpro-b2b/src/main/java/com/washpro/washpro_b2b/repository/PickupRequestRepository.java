@@ -15,14 +15,14 @@ import java.util.Optional;
 
 public interface PickupRequestRepository extends JpaRepository<PickupRequest, Long> {
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "order" })
+    @EntityGraph(attributePaths = { "customer", "driver", "order" })
     List<PickupRequest> findAllByOrderByPreferredDateDescIdDesc();
 
-    @EntityGraph(attributePaths = { "restaurant", "driver", "order" })
-    List<PickupRequest> findByRestaurantIdOrderByPreferredDateDescIdDesc(Long restaurantId);
+    @EntityGraph(attributePaths = { "customer", "driver", "order" })
+    List<PickupRequest> findByCustomerIdOrderByPreferredDateDescIdDesc(Long customerId);
 
     /** Việc của tài xế: các yêu cầu chưa ai nhận, cộng các yêu cầu tài xế này đã nhận. */
-    @EntityGraph(attributePaths = { "restaurant", "driver", "order" })
+    @EntityGraph(attributePaths = { "customer", "driver", "order" })
     @Query("""
             select p from PickupRequest p
             where p.status = com.washpro.washpro_b2b.entity.PickupStatus.OPEN
@@ -33,7 +33,7 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, Lo
 
     long countByStatusIn(Collection<PickupStatus> statuses);
 
-    long countByRestaurantIdAndStatusIn(Long restaurantId, Collection<PickupStatus> statuses);
+    long countByCustomerIdAndStatusIn(Long customerId, Collection<PickupStatus> statuses);
 
     /** Khóa dòng để hai tài xế không cùng nhận một yêu cầu. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

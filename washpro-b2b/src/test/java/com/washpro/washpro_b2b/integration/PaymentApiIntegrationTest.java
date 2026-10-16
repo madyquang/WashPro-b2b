@@ -4,14 +4,14 @@ import com.jayway.jsonpath.JsonPath;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class PaymentApiIntegrationTest {
     @Autowired
     UserRepository userRepository;
     @Autowired
-    RestaurantRepository restaurantRepository;
+    CustomerRepository customerRepository;
     @Autowired
     OrderRepository orderRepository;
     @Autowired
@@ -69,7 +69,7 @@ class PaymentApiIntegrationTest {
     @Autowired
     CustomerPriceRepository customerPriceRepository;
 
-    Restaurant hoaSen;
+    Customer hoaSen;
 
     @BeforeEach
     void seed() {
@@ -78,9 +78,9 @@ class PaymentApiIntegrationTest {
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
         userRepository.deleteAll();
-        restaurantRepository.deleteAll();
+        customerRepository.deleteAll();
 
-        hoaSen = restaurantRepository.save(Restaurant.builder().name("Nhà hàng Hoa Sen").build());
+        hoaSen = customerRepository.save(Customer.builder().name("Nhà hàng Hoa Sen").build());
         User driver = user("taixe", Role.DRIVER);
         user("ketoan", Role.WORKSHOP_ACCOUNTANT);
         user("ketoan2", Role.WORKSHOP_ACCOUNTANT);
@@ -88,7 +88,7 @@ class PaymentApiIntegrationTest {
         // Một đơn đã hoàn thành trị giá 100.000 đ: công nợ của khách là 100.000 đ
         Order order = Order.builder()
                 .driver(driver)
-                .restaurant(hoaSen)
+                .customer(hoaSen)
                 .status(OrderStatus.COMPLETED)
                 .totalBags(1)
                 .dueAt(LocalDateTime.now())
@@ -159,7 +159,7 @@ class PaymentApiIntegrationTest {
     }
 
     private String payment(long amount) {
-        return "{\"restaurantId\":%d,\"amount\":%d}".formatted(hoaSen.getId(), amount);
+        return "{\"customerId\":%d,\"amount\":%d}".formatted(hoaSen.getId(), amount);
     }
 
     private User user(String username, Role role) {

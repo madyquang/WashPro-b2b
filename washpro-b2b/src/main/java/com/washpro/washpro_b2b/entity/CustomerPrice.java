@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 /** Đơn giá hợp đồng riêng của một khách hàng cho một mục trong bảng giá (ghi đè giá chung). */
 @Entity
 @Table(name = "customer_prices", uniqueConstraints = @UniqueConstraint(
-        name = "uk_customer_prices_restaurant_price", columnNames = { "restaurant_id", "service_price_id" }))
+        name = "uk_customer_prices_customer_price", columnNames = { "customer_id", "service_price_id" }))
 @Getter
 @Setter
 @Builder
@@ -22,8 +22,8 @@ public class CustomerPrice {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "restaurant_id", nullable = false)
-    private Restaurant restaurant;
+    @JoinColumn(name = "customer_id", nullable = false)
+    private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_price_id", nullable = false)

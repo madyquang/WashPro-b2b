@@ -27,8 +27,8 @@ public final class OrderSpecs {
         return (root, query, cb) -> cb.equal(root.get("driver").get("id"), driverId);
     }
 
-    public static Specification<Order> restaurant(Long restaurantId) {
-        return (root, query, cb) -> cb.equal(root.get("restaurant").get("id"), restaurantId);
+    public static Specification<Order> customer(Long customerId) {
+        return (root, query, cb) -> cb.equal(root.get("customer").get("id"), customerId);
     }
 
     public static Specification<Order> statusIn(Collection<OrderStatus> statuses) {
@@ -82,7 +82,7 @@ public final class OrderSpecs {
                     cb.like(cb.lower(item.get("itemName")), pattern, '\\'));
 
             var any = cb.or(
-                    cb.like(cb.lower(root.get("restaurant").get("name")), pattern, '\\'),
+                    cb.like(cb.lower(root.get("customer").get("name")), pattern, '\\'),
                     cb.like(cb.lower(driver.get("fullName")), pattern, '\\'),
                     cb.like(cb.lower(driver.get("username")), pattern, '\\'),
                     cb.exists(sub));

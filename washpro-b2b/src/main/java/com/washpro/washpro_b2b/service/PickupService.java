@@ -5,13 +5,13 @@ import com.washpro.washpro_b2b.dto.PickupDtos.Response;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.PickupRequest;
 import com.washpro.washpro_b2b.entity.PickupStatus;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.TimeSlot;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
@@ -31,31 +31,31 @@ import java.util.List;
 public class PickupService {
 
     private final PickupRequestRepository pickupRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
 
     @Transactional
     public Response create(CreateRequest request) {
         User user = currentUserService.getCurrentUser();
-        Restaurant restaurant;
-        if (user.getRole().isRestaurantRole()) {
-            restaurant = requireRestaurant(user);
+        Customer customer;
+        if (user.getRole().isCustomerRole()) {
+            customer = requireCustomer(user);
         } else if (user.getRole() == Role.WORKSHOP_ADMIN) {
-            if (request.restaurantId() == null) {
+            if (request.customerId() == null) {
                 throw ApiException.badRequest("Vui lòng chọn khách hàng");
             }
-            restaurant = restaurantRepository.findById(request.restaurantId())
+            customer = customerRepository.findById(request.customerId())
                     .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
         } else {
             throw ApiException.forbidden("Bạn không có quyền tạo yêu cầu lấy đồ");
         }
-        if (!restaurant.isActive()) {
+        if (!customer.isActive()) {
             throw ApiException.badRequest("Khách hàng này đã ngừng hợp tác");
         }
 
         PickupRequest pickup = PickupRequest.builder()
-                .restaurant(restaurant)
+                .customer(customer)
                 .requestedBy(user.getUsername())
                 .preferredDate(request.preferredDate())
                 .timeSlot(request.timeSlot() != null ? request.timeSlot() : TimeSlot.ANYTIME)
@@ -71,8 +71,8 @@ public class PickupService {
         List<PickupRequest> rows = switch (user.getRole()) {
             case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> pickupRepository.findAllByOrderByPreferredDateDescIdDesc();
             case DRIVER -> pickupRepository.findForDriver(user.getId());
-            case RESTAURANT_STAFF, RESTAURANT_MANAGER ->
-                pickupRepository.findByRestaurantIdOrderByPreferredDateDescIdDesc(requireRestaurant(user).getId());
+            case CUSTOMER_STAFF, CUSTOMER_MANAGER ->
+                pickupRepository.findByCustomerIdOrderByPreferredDateDescIdDesc(requireCustomer(user).getId());
         };
         return rows.stream().map(Response::from).toList();
     }
@@ -123,8 +123,8 @@ public class PickupService {
     public Response cancel(Long id, String reason) {
         User user = currentUserService.getCurrentUser();
         PickupRequest pickup = loadForUpdate(id);
-        boolean owner = user.getRole().isRestaurantRole()
-                && pickup.getRestaurant().getId().equals(requireRestaurant(user).getId());
+        boolean owner = user.getRole().isCustomerRole()
+                && pickup.getCustomer().getId().equals(requireCustomer(user).getId());
         if (!owner && user.getRole() != Role.WORKSHOP_ADMIN) {
             throw ApiException.notFound("Không tìm thấy yêu cầu lấy đồ");
         }
@@ -147,7 +147,7 @@ public class PickupService {
         if (!pickup.getStatus().isActive()) {
             throw ApiException.badRequest("Yêu cầu lấy đồ này đã xong hoặc đã hủy");
         }
-        if (!pickup.getRestaurant().getId().equals(order.getRestaurant().getId())) {
+        if (!pickup.getCustomer().getId().equals(order.getCustomer().getId())) {
             throw ApiException.badRequest("Yêu cầu lấy đồ không thuộc khách hàng của đơn");
         }
         if (pickup.getDriver() != null && !pickup.getDriver().getId().equals(driver.getId())) {
@@ -164,11 +164,11 @@ public class PickupService {
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy yêu cầu lấy đồ"));
     }
 
-    private static Restaurant requireRestaurant(User user) {
-        if (user.getRestaurant() == null) {
+    private static Customer requireCustomer(User user) {
+        if (user.getCustomer() == null) {
             throw ApiException.forbidden("Tài khoản này chưa được liên kết với khách hàng nào");
         }
-        return user.getRestaurant();
+        return user.getCustomer();
     }
 
     private static String blankToNull(String s) {

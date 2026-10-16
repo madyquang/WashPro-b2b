@@ -5,7 +5,7 @@ import axiosClient from '../../api/axiosClient'
 import CatalogLines from '../../components/CatalogLines'
 import { toItemRequest, useCatalog, type LineValue } from '../../utils/catalog'
 import { getErrorMessage } from '../../utils/format'
-import { CUSTOMER_TYPE_LABELS, type PickupRequest, type Restaurant } from '../../types'
+import { CUSTOMER_TYPE_LABELS, type PickupRequest, type Customer } from '../../types'
 
 interface Props {
   open: boolean
@@ -16,7 +16,7 @@ interface Props {
 }
 
 interface FormValues {
-  restaurantId: number
+  customerId: number
   totalBags: number
   description?: string
   items: LineValue[]
@@ -24,29 +24,29 @@ interface FormValues {
 
 export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: Props) {
   const [form] = Form.useForm<FormValues>()
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
-  const [loadingRestaurants, setLoadingRestaurants] = useState(false)
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const { catalog, loading: loadingCatalog } = useCatalog(open)
 
   useEffect(() => {
     if (!open) return
     if (fromPickup) {
-      form.setFieldsValue({ restaurantId: fromPickup.restaurantId, totalBags: fromPickup.estimatedBags ?? 1 })
+      form.setFieldsValue({ customerId: fromPickup.customerId, totalBags: fromPickup.estimatedBags ?? 1 })
     }
-    setLoadingRestaurants(true)
+    setLoadingCustomers(true)
     axiosClient
-      .get<Restaurant[]>('/restaurants')
-      .then((res) => setRestaurants(res.data.filter((r) => r.active)))
+      .get<Customer[]>('/customers')
+      .then((res) => setCustomers(res.data.filter((r) => r.active)))
       .catch((e) => message.error(getErrorMessage(e, 'Không tải được danh sách khách hàng')))
-      .finally(() => setLoadingRestaurants(false))
+      .finally(() => setLoadingCustomers(false))
   }, [open, fromPickup, form])
 
   const submit = async (values: FormValues) => {
     setSubmitting(true)
     try {
       await axiosClient.post('/orders', {
-        restaurantId: values.restaurantId,
+        customerId: values.customerId,
         totalBags: values.totalBags,
         description: values.description?.trim() || null,
         items: values.items.map((l) => toItemRequest(l)),
@@ -81,7 +81,7 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
         layout="vertical"
         onFinish={submit}
         initialValues={{
-          restaurantId: fromPickup?.restaurantId,
+          customerId: fromPickup?.customerId,
           totalBags: fromPickup?.estimatedBags ?? 1,
           items: [{ quantity: 1 }],
         }}
@@ -89,13 +89,13 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
         {fromPickup?.note && (
           <Alert type="info" showIcon className="mb-3" title={`Khách dặn: ${fromPickup.note}`} />
         )}
-        <Form.Item name="restaurantId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
+        <Form.Item name="customerId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
           <Select
             disabled={!!fromPickup}
             showSearch={{ optionFilterProp: 'label' }}
             placeholder="Chọn khách hàng"
-            loading={loadingRestaurants}
-            options={restaurants.map((r) => ({ value: r.id, label: `${r.name} (${CUSTOMER_TYPE_LABELS[r.customerType]})` }))}
+            loading={loadingCustomers}
+            options={customers.map((r) => ({ value: r.id, label: `${r.name} (${CUSTOMER_TYPE_LABELS[r.customerType]})` }))}
             notFoundContent="Chưa có khách hàng nào đang hợp tác"
           />
         </Form.Item>

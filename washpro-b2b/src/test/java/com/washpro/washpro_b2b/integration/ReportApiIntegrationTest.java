@@ -5,14 +5,14 @@ import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.Payment;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,7 +56,7 @@ class ReportApiIntegrationTest {
     @Autowired
     UserRepository userRepository;
     @Autowired
-    RestaurantRepository restaurantRepository;
+    CustomerRepository customerRepository;
     @Autowired
     OrderRepository orderRepository;
     @Autowired
@@ -66,8 +66,8 @@ class ReportApiIntegrationTest {
     @Autowired
     CustomerPriceRepository customerPriceRepository;
 
-    Restaurant hoaSen;
-    Restaurant bienXanh;
+    Customer hoaSen;
+    Customer bienXanh;
     User driver;
     YearMonth lastMonth;
     LocalDateTime twoMonthsAgo;
@@ -79,14 +79,14 @@ class ReportApiIntegrationTest {
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
         userRepository.deleteAll();
-        restaurantRepository.deleteAll();
+        customerRepository.deleteAll();
 
         // Hoa Sen trả ngay khi hoàn thành (kỳ 0 ngày), Biển Xanh được nợ 30 ngày
-        hoaSen = restaurantRepository.save(Restaurant.builder().name("Nhà hàng Hoa Sen").build());
-        bienXanh = restaurantRepository.save(Restaurant.builder().name("Khách sạn Biển Xanh").paymentTermDays(30).build());
+        hoaSen = customerRepository.save(Customer.builder().name("Nhà hàng Hoa Sen").build());
+        bienXanh = customerRepository.save(Customer.builder().name("Khách sạn Biển Xanh").paymentTermDays(30).build());
         user("admin", Role.WORKSHOP_ADMIN, null);
         user("ketoan", Role.WORKSHOP_ACCOUNTANT, null);
-        user("hoasen.ql", Role.RESTAURANT_MANAGER, hoaSen);
+        user("hoasen.ql", Role.CUSTOMER_MANAGER, hoaSen);
         driver = user("taixe", Role.DRIVER, null);
 
         LocalDateTime now = LocalDateTime.now();
@@ -154,7 +154,7 @@ class ReportApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(2)))
                 // Khách nợ quá hạn nhiều hơn lên đầu
-                .andExpect(jsonPath("$[0].restaurantName", is("Nhà hàng Hoa Sen")))
+                .andExpect(jsonPath("$[0].customerName", is("Nhà hàng Hoa Sen")))
                 .andExpect(jsonPath("$[0].completedOrders", is(4)))
                 .andExpect(jsonPath("$[0].billed", is(230000.0)))
                 .andExpect(jsonPath("$[0].paid", is(50000.0)))
@@ -162,14 +162,14 @@ class ReportApiIntegrationTest {
                 .andExpect(jsonPath("$[0].notDue", is(80000.0)))
                 .andExpect(jsonPath("$[0].overdueTotal", is(100000.0)))
                 .andExpect(jsonPath("$[0].oldestUnpaidDue", is(twoMonthsAgo.toLocalDate().toString())))
-                .andExpect(jsonPath("$[1].restaurantName", is("Khách sạn Biển Xanh")))
+                .andExpect(jsonPath("$[1].customerName", is("Khách sạn Biển Xanh")))
                 .andExpect(jsonPath("$[1].completedOrders", is(1)))
                 .andExpect(jsonPath("$[1].overdue1to30", is(20000.0)));
     }
 
     @Test
     void monthlyStatement() throws Exception {
-        mvc.perform(get("/api/reports/statement").param("restaurantId", String.valueOf(hoaSen.getId()))
+        mvc.perform(get("/api/reports/statement").param("customerId", String.valueOf(hoaSen.getId()))
                 .param("month", lastMonth.toString()).header("Authorization", "Bearer " + login("ketoan")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.openingBalance", is(80000.0)))
@@ -185,11 +185,11 @@ class ReportApiIntegrationTest {
     @Test
     void paymentIsCheckedAgainstCurrentBalance() throws Exception {
         String token = login("ketoan");
-        String over = "{\"restaurantId\":%d,\"amount\":180001}".formatted(hoaSen.getId());
+        String over = "{\"customerId\":%d,\"amount\":180001}".formatted(hoaSen.getId());
         mvc.perform(post("/api/payments").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(over))
                 .andExpect(status().isBadRequest());
-        String exact = "{\"restaurantId\":%d,\"amount\":180000}".formatted(hoaSen.getId());
+        String exact = "{\"customerId\":%d,\"amount\":180000}".formatted(hoaSen.getId());
         mvc.perform(post("/api/payments").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(exact))
                 .andExpect(status().isCreated());
@@ -202,15 +202,15 @@ class ReportApiIntegrationTest {
                 .andExpect(status().isOk());
     }
 
-    private void completed(Restaurant restaurant, LocalDateTime completedAt, long amount) {
-        orderRepository.save(order(restaurant, OrderStatus.COMPLETED, null, completedAt, amount));
+    private void completed(Customer customer, LocalDateTime completedAt, long amount) {
+        orderRepository.save(order(customer, OrderStatus.COMPLETED, null, completedAt, amount));
     }
 
-    private Order order(Restaurant restaurant, OrderStatus status, LocalDateTime dueAt, LocalDateTime completedAt,
+    private Order order(Customer customer, OrderStatus status, LocalDateTime dueAt, LocalDateTime completedAt,
             long amount) {
         Order order = Order.builder()
                 .driver(driver)
-                .restaurant(restaurant)
+                .customer(customer)
                 .status(status)
                 .totalBags(1)
                 .dueAt(dueAt)
@@ -221,18 +221,18 @@ class ReportApiIntegrationTest {
         return order;
     }
 
-    private void payment(Restaurant restaurant, LocalDate paidDate, long amount, boolean voided) {
-        paymentRepository.save(Payment.builder().restaurant(restaurant).amount(BigDecimal.valueOf(amount))
+    private void payment(Customer customer, LocalDate paidDate, long amount, boolean voided) {
+        paymentRepository.save(Payment.builder().customer(customer).amount(BigDecimal.valueOf(amount))
                 .paidDate(paidDate).createdBy("ketoan").voided(voided).build());
     }
 
-    private User user(String username, Role role, Restaurant restaurant) {
+    private User user(String username, Role role, Customer customer) {
         return userRepository.save(User.builder()
                 .username(username)
                 .password(passwordEncoder.encode(PASSWORD))
                 .fullName(username)
                 .role(role)
-                .restaurant(restaurant)
+                .customer(customer)
                 .build());
     }
 

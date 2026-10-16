@@ -31,7 +31,7 @@ export default function ItemsModal({ order, onClose, onDone }: Props) {
     setLoading(true)
     setPrices([])
     axiosClient
-      .get<CustomerPriceRow[]>(`/prices/customers/${order.restaurantId}`)
+      .get<CustomerPriceRow[]>(`/prices/customers/${order.customerId}`)
       .then((res) => !ignore && setPrices(res.data))
       .catch((e) => !ignore && message.error(getErrorMessage(e, 'Không tải được bảng giá của khách hàng')))
       .finally(() => !ignore && setLoading(false))
@@ -87,7 +87,7 @@ export default function ItemsModal({ order, onClose, onDone }: Props) {
 
   return (
     <Modal
-      title={order ? `Chi tiết đồ giặt & đơn giá · đơn #${order.id} · ${order.restaurantName}` : ''}
+      title={order ? `Chi tiết đồ giặt & đơn giá · đơn #${order.id} · ${order.customerName}` : ''}
       open={order !== null}
       onCancel={onClose}
       onOk={() => form.submit()}

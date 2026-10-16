@@ -2,8 +2,8 @@ export type Role =
   | 'DRIVER'
   | 'WORKSHOP_ADMIN'
   | 'WORKSHOP_ACCOUNTANT'
-  | 'RESTAURANT_STAFF'
-  | 'RESTAURANT_MANAGER'
+  | 'CUSTOMER_STAFF'
+  | 'CUSTOMER_MANAGER'
 
 export type OrderStatus = 'PENDING_CONFIRM' | 'DISCREPANCY' | 'WASHING' | 'DELIVERING' | 'DELIVERY_ISSUE' | 'COMPLETED'
 export type PickupStatus = 'OPEN' | 'ACCEPTED' | 'DONE' | 'CANCELLED'
@@ -18,8 +18,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   DRIVER: 'Tài xế',
   WORKSHOP_ADMIN: 'Quản lý xưởng',
   WORKSHOP_ACCOUNTANT: 'Kế toán xưởng',
-  RESTAURANT_STAFF: 'Nhân viên khách hàng',
-  RESTAURANT_MANAGER: 'Quản lý khách hàng',
+  CUSTOMER_STAFF: 'Nhân viên khách hàng',
+  CUSTOMER_MANAGER: 'Quản lý khách hàng',
 }
 
 export const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
@@ -99,7 +99,7 @@ export interface Session {
   username: string
   fullName: string
   role: Role
-  restaurantName: string | null
+  customerName: string | null
   expiresAt: number
 }
 
@@ -126,11 +126,11 @@ export interface OrderHistory {
 
 export interface Order {
   id: number
-  restaurantId: number
-  restaurantName: string
+  customerId: number
+  customerName: string
   customerType: CustomerType
-  restaurantAddress: string | null
-  restaurantPhone: string | null
+  customerAddress: string | null
+  customerPhone: string | null
   contactName: string | null
   driverId: number
   driverName: string
@@ -163,8 +163,8 @@ export interface OrderPage {
   overdueCount: number
 }
 
-/** Khách hàng của xưởng (nhà hàng, khách sạn, spa...); tên "Restaurant" giữ theo API. */
-export interface Restaurant {
+/** Khách hàng của xưởng (nhà hàng, khách sạn, spa...); tên "Customer" giữ theo API. */
+export interface Customer {
   id: number
   name: string
   customerType: CustomerType
@@ -181,8 +181,8 @@ export interface Restaurant {
 
 export interface PickupRequest {
   id: number
-  restaurantId: number
-  restaurantName: string
+  customerId: number
+  customerName: string
   customerType: CustomerType
   address: string | null
   phone: string | null
@@ -207,8 +207,8 @@ export interface UserAccount {
   fullName: string | null
   phone: string | null
   role: Role
-  restaurantId: number | null
-  restaurantName: string | null
+  customerId: number | null
+  customerName: string | null
   enabled: boolean
   createdAt: string
 }
@@ -240,8 +240,8 @@ export interface CustomerPriceRow {
 
 export interface Payment {
   id: number
-  restaurantId: number
-  restaurantName: string
+  customerId: number
+  customerName: string
   amount: number
   paidDate: string
   note: string | null
@@ -259,8 +259,8 @@ export interface MonthRevenue {
 }
 
 export interface DebtRow {
-  restaurantId: number
-  restaurantName: string
+  customerId: number
+  customerName: string
   customerType: CustomerType
   active: boolean
   paymentTermDays: number
@@ -291,8 +291,8 @@ export interface Dashboard {
 }
 
 export interface Statement {
-  restaurantId: number
-  restaurantName: string
+  customerId: number
+  customerName: string
   customerType: CustomerType
   address: string | null
   paymentTermDays: number

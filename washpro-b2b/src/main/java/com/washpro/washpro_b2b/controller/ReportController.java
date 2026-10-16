@@ -35,21 +35,21 @@ public class ReportController {
     }
 
     @GetMapping("/reports/debts")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<List<DebtRow>> debts() {
         return ResponseEntity.ok(reportService.debts());
     }
 
     @GetMapping("/reports/revenue")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<List<MonthRevenue>> revenue(@RequestParam(defaultValue = "6") int months) {
         return ResponseEntity.ok(reportService.revenue(months));
     }
 
-    /** Sao kê công nợ tháng (month dạng yyyy-MM). Quản lý phía khách không cần gửi restaurantId. */
+    /** Sao kê công nợ tháng (month dạng yyyy-MM). Quản lý phía khách không cần gửi customerId. */
     @GetMapping("/reports/statement")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
-    public ResponseEntity<StatementResponse> statement(@RequestParam(required = false) Long restaurantId,
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
+    public ResponseEntity<StatementResponse> statement(@RequestParam(required = false) Long customerId,
             @RequestParam String month) {
         YearMonth ym;
         try {
@@ -57,23 +57,23 @@ public class ReportController {
         } catch (DateTimeParseException e) {
             throw ApiException.badRequest("Tháng không hợp lệ (định dạng yyyy-MM)");
         }
-        return ResponseEntity.ok(reportService.statement(restaurantId, ym));
+        return ResponseEntity.ok(reportService.statement(customerId, ym));
     }
 
     @GetMapping("/reports/debts/export")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<byte[]> exportDebts() {
         return csv(reportService.exportDebtsCsv(), "cong-no");
     }
 
     @GetMapping("/reports/orders/export")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<byte[]> exportOrders() {
         return csv(reportService.exportOrdersCsv(), "don-hang");
     }
 
     @GetMapping("/reports/items/export")
-    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'RESTAURANT_MANAGER')")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'CUSTOMER_MANAGER')")
     public ResponseEntity<byte[]> exportItems() {
         return csv(reportService.exportItemsCsv(), "chi-tiet-do-giat");
     }

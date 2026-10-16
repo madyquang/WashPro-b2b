@@ -10,7 +10,7 @@ import com.washpro.washpro_b2b.dto.OrderDtos;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PickupStatus;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
@@ -18,7 +18,7 @@ import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.OrderSpecs;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -51,7 +51,7 @@ public class ReportService {
     private final OrderService orderService;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final PickupRequestRepository pickupRepository;
     private final CurrentUserService currentUserService;
 
@@ -78,8 +78,8 @@ public class ReportService {
         long dueToday = orderRepository.count(scope.and(OrderSpecs.dueBetween(now, endOfToday)));
 
         var activePickup = EnumSet.of(PickupStatus.OPEN, PickupStatus.ACCEPTED);
-        long openPickups = user.getRole().isRestaurantRole()
-                ? pickupRepository.countByRestaurantIdAndStatusIn(requireRestaurant(user).getId(), activePickup)
+        long openPickups = user.getRole().isCustomerRole()
+                ? pickupRepository.countByCustomerIdAndStatusIn(requireCustomer(user).getId(), activePickup)
                 : pickupRepository.countByStatusIn(activePickup);
 
         BigDecimal billed = null;
@@ -108,10 +108,10 @@ public class ReportService {
 
     /** Công nợ hiện tại của một khách hàng (dùng để chặn thanh toán vượt số nợ). */
     @Transactional(readOnly = true)
-    public BigDecimal balanceOf(Long restaurantId) {
-        BigDecimal billed = completedByDay(restaurantId).stream().map(CompletedDay::amount)
+    public BigDecimal balanceOf(Long customerId) {
+        BigDecimal billed = completedByDay(customerId).stream().map(CompletedDay::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return billed.subtract(paymentRepository.sumPaid(restaurantId));
+        return billed.subtract(paymentRepository.sumPaid(customerId));
     }
 
     // ===================== Sao kê tháng =====================
@@ -121,17 +121,17 @@ public class ReportService {
      * các khoản đã thanh toán trong tháng, nợ cuối kỳ. Quản lý phía khách chỉ xem được của mình.
      */
     @Transactional(readOnly = true)
-    public StatementResponse statement(Long restaurantId, YearMonth month) {
+    public StatementResponse statement(Long customerId, YearMonth month) {
         User user = currentUserService.getCurrentUser();
         requireFinanceAccess(user);
-        Restaurant restaurant;
-        if (user.getRole() == Role.RESTAURANT_MANAGER) {
-            restaurant = requireRestaurant(user);
+        Customer customer;
+        if (user.getRole() == Role.CUSTOMER_MANAGER) {
+            customer = requireCustomer(user);
         } else {
-            if (restaurantId == null) {
+            if (customerId == null) {
                 throw ApiException.badRequest("Vui lòng chọn khách hàng");
             }
-            restaurant = restaurantRepository.findById(restaurantId)
+            customer = customerRepository.findById(customerId)
                     .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
         }
 
@@ -141,28 +141,28 @@ public class ReportService {
         LocalDate endDate = end.toLocalDate();
 
         // Nợ đầu kỳ tính bằng SUM trong CSDL; chỉ tải các đơn / khoản thanh toán của tháng sao kê
-        BigDecimal opening = orderRepository.billedBefore(restaurant.getId(), start)
-                .subtract(paymentRepository.sumPaidBefore(restaurant.getId(), startDate));
+        BigDecimal opening = orderRepository.billedBefore(customer.getId(), start)
+                .subtract(paymentRepository.sumPaidBefore(customer.getId(), startDate));
 
-        List<StatementOrder> orders = orderRepository.findCompletedBetween(restaurant.getId(), start, end).stream()
+        List<StatementOrder> orders = orderRepository.findCompletedBetween(customer.getId(), start, end).stream()
                 .map(o -> {
                     LocalDateTime completed = o.getEffectiveCompletedAt();
                     return new StatementOrder(o.getId(), completed,
-                            completed.toLocalDate().plusDays(restaurant.getPaymentTermDays()), o.getItems().size(),
+                            completed.toLocalDate().plusDays(customer.getPaymentTermDays()), o.getItems().size(),
                             o.getTotalAmount());
                 })
                 .sorted(Comparator.comparing(StatementOrder::completedAt).thenComparing(StatementOrder::id))
                 .toList();
 
-        List<StatementPayment> payments = paymentRepository.findActiveBetween(restaurant.getId(), startDate, endDate)
+        List<StatementPayment> payments = paymentRepository.findActiveBetween(customer.getId(), startDate, endDate)
                 .stream()
                 .map(p -> new StatementPayment(p.getId(), p.getPaidDate(), p.getAmount(), p.getNote()))
                 .toList();
 
         BigDecimal totalBilled = orders.stream().map(StatementOrder::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalPaid = payments.stream().map(StatementPayment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new StatementResponse(restaurant.getId(), restaurant.getName(), restaurant.getCustomerType(),
-                restaurant.getAddress(), restaurant.getPaymentTermDays(), month.toString(), opening, orders, payments,
+        return new StatementResponse(customer.getId(), customer.getName(), customer.getCustomerType(),
+                customer.getAddress(), customer.getPaymentTermDays(), month.toString(), opening, orders, payments,
                 totalBilled, totalPaid, opening.add(totalBilled).subtract(totalPaid));
     }
 
@@ -178,9 +178,9 @@ public class ReportService {
         YearMonth first = YearMonth.now().minusMonths(n - 1L);
 
         List<Object[]> rows;
-        if (user.getRole() == Role.RESTAURANT_MANAGER) {
-            rows = orderRepository.revenueByMonthForRestaurant(OrderStatus.COMPLETED,
-                    first.atDay(1).atStartOfDay(), requireRestaurant(user).getId());
+        if (user.getRole() == Role.CUSTOMER_MANAGER) {
+            rows = orderRepository.revenueByMonthForCustomer(OrderStatus.COMPLETED,
+                    first.atDay(1).atStartOfDay(), requireCustomer(user).getId());
         } else {
             rows = orderRepository.revenueByMonth(OrderStatus.COMPLETED, first.atDay(1).atStartOfDay());
         }
@@ -213,7 +213,7 @@ public class ReportService {
                 "Tổng tiền (đ)", "Đã thanh toán (đ)", "Còn nợ (đ)", "Chưa đến hạn (đ)", "Quá hạn 1-30 ngày (đ)",
                 "Quá hạn 31-60 ngày (đ)", "Quá hạn trên 60 ngày (đ)", "Hạn sớm nhất còn nợ"));
         for (DebtRow r : debtRowsFor(user)) {
-            sb.append(row(String.valueOf(r.restaurantId()), r.restaurantName(), r.customerType().getLabel(),
+            sb.append(row(String.valueOf(r.customerId()), r.customerName(), r.customerType().getLabel(),
                     String.valueOf(r.paymentTermDays()), String.valueOf(r.completedOrders()), plain(r.billed()),
                     plain(r.paid()), plain(r.balance()), plain(r.notDue()), plain(r.overdue1to30()),
                     plain(r.overdue31to60()), plain(r.overdueOver60()),
@@ -232,7 +232,7 @@ public class ReportService {
                 "Tổng tiền (đ)", "Đã đủ đơn giá", "Ngày tạo", "Hạn trả", "Trễ hạn", "Ngày hoàn thành"));
         for (Order o : orderService.visibleOrders(user)) {
             OrderDtos.Response r = OrderDtos.Response.from(o, false);
-            sb.append(row(String.valueOf(r.id()), r.restaurantName(), r.customerType().getLabel(), r.driverName(),
+            sb.append(row(String.valueOf(r.id()), r.customerName(), r.customerType().getLabel(), r.driverName(),
                     r.status().getLabel(), String.valueOf(r.totalBags()), String.valueOf(r.items().size()),
                     plain(r.totalAmount()), r.billable() ? "Có" : "Chưa", dateTime(r.createdAt()), dateTime(r.dueAt()),
                     r.overdue() ? "Có" : "", dateTime(r.completedAt())));
@@ -252,7 +252,7 @@ public class ReportService {
         for (Order o : orderService.visibleOrders(user)) {
             String created = dateTime(o.getCreatedAt());
             for (OrderDtos.ItemResponse i : OrderDtos.Response.from(o, false).items()) {
-                sb.append(row(String.valueOf(o.getId()), created, o.getRestaurant().getName(),
+                sb.append(row(String.valueOf(o.getId()), created, o.getCustomer().getName(),
                         o.getStatus().getLabel(), i.category().getLabel(), i.itemName(), i.serviceType().getLabel(),
                         plain(i.quantity()), i.unit().getLabel(), plain(i.unitPrice()), plain(i.lineTotal())));
             }
@@ -265,7 +265,7 @@ public class ReportService {
     private boolean canViewFinance(User user) {
         return user.getRole() == Role.WORKSHOP_ADMIN
                 || user.getRole() == Role.WORKSHOP_ACCOUNTANT
-                || user.getRole() == Role.RESTAURANT_MANAGER;
+                || user.getRole() == Role.CUSTOMER_MANAGER;
     }
 
     private void requireFinanceAccess(User user) {
@@ -274,11 +274,11 @@ public class ReportService {
         }
     }
 
-    private static Restaurant requireRestaurant(User user) {
-        if (user.getRestaurant() == null) {
+    private static Customer requireCustomer(User user) {
+        if (user.getCustomer() == null) {
             throw ApiException.forbidden("Tài khoản này chưa được liên kết với khách hàng nào");
         }
-        return user.getRestaurant();
+        return user.getCustomer();
     }
 
     /**
@@ -286,25 +286,25 @@ public class ReportService {
      * CSDL gộp sẵn tiền theo [khách, ngày hoàn thành] nên số dòng phải xử lý không tăng theo số đơn.
      */
     private List<DebtRow> debtRowsFor(User user) {
-        List<Restaurant> restaurants;
+        List<Customer> customers;
         List<CompletedDay> completed;
-        if (user.getRole() == Role.RESTAURANT_MANAGER) {
-            Restaurant own = requireRestaurant(user);
-            restaurants = List.of(own);
+        if (user.getRole() == Role.CUSTOMER_MANAGER) {
+            Customer own = requireCustomer(user);
+            customers = List.of(own);
             completed = completedByDay(own.getId());
         } else {
-            restaurants = restaurantRepository.findAllByOrderByNameAsc();
+            customers = customerRepository.findAllByOrderByNameAsc();
             completed = completedByDay(null);
         }
 
-        Map<Long, List<CompletedDay>> byRestaurant = completed.stream()
-                .collect(Collectors.groupingBy(CompletedDay::restaurantId));
-        Map<Long, BigDecimal> paid = paidByRestaurant();
+        Map<Long, List<CompletedDay>> byCustomer = completed.stream()
+                .collect(Collectors.groupingBy(CompletedDay::customerId));
+        Map<Long, BigDecimal> paid = paidByCustomer();
         LocalDate today = LocalDate.now();
 
-        return restaurants.stream()
+        return customers.stream()
                 .map(r -> {
-                    List<CompletedDay> days = byRestaurant.getOrDefault(r.getId(), List.of());
+                    List<CompletedDay> days = byCustomer.getOrDefault(r.getId(), List.of());
                     List<DebtAging.Receivable> receivables = days.stream()
                             .map(d -> new DebtAging.Receivable(d.day().plusDays(r.getPaymentTermDays()), d.amount()))
                             .toList();
@@ -324,11 +324,11 @@ public class ReportService {
     }
 
     /** Tiền các đơn hoàn thành của một khách trong một ngày. */
-    private record CompletedDay(Long restaurantId, LocalDate day, long orders, BigDecimal amount) {
+    private record CompletedDay(Long customerId, LocalDate day, long orders, BigDecimal amount) {
     }
 
-    private List<CompletedDay> completedByDay(Long restaurantId) {
-        return orderRepository.completedByDay(restaurantId).stream()
+    private List<CompletedDay> completedByDay(Long customerId) {
+        return orderRepository.completedByDay(customerId).stream()
                 .map(row -> new CompletedDay(
                         ((Number) row[0]).longValue(),
                         toLocalDate(row[1]),
@@ -347,9 +347,9 @@ public class ReportService {
         return LocalDate.parse(value.toString().substring(0, 10));
     }
 
-    private Map<Long, BigDecimal> paidByRestaurant() {
+    private Map<Long, BigDecimal> paidByCustomer() {
         Map<Long, BigDecimal> paid = new HashMap<>();
-        for (Object[] row : paymentRepository.sumPaidByRestaurant()) {
+        for (Object[] row : paymentRepository.sumPaidByCustomer()) {
             paid.put(((Number) row[0]).longValue(), new BigDecimal(row[1].toString()));
         }
         return paid;

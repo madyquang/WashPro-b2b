@@ -41,8 +41,8 @@ public class User {
 
     /** Chỉ có giá trị với tài khoản khách hàng. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "restaurant_id")
-    private Restaurant restaurant;
+    @JoinColumn(name = "customer_id")
+    private Customer customer;
 
     /** false = tài khoản bị khóa, không đăng nhập được. */
     @Column(nullable = false, columnDefinition = "boolean default true")

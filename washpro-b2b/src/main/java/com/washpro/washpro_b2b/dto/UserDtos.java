@@ -20,7 +20,7 @@ public final class UserDtos {
             @Size(max = 100, message = "Họ tên tối đa 100 ký tự") String fullName,
             @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự") String phone,
             @NotNull(message = "Vui lòng chọn vai trò") Role role,
-            Long restaurantId) {
+            Long customerId) {
     }
 
     public record ResetPasswordRequest(
@@ -37,8 +37,8 @@ public final class UserDtos {
             String fullName,
             String phone,
             Role role,
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             boolean enabled,
             LocalDateTime createdAt) {
 
@@ -49,8 +49,8 @@ public final class UserDtos {
                     u.getFullName(),
                     u.getPhone(),
                     u.getRole(),
-                    u.getRestaurant() != null ? u.getRestaurant().getId() : null,
-                    u.getRestaurant() != null ? u.getRestaurant().getName() : null,
+                    u.getCustomer() != null ? u.getCustomer().getId() : null,
+                    u.getCustomer() != null ? u.getCustomer().getName() : null,
                     u.isEnabled(),
                     u.getCreatedAt());
         }

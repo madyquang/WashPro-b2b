@@ -170,15 +170,17 @@ Ngoài ra, `washpro-b2b/docs/bang-gia-mau.sql` chỉ thêm bảng giá mẫu (kh
 | Quản lý xưởng | `WORKSHOP_ADMIN` | Toàn bộ: khách hàng, tài khoản, bảng giá, điều phối đơn (giao, chốt, hủy, đổi hạn), phân công lấy đồ, công nợ |
 | Kế toán xưởng | `WORKSHOP_ACCOUNTANT` | Bảng giá, chi tiết và đơn giá đơn hàng, ghi nhận/hủy thanh toán, công nợ, báo cáo |
 | Tài xế | `DRIVER` | Nhận yêu cầu lấy đồ, tạo đơn, báo sai lệch trên đơn của mình |
-| Quản lý phía khách | `RESTAURANT_MANAGER` | Như nhân viên phía khách, thêm công nợ, sao kê, lịch sử thanh toán, báo cáo của khách mình |
-| Nhân viên phía khách | `RESTAURANT_STAFF` | Gửi yêu cầu lấy đồ, xác nhận số lượng, báo sai lệch, xác nhận nhận đồ hoặc báo sự cố |
+| Quản lý phía khách | `CUSTOMER_MANAGER` | Như nhân viên phía khách, thêm công nợ, sao kê, lịch sử thanh toán, báo cáo của khách mình |
+| Nhân viên phía khách | `CUSTOMER_STAFF` | Gửi yêu cầu lấy đồ, xác nhận số lượng, báo sai lệch, xác nhận nhận đồ hoặc báo sự cố |
 
 Phân quyền gồm hai lớp: theo vai trò (`@PreAuthorize` ở controller) và theo dữ liệu (trong service). Tài xế chỉ
 thấy đơn của mình; tài khoản phía khách chỉ thấy dữ liệu của khách mình; đơn ngoài phạm vi trả về 404.
 Tài xế và nhân viên phía khách không được xem giá tiền trên giao diện.
 
-Do lịch sử dự án, khái niệm "khách hàng" trong mã nguồn, bảng CSDL và API vẫn mang tên `restaurant`
-(`Restaurant`, `restaurants`, `/api/restaurants`, `RESTAURANT_*`); loại khách được lưu ở cột `customer_type`.
+Khách hàng (nhà hàng, khách sạn, spa, công ty...) mang tên `customer` thống nhất trong mã nguồn, CSDL và API
+(`Customer`, bảng `customers`, cột `customer_id`, `/api/customers`, vai trò `CUSTOMER_*`); loại khách lưu ở cột
+`customer_type`. Phiên bản trước dùng tên `restaurant`: migration `V4__doi_ten_khach_hang` tự đổi tên bảng / cột / mã vai
+trò khi nâng cấp và đăng xuất mọi người dùng (đăng nhập lại là dùng được).
 
 ## Nghiệp vụ
 
@@ -262,7 +264,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 |---|---|
 | Xác thực | `POST /auth/login`, `GET /auth/me`, `POST /auth/change-password` (trả phiên mới), `POST /auth/logout-all` |
 | Tài khoản | `GET/POST /users`, `PATCH /users/{id}/enabled`, `PUT /users/{id}/password` |
-| Khách hàng | `GET/POST /restaurants`, `PUT /restaurants/{id}`, `PATCH /restaurants/{id}/active` |
+| Khách hàng | `GET/POST /customers`, `PUT /customers/{id}`, `PATCH /customers/{id}/active` |
 | Bảng giá | `GET/POST /prices`, `PUT /prices/{id}`, `PATCH /prices/{id}/active`, `GET /prices/catalog`, `GET /prices/customers/{id}`, `PUT/DELETE /prices/customers/{id}/{priceId}` |
 | Yêu cầu lấy đồ | `GET/POST /pickups`, `PUT /pickups/{id}/accept`, `/release`, `/assign`, `/cancel` |
 | Đơn hàng | `GET/POST /orders` (xem bên dưới), `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
@@ -354,4 +356,3 @@ rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend đư�
 - Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).
   Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB); phần lõi antd dùng chung vẫn là gói
   lớn nhất (~390 KB). Hệ thiết kế và trạng thái triển khai: `DESIGN_PLAN.md`.
-- Tên trong mã nguồn (`restaurant`) không còn khớp với nghiệp vụ nhiều loại khách hàng.

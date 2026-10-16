@@ -5,12 +5,12 @@ import { CalendarOutlined, CarOutlined, EnvironmentOutlined, PhoneOutlined, Plus
 import axiosClient from '../../api/axiosClient'
 import PickupStatusTag from '../../components/PickupStatusTag'
 import CreateOrderModal from '../orders/CreateOrderModal'
-import { getSession, isRestaurantRole } from '../../utils/auth'
+import { getSession, isCustomerRole } from '../../utils/auth'
 import { formatDate, getErrorMessage, todayIso } from '../../utils/format'
-import { CUSTOMER_TYPE_LABELS, TIME_SLOT_LABELS, type PickupRequest, type Restaurant, type TimeSlot, type UserAccount } from '../../types'
+import { CUSTOMER_TYPE_LABELS, TIME_SLOT_LABELS, type PickupRequest, type Customer, type TimeSlot, type UserAccount } from '../../types'
 
 interface RequestForm {
-  restaurantId?: number
+  customerId?: number
   preferredDate: string
   timeSlot: TimeSlot
   estimatedBags?: number
@@ -39,7 +39,7 @@ const whenLabel = (date: string) => {
  */
 export function usePickupActions(onChanged: () => void) {
   const role = getSession()?.role
-  const isCustomer = role ? isRestaurantRole(role) : false
+  const isCustomer = role ? isCustomerRole(role) : false
   const isDriver = role === 'DRIVER'
   const isAdmin = role === 'WORKSHOP_ADMIN'
   const canCreate = isCustomer || isAdmin
@@ -48,7 +48,7 @@ export function usePickupActions(onChanged: () => void) {
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm<RequestForm>()
-  const [customers, setCustomers] = useState<Restaurant[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [drivers, setDrivers] = useState<UserAccount[]>([])
   const [orderFrom, setOrderFrom] = useState<PickupRequest | null>(null)
   const [cancelTarget, setCancelTarget] = useState<PickupRequest | null>(null)
@@ -57,7 +57,7 @@ export function usePickupActions(onChanged: () => void) {
   // Quản lý xưởng cần danh sách khách (tạo yêu cầu hộ) và tài xế (phân công)
   useEffect(() => {
     if (!isAdmin) return
-    Promise.all([axiosClient.get<Restaurant[]>('/restaurants'), axiosClient.get<UserAccount[]>('/users', { params: { role: 'DRIVER' } })])
+    Promise.all([axiosClient.get<Customer[]>('/customers'), axiosClient.get<UserAccount[]>('/users', { params: { role: 'DRIVER' } })])
       .then(([c, d]) => {
         setCustomers(c.data.filter((r) => r.active))
         setDrivers(d.data.filter((u) => u.enabled))
@@ -88,7 +88,7 @@ export function usePickupActions(onChanged: () => void) {
     setSaving(true)
     try {
       await axiosClient.post('/pickups', {
-        restaurantId: values.restaurantId ?? null,
+        customerId: values.customerId ?? null,
         preferredDate: values.preferredDate,
         timeSlot: values.timeSlot,
         estimatedBags: values.estimatedBags ?? null,
@@ -200,7 +200,7 @@ export function usePickupActions(onChanged: () => void) {
         key={r.id}
         size="small"
         className={late ? 'is-flagged' : undefined}
-        title={isCustomer ? `Yêu cầu #${r.id}` : `#${r.id} · ${r.restaurantName}`}
+        title={isCustomer ? `Yêu cầu #${r.id}` : `#${r.id} · ${r.customerName}`}
         extra={<PickupStatusTag status={r.status} />}
         style={{ height: '100%' }}
       >
@@ -275,7 +275,7 @@ export function usePickupActions(onChanged: () => void) {
       >
         <Form<RequestForm> form={form} layout="vertical" onFinish={submit}>
           {isAdmin && (
-            <Form.Item name="restaurantId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
+            <Form.Item name="customerId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
               <Select showSearch={{ optionFilterProp: 'label' }} options={customers.map((c) => ({ value: c.id, label: c.name }))} />
             </Form.Item>
           )}

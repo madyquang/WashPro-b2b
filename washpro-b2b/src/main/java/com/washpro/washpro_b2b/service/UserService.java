@@ -2,11 +2,11 @@ package com.washpro.washpro_b2b.service;
 
 import com.washpro.washpro_b2b.dto.UserDtos.CreateRequest;
 import com.washpro.washpro_b2b.dto.UserDtos.Response;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserService currentUserService;
 
@@ -41,17 +41,17 @@ public class UserService {
             throw ApiException.conflict("Tên đăng nhập đã tồn tại");
         }
 
-        Restaurant restaurant = null;
-        if (request.role().isRestaurantRole()) {
-            if (request.restaurantId() == null) {
+        Customer customer = null;
+        if (request.role().isCustomerRole()) {
+            if (request.customerId() == null) {
                 throw ApiException.badRequest("Vui lòng chọn khách hàng cho tài khoản này");
             }
-            restaurant = restaurantRepository.findById(request.restaurantId())
+            customer = customerRepository.findById(request.customerId())
                     .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
-            if (!restaurant.isActive()) {
+            if (!customer.isActive()) {
                 throw ApiException.badRequest("Khách hàng này đã ngừng hợp tác");
             }
-        } else if (request.restaurantId() != null) {
+        } else if (request.customerId() != null) {
             throw ApiException.badRequest("Chỉ tài khoản khách hàng mới được gắn với một khách hàng");
         }
 
@@ -61,7 +61,7 @@ public class UserService {
                 .fullName(blankToNull(request.fullName()))
                 .phone(blankToNull(request.phone()))
                 .role(request.role())
-                .restaurant(restaurant)
+                .customer(customer)
                 .build();
         return Response.from(userRepository.save(user));
     }

@@ -64,7 +64,7 @@ public class AuthService {
                 user.getUsername(),
                 user.getDisplayName(),
                 user.getRole().name(),
-                user.getRestaurant() != null ? user.getRestaurant().getName() : null,
+                user.getCustomer() != null ? user.getCustomer().getName() : null,
                 System.currentTimeMillis() + jwtUtils.getExpirationMs());
     }
 

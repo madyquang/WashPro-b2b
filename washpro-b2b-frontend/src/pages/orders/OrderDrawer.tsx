@@ -23,7 +23,7 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const role = getSession()?.role
   // Tài xế và nhân viên phía khách không cần thấy tiền
-  const canSeeMoney = role === 'WORKSHOP_ADMIN' || role === 'WORKSHOP_ACCOUNTANT' || role === 'RESTAURANT_MANAGER'
+  const canSeeMoney = role === 'WORKSHOP_ADMIN' || role === 'WORKSHOP_ACCOUNTANT' || role === 'CUSTOMER_MANAGER'
 
   useEffect(() => {
     if (orderId === null) return
@@ -68,12 +68,12 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
         <>
           <Descriptions column={1} size="small" bordered>
             <Descriptions.Item label="Khách hàng">
-              {order.restaurantName} <Typography.Text type="secondary">({CUSTOMER_TYPE_LABELS[order.customerType]})</Typography.Text>
+              {order.customerName} <Typography.Text type="secondary">({CUSTOMER_TYPE_LABELS[order.customerType]})</Typography.Text>
             </Descriptions.Item>
-            {order.restaurantAddress && <Descriptions.Item label="Địa chỉ">{order.restaurantAddress}</Descriptions.Item>}
-            {order.restaurantPhone && (
+            {order.customerAddress && <Descriptions.Item label="Địa chỉ">{order.customerAddress}</Descriptions.Item>}
+            {order.customerPhone && (
               <Descriptions.Item label="Liên hệ">
-                <a href={`tel:${order.restaurantPhone}`}>{order.restaurantPhone}</a>
+                <a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a>
                 {order.contactName && ` · ${order.contactName}`}
               </Descriptions.Item>
             )}

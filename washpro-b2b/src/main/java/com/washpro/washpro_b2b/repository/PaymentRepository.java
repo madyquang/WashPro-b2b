@@ -15,30 +15,30 @@ import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @EntityGraph(attributePaths = "restaurant")
+    @EntityGraph(attributePaths = "customer")
     List<Payment> findAllByOrderByPaidDateDescIdDesc();
 
-    @EntityGraph(attributePaths = "restaurant")
-    List<Payment> findByRestaurantIdOrderByPaidDateDescIdDesc(Long restaurantId);
+    @EntityGraph(attributePaths = "customer")
+    List<Payment> findByCustomerIdOrderByPaidDateDescIdDesc(Long customerId);
 
-    /** Mỗi dòng: [restaurantId, tổng đã thanh toán]. */
-    @Query("select p.restaurant.id, sum(p.amount) from Payment p where p.voided = false group by p.restaurant.id")
-    List<Object[]> sumPaidByRestaurant();
+    /** Mỗi dòng: [customerId, tổng đã thanh toán]. */
+    @Query("select p.customer.id, sum(p.amount) from Payment p where p.voided = false group by p.customer.id")
+    List<Object[]> sumPaidByCustomer();
 
     /** Tổng khách đã trả (bỏ khoản đã hủy) trước ngày `before`. */
-    @Query("select coalesce(sum(p.amount), 0) from Payment p where p.restaurant.id = :restaurantId and p.voided = false and p.paidDate < :before")
-    BigDecimal sumPaidBefore(@Param("restaurantId") Long restaurantId, @Param("before") LocalDate before);
+    @Query("select coalesce(sum(p.amount), 0) from Payment p where p.customer.id = :customerId and p.voided = false and p.paidDate < :before")
+    BigDecimal sumPaidBefore(@Param("customerId") Long customerId, @Param("before") LocalDate before);
 
-    @Query("select coalesce(sum(p.amount), 0) from Payment p where p.restaurant.id = :restaurantId and p.voided = false")
-    BigDecimal sumPaid(@Param("restaurantId") Long restaurantId);
+    @Query("select coalesce(sum(p.amount), 0) from Payment p where p.customer.id = :customerId and p.voided = false")
+    BigDecimal sumPaid(@Param("customerId") Long customerId);
 
     /** Khoản thanh toán còn hiệu lực trong khoảng ngày [from, to), cũ trước. */
     @Query("""
             select p from Payment p
-            where p.restaurant.id = :restaurantId and p.voided = false and p.paidDate >= :from and p.paidDate < :to
+            where p.customer.id = :customerId and p.voided = false and p.paidDate >= :from and p.paidDate < :to
             order by p.paidDate, p.id
             """)
-    List<Payment> findActiveBetween(@Param("restaurantId") Long restaurantId, @Param("from") LocalDate from,
+    List<Payment> findActiveBetween(@Param("customerId") Long customerId, @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
     /** Khóa dòng khi hủy: hai lần hủy cùng lúc không cùng vượt qua bước kiểm tra "đã hủy chưa". */

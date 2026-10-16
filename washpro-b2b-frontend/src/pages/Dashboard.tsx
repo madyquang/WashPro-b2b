@@ -1,4 +1,4 @@
-import { getSession, isRestaurantRole } from '../utils/auth'
+import { getSession, isCustomerRole } from '../utils/auth'
 import AccountantHome from './home/AccountantHome'
 import AdminHome from './home/AdminHome'
 import CustomerHome from './home/CustomerHome'
@@ -15,7 +15,7 @@ export default function Dashboard() {
   const role = getSession()?.role
   if (!role) return null
   if (role === 'DRIVER') return <DriverHome />
-  if (isRestaurantRole(role)) return <CustomerHome />
+  if (isCustomerRole(role)) return <CustomerHome />
   if (role === 'WORKSHOP_ACCOUNTANT') return <AccountantHome />
   return <AdminHome />
 }

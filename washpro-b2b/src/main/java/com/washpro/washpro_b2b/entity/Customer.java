@@ -9,16 +9,16 @@ import java.time.LocalDateTime;
 
 /**
  * Khách hàng của xưởng (nhà hàng, khách sạn, spa, công ty...).
- * Tên lớp/bảng vẫn là "restaurant" để tương thích dữ liệu và API cũ; loại khách nằm ở customerType.
+ * Tên lớp/bảng vẫn là "customer" để tương thích dữ liệu và API cũ; loại khách nằm ở customerType.
  */
 @Entity
-@Table(name = "restaurants")
+@Table(name = "customers")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Restaurant {
+public class Customer {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

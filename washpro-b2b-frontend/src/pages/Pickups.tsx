@@ -7,7 +7,7 @@ import LoadError from '../components/LoadError'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import { isActivePickup, usePickupActions } from './pickups/usePickupActions'
-import { getSession, isRestaurantRole } from '../utils/auth'
+import { getSession, isCustomerRole } from '../utils/auth'
 import { getErrorMessage } from '../utils/format'
 import type { PickupRequest, PickupStatus } from '../types'
 
@@ -24,7 +24,7 @@ const is = (...statuses: PickupStatus[]) => (r: PickupRequest) => statuses.inclu
 export default function Pickups() {
   const session = getSession()
   const role = session?.role
-  const isCustomer = role ? isRestaurantRole(role) : false
+  const isCustomer = role ? isCustomerRole(role) : false
   const isDriver = role === 'DRIVER'
   const isAdmin = role === 'WORKSHOP_ADMIN'
   const [params, setParams] = useSearchParams()

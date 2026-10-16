@@ -45,7 +45,7 @@ public final class OrderDtos {
     }
 
     public record CreateRequest(
-            @NotNull(message = "Vui lòng chọn khách hàng") Long restaurantId,
+            @NotNull(message = "Vui lòng chọn khách hàng") Long customerId,
             @NotNull(message = "Vui lòng nhập số túi") @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer totalBags,
             @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String description,
             @NotEmpty(message = "Cần đếm ít nhất một loại đồ") @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemRequest> items,
@@ -133,12 +133,12 @@ public final class OrderDtos {
 
     public record Response(
             Long id,
-            Long restaurantId,
-            String restaurantName,
+            Long customerId,
+            String customerName,
             CustomerType customerType,
             /** Địa chỉ, điện thoại, người liên hệ: để tài xế giao trả. */
-            String restaurantAddress,
-            String restaurantPhone,
+            String customerAddress,
+            String customerPhone,
             String contactName,
             Long driverId,
             String driverName,
@@ -162,7 +162,7 @@ public final class OrderDtos {
 
         public static Response from(Order o, boolean withHistory) {
             List<ItemResponse> items = o.getItems().stream().map(ItemResponse::from).toList();
-            var r = o.getRestaurant();
+            var r = o.getCustomer();
             return new Response(
                     o.getId(),
                     r.getId(),

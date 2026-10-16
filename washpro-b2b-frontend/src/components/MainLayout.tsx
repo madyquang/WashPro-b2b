@@ -19,7 +19,7 @@ import logo from '../assets/logo-mark.png'
 import { BRAND } from '../theme'
 import ToneTag from './ToneTag'
 import TouchFriendly from './TouchFriendly'
-import { clearSession, canManagePrices, canViewFinance, getSession, isRestaurantRole } from '../utils/auth'
+import { clearSession, canManagePrices, canViewFinance, getSession, isCustomerRole } from '../utils/auth'
 import { ROLE_LABELS, type Role } from '../types'
 
 const { Sider, Header, Content } = Layout
@@ -41,7 +41,7 @@ interface NavGroup {
 function navFor(role: Role): NavGroup[] {
   // Nhãn theo cách mỗi vai trò gọi công việc của mình (khớp tiêu đề trang tương ứng)
   const driver = role === 'DRIVER'
-  const customer = isRestaurantRole(role)
+  const customer = isCustomerRole(role)
   const ops: NavItem[] = driver
     ? [
         { key: '/', icon: <HomeOutlined />, label: 'Việc hôm nay', short: 'Hôm nay' },
@@ -60,7 +60,7 @@ function navFor(role: Role): NavGroup[] {
           { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn hàng', short: 'Đơn hàng' },
         ]
   const manage: NavItem[] = []
-  if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/restaurants', icon: <ShopOutlined />, label: 'Khách hàng' })
+  if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/customers', icon: <ShopOutlined />, label: 'Khách hàng' })
   if (canManagePrices(role)) manage.push({ key: '/prices', icon: <TagsOutlined />, label: 'Bảng giá' })
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/accounts', icon: <TeamOutlined />, label: 'Tài khoản' })
   const finance: NavItem[] = canViewFinance(role)
@@ -106,7 +106,7 @@ export default function MainLayout() {
   const { role } = session
   const isDesktop = !!screens.lg
   // Tài xế và khách hàng chủ yếu dùng điện thoại: điều hướng dưới cùng, bấm một tay
-  const fieldRole = role === 'DRIVER' || isRestaurantRole(role)
+  const fieldRole = role === 'DRIVER' || isCustomerRole(role)
   const useBottomNav = !isDesktop && fieldRole
 
   const groups = navFor(role)
@@ -191,7 +191,7 @@ export default function MainLayout() {
             )}
             {!isDesktop && <img src={logo} alt="" width={30} height={30} style={{ objectFit: 'contain' }} />}
             <div className="header-context">
-              {session.restaurantName ?? `Xưởng giặt ${BRAND.name}`}
+              {session.customerName ?? `Xưởng giặt ${BRAND.name}`}
               <small>
                 {new Date().toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
               </small>

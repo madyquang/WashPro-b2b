@@ -10,13 +10,13 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    @EntityGraph(attributePaths = "restaurant")
+    @EntityGraph(attributePaths = "customer")
     Optional<User> findByUsername(String username);
 
-    @EntityGraph(attributePaths = "restaurant")
+    @EntityGraph(attributePaths = "customer")
     Optional<User> findById(Long id);
 
-    @EntityGraph(attributePaths = "restaurant")
+    @EntityGraph(attributePaths = "customer")
     List<User> findAllByOrderByUsernameAsc();
 
     boolean existsByRole(Role role);

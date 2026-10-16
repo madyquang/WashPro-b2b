@@ -15,12 +15,12 @@ import {
   TURNAROUND_OPTIONS,
   paymentTermLabel,
   type CustomerType,
-  type Restaurant,
+  type Customer,
 } from '../types'
 
 const CUSTOMER_TYPE_OPTIONS = (Object.keys(CUSTOMER_TYPE_LABELS) as CustomerType[]).map((t) => ({ value: t, label: CUSTOMER_TYPE_LABELS[t] }))
 
-interface RestaurantForm {
+interface CustomerForm {
   name: string
   customerType: CustomerType
   address: string
@@ -34,29 +34,29 @@ interface AccountForm {
   username: string
   password: string
   fullName?: string
-  role: 'RESTAURANT_MANAGER' | 'RESTAURANT_STAFF'
+  role: 'CUSTOMER_MANAGER' | 'CUSTOMER_STAFF'
 }
 
 const PHONE_RULE = { pattern: /^$|^[0-9+()\-. ]{8,20}$/, message: 'Số điện thoại không hợp lệ' }
 
-export default function Restaurants() {
-  const [rows, setRows] = useState<Restaurant[]>([])
+export default function Customers() {
+  const [rows, setRows] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<CustomerType | undefined>()
 
-  const [editing, setEditing] = useState<Restaurant | 'new' | null>(null)
-  const [accountFor, setAccountFor] = useState<Restaurant | null>(null)
+  const [editing, setEditing] = useState<Customer | 'new' | null>(null)
+  const [accountFor, setAccountFor] = useState<Customer | null>(null)
   const [saving, setSaving] = useState(false)
-  const [form] = Form.useForm<RestaurantForm>()
+  const [form] = Form.useForm<CustomerForm>()
   const [accountForm] = Form.useForm<AccountForm>()
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const { data } = await axiosClient.get<Restaurant[]>('/restaurants')
+      const { data } = await axiosClient.get<Customer[]>('/customers')
       setRows(data)
     } catch (e) {
       setError(getErrorMessage(e, 'Không tải được danh sách khách hàng'))
@@ -76,7 +76,7 @@ export default function Restaurants() {
     )
   }, [rows, search, typeFilter])
 
-  const openEditor = (target: Restaurant | 'new') => {
+  const openEditor = (target: Customer | 'new') => {
     setEditing(target)
     form.setFieldsValue(
       target === 'new'
@@ -93,7 +93,7 @@ export default function Restaurants() {
     )
   }
 
-  const saveRestaurant = async (values: RestaurantForm) => {
+  const saveCustomer = async (values: CustomerForm) => {
     setSaving(true)
     try {
       const body = {
@@ -106,10 +106,10 @@ export default function Restaurants() {
         paymentTermDays: values.paymentTermDays,
       }
       if (editing === 'new') {
-        await axiosClient.post('/restaurants', body)
+        await axiosClient.post('/customers', body)
         message.success('Đã thêm khách hàng')
       } else if (editing) {
-        await axiosClient.put(`/restaurants/${editing.id}`, body)
+        await axiosClient.put(`/customers/${editing.id}`, body)
         message.success('Đã cập nhật khách hàng')
       }
       setEditing(null)
@@ -121,9 +121,9 @@ export default function Restaurants() {
     }
   }
 
-  const toggleActive = async (r: Restaurant) => {
+  const toggleActive = async (r: Customer) => {
     try {
-      await axiosClient.patch(`/restaurants/${r.id}/active`, { enabled: !r.active })
+      await axiosClient.patch(`/customers/${r.id}/active`, { enabled: !r.active })
       message.success(r.active ? 'Đã ngừng hợp tác' : 'Đã kích hoạt lại')
       load()
     } catch (e) {
@@ -140,7 +140,7 @@ export default function Restaurants() {
         password: values.password,
         fullName: values.fullName?.trim() || null,
         role: values.role,
-        restaurantId: accountFor.id,
+        customerId: accountFor.id,
       })
       message.success(`Đã cấp tài khoản cho ${accountFor.name}`)
       setAccountFor(null)
@@ -151,7 +151,7 @@ export default function Restaurants() {
     }
   }
 
-  const columns: TableColumnsType<Restaurant> = [
+  const columns: TableColumnsType<Customer> = [
     { title: 'Tên khách hàng', dataIndex: 'name', sorter: (a, b) => a.name.localeCompare(b.name, 'vi') },
     {
       title: 'Loại khách',
@@ -184,7 +184,7 @@ export default function Restaurants() {
               icon={<UserAddOutlined />}
               onClick={() => {
                 accountForm.resetFields()
-                accountForm.setFieldsValue({ role: 'RESTAURANT_MANAGER' })
+                accountForm.setFieldsValue({ role: 'CUSTOMER_MANAGER' })
                 setAccountFor(r)
               }}
             >
@@ -239,7 +239,7 @@ export default function Restaurants() {
 
       <LoadError error={error} onRetry={load} />
 
-      <ResponsiveTable<Restaurant>
+      <ResponsiveTable<Customer>
         table={{
           rowKey: 'id',
           loading,
@@ -267,7 +267,7 @@ export default function Restaurants() {
         width={{ xs: '100%', md: 520 }}
         forceRender
       >
-        <Form<RestaurantForm> form={form} layout="vertical" onFinish={saveRestaurant}>
+        <Form<CustomerForm> form={form} layout="vertical" onFinish={saveCustomer}>
           <Form.Item name="name" label="Tên khách hàng" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập tên' }, { max: 150 }]}>
             <Input maxLength={150} />
           </Form.Item>
@@ -315,8 +315,8 @@ export default function Restaurants() {
           <Form.Item name="role" label="Vai trò" rules={[{ required: true }]}>
             <Select
               options={[
-                { value: 'RESTAURANT_MANAGER', label: 'Quản lý phía khách hàng (xác nhận đơn + xem công nợ)' },
-                { value: 'RESTAURANT_STAFF', label: 'Nhân viên phía khách hàng (xác nhận đơn)' },
+                { value: 'CUSTOMER_MANAGER', label: 'Quản lý phía khách hàng (xác nhận đơn + xem công nợ)' },
+                { value: 'CUSTOMER_STAFF', label: 'Nhân viên phía khách hàng (xác nhận đơn)' },
               ]}
             />
           </Form.Item>

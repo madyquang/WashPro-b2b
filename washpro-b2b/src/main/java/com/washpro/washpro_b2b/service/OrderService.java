@@ -17,14 +17,14 @@ import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
-import com.washpro.washpro_b2b.entity.Restaurant;
+import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.entity.ServiceType;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.OrderSpecs;
-import com.washpro.washpro_b2b.repository.RestaurantRepository;
+import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -67,7 +67,7 @@ public class OrderService {
             OrderStatus.PENDING_CONFIRM, OrderStatus.DELIVERING, OrderStatus.COMPLETED);
 
     private final OrderRepository orderRepository;
-    private final RestaurantRepository restaurantRepository;
+    private final CustomerRepository customerRepository;
     private final PriceService priceService;
     private final PickupService pickupService;
     private final CurrentUserService currentUserService;
@@ -78,24 +78,24 @@ public class OrderService {
     public Response createOrder(CreateRequest request) {
         User driver = currentUserService.getCurrentUser();
 
-        Restaurant restaurant = restaurantRepository.findById(request.restaurantId())
+        Customer customer = customerRepository.findById(request.customerId())
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy khách hàng"));
-        if (!restaurant.isActive()) {
+        if (!customer.isActive()) {
             throw ApiException.badRequest("Khách hàng này đã ngừng hợp tác, không thể tạo đơn mới");
         }
 
         Order order = Order.builder()
                 .driver(driver)
-                .restaurant(restaurant)
+                .customer(customer)
                 .status(OrderStatus.PENDING_CONFIRM)
                 .totalBags(request.totalBags())
                 .description(blankToNull(request.description()))
                 // Hạn trả tính từ lúc nhận đồ theo cam kết với từng khách (khách sạn 24h, nhà hàng 48h...)
-                .dueAt(LocalDateTime.now().plusHours(restaurant.getTurnaroundHours()))
+                .dueAt(LocalDateTime.now().plusHours(customer.getTurnaroundHours()))
                 .build();
 
         // Tài xế chỉ đếm số lượng; giá được điền tự động theo bảng giá của khách (tài xế không thấy giá)
-        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(restaurant.getId());
+        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(customer.getId());
         for (ItemRequest dto : request.items()) {
             order.addItem(buildItem(dto.servicePriceId(), dto.itemName(), dto.unit(), dto.quantity(),
                     null, pricer, Set.of()));
@@ -162,7 +162,7 @@ public class OrderService {
         return switch (user.getRole()) {
             case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> alive;
             case DRIVER -> alive.and(OrderSpecs.driver(user.getId()));
-            case RESTAURANT_STAFF, RESTAURANT_MANAGER -> alive.and(OrderSpecs.restaurant(requireRestaurantId(user)));
+            case CUSTOMER_STAFF, CUSTOMER_MANAGER -> alive.and(OrderSpecs.customer(requireCustomerId(user)));
         };
     }
 
@@ -182,8 +182,8 @@ public class OrderService {
         return switch (user.getRole()) {
             case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> orderRepository.findByIsDeletedFalseOrderByCreatedAtDesc();
             case DRIVER -> orderRepository.findByDriverIdAndIsDeletedFalseOrderByCreatedAtDesc(user.getId());
-            case RESTAURANT_STAFF, RESTAURANT_MANAGER ->
-                orderRepository.findByRestaurantIdAndIsDeletedFalseOrderByCreatedAtDesc(requireRestaurantId(user));
+            case CUSTOMER_STAFF, CUSTOMER_MANAGER ->
+                orderRepository.findByCustomerIdAndIsDeletedFalseOrderByCreatedAtDesc(requireCustomerId(user));
         };
     }
 
@@ -343,7 +343,7 @@ public class OrderService {
                 .filter(i -> i.getServicePrice() != null)
                 .map(i -> i.getServicePrice().getId())
                 .collect(Collectors.toSet());
-        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(order.getRestaurant().getId());
+        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(order.getCustomer().getId());
 
         List<OrderItem> rebuilt = new ArrayList<>();
         for (ItemRequest dto : request.items()) {
@@ -409,7 +409,7 @@ public class OrderService {
     private List<String> applyCounts(Order order, List<ItemCountRequest> counts) {
         Map<Long, OrderItem> byId = order.getItems().stream()
                 .collect(Collectors.toMap(OrderItem::getId, Function.identity()));
-        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(order.getRestaurant().getId());
+        Function<ServicePrice, BigDecimal> pricer = priceService.pricerFor(order.getCustomer().getId());
         List<String> changes = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
 
@@ -483,19 +483,19 @@ public class OrderService {
         boolean allowed = switch (user.getRole()) {
             case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> true;
             case DRIVER -> order.getDriver().getId().equals(user.getId());
-            case RESTAURANT_STAFF, RESTAURANT_MANAGER ->
-                order.getRestaurant().getId().equals(requireRestaurantId(user));
+            case CUSTOMER_STAFF, CUSTOMER_MANAGER ->
+                order.getCustomer().getId().equals(requireCustomerId(user));
         };
         if (!allowed) {
             throw ApiException.notFound("Không tìm thấy đơn hàng");
         }
     }
 
-    private Long requireRestaurantId(User user) {
-        if (user.getRestaurant() == null) {
+    private Long requireCustomerId(User user) {
+        if (user.getCustomer() == null) {
             throw ApiException.forbidden("Tài khoản này chưa được liên kết với khách hàng nào");
         }
-        return user.getRestaurant().getId();
+        return user.getCustomer().getId();
     }
 
     private void moveTo(Order order, OrderStatus target, String actor, String note) {

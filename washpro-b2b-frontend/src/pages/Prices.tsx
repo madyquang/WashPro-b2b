@@ -19,7 +19,7 @@ import {
   type CustomerPriceRow,
   type ItemCategory,
   type PriceUnit,
-  type Restaurant,
+  type Customer,
   type ServicePrice,
   type ServiceType,
 } from '../types'
@@ -231,7 +231,7 @@ function BasePrices() {
 
 /** Giá hợp đồng riêng: ghi đè giá chung cho một khách hàng. */
 function CustomerPrices() {
-  const [customers, setCustomers] = useState<Restaurant[]>([])
+  const [customers, setCustomers] = useState<Customer[]>([])
   const [customerId, setCustomerId] = useState<number | undefined>()
   const [rows, setRows] = useState<CustomerPriceRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -244,7 +244,7 @@ function CustomerPrices() {
 
   useEffect(() => {
     axiosClient
-      .get<Restaurant[]>('/restaurants')
+      .get<Customer[]>('/customers')
       .then((res) => setCustomers(res.data))
       .catch((e) => message.error(getErrorMessage(e, 'Không tải được danh sách khách hàng')))
   }, [])

@@ -97,7 +97,7 @@ export function OrderCard({ order: o, actions, busy, onDetail, showMoney, hideCu
     <Card className={o.overdue ? 'order-card is-flagged' : 'order-card'}>
       <div className="order-card-head">
         <div style={{ minWidth: 0 }}>
-          <div className="order-card-title">{hideCustomer ? `Đơn #${o.id}` : `#${o.id} · ${o.restaurantName}`}</div>
+          <div className="order-card-title">{hideCustomer ? `Đơn #${o.id}` : `#${o.id} · ${o.customerName}`}</div>
           <div className="order-card-meta">
             {o.totalBags} túi · {hideCustomer ? `tài xế ${o.driverName}` : o.driverName} · nhận {formatDateTime(o.createdAt)}
           </div>
@@ -164,7 +164,7 @@ export function OrderRow({
     <div className={o.overdue ? 'order-row is-flagged' : 'order-row'}>
       <div className="order-row-main">
         <div className="order-card-title">
-          #{o.id} · {o.restaurantName}
+          #{o.id} · {o.customerName}
         </div>
         <div className="order-card-meta">
           {o.totalBags} túi · {groupByCategory(o.items).map((g) => g.label).join(', ') || 'chưa có chi tiết'}

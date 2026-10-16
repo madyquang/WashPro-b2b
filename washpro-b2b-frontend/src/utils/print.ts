@@ -41,7 +41,7 @@ export function printDeliverySlip(order: Order) {
 <h1>PHIẾU GIAO NHẬN ĐỒ GIẶT</h1>
 <div class="sub">Đơn #${order.id} · ${escapeHtml(formatDateTime(order.createdAt))}</div>
 <div class="info">
-  <p><b>Khách hàng:</b> ${escapeHtml(order.restaurantName)} (${escapeHtml(CUSTOMER_TYPE_LABELS[order.customerType])})</p>
+  <p><b>Khách hàng:</b> ${escapeHtml(order.customerName)} (${escapeHtml(CUSTOMER_TYPE_LABELS[order.customerType])})</p>
   <p><b>Tài xế:</b> ${escapeHtml(order.driverName)}</p>
   <p><b>Số túi / bao:</b> ${order.totalBags}</p>
   ${order.dueAt ? `<p><b>Hạn trả:</b> ${escapeHtml(formatDateTime(order.dueAt))}</p>` : ''}
@@ -80,7 +80,7 @@ export function printStatement(s: Statement) {
     .join('')
 
   win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8" />
-<title>Sao kê ${escapeHtml(s.restaurantName)} ${m}/${y}</title>
+<title>Sao kê ${escapeHtml(s.customerName)} ${m}/${y}</title>
 <style>
   body{font-family:Arial,sans-serif;margin:32px;color:#222}
   h1{text-align:center;margin:0 0 4px} .sub{text-align:center;color:#666;margin-bottom:24px}
@@ -93,7 +93,7 @@ export function printStatement(s: Statement) {
 <h1>SAO KÊ CÔNG NỢ</h1>
 <div class="sub">Tháng ${m}/${y}</div>
 <div class="info">
-  <p><b>Khách hàng:</b> ${escapeHtml(s.restaurantName)} (${escapeHtml(CUSTOMER_TYPE_LABELS[s.customerType])})</p>
+  <p><b>Khách hàng:</b> ${escapeHtml(s.customerName)} (${escapeHtml(CUSTOMER_TYPE_LABELS[s.customerType])})</p>
   ${s.address ? `<p><b>Địa chỉ:</b> ${escapeHtml(s.address)}</p>` : ''}
   <p><b>Kỳ thanh toán:</b> ${escapeHtml(paymentTermLabel(s.paymentTermDays))}</p>
 </div>
