@@ -77,6 +77,7 @@ jobs:
         env:
           E2E_APP_URL: http://localhost:3000
           E2E_API_URL: http://localhost:3000/api
+          E2E_PWA: '1'
         run: |
           npm ci
           npx playwright-core install --with-deps chromium

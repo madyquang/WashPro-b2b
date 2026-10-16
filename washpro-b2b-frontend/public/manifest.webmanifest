@@ -1,0 +1,21 @@
+{
+  "name": "THANHXUAN · Quản lý giặt là",
+  "short_name": "THANHXUAN",
+  "description": "Yêu cầu lấy đồ, đơn giặt, giao nhận và công nợ giữa xưởng giặt THANHXUAN và khách hàng.",
+  "lang": "vi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F4F7F9",
+  "theme_color": "#0C3247",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Lấy đồ", "url": "/pickups", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Đơn hàng", "url": "/orders", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

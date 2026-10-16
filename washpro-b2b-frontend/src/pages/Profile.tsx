@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Card, Descriptions, Form, Input, Popconfirm } from 'antd'
+import { Alert, Button, Card, Descriptions, Form, Input, Popconfirm, Space, Typography } from 'antd'
 import { message } from '../utils/message'
-import { DisconnectOutlined, LogoutOutlined } from '@ant-design/icons'
+import { DisconnectOutlined, DownloadOutlined, LogoutOutlined } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
 import PageHeader from '../components/PageHeader'
 import ToneTag from '../components/ToneTag'
 import { clearSession, getSession, saveSession } from '../utils/auth'
 import { getErrorMessage } from '../utils/format'
+import { isIos, isStandalone, useInstallPrompt } from '../utils/pwa'
 import { ROLE_LABELS, type Session } from '../types'
 
 interface PasswordForm {
@@ -22,6 +23,7 @@ export default function Profile() {
   const [form] = Form.useForm<PasswordForm>()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { canInstall, install } = useInstallPrompt()
 
   if (!session) return null
 
@@ -72,6 +74,28 @@ export default function Profile() {
           </Descriptions.Item>
           {session.customerName && <Descriptions.Item label="Khách hàng">{session.customerName}</Descriptions.Item>}
         </Descriptions>
+      </Card>
+
+      <Card size="small" title="Ứng dụng trên điện thoại" className="mb-4">
+        {isStandalone() ? (
+          <Typography.Text>Bạn đang dùng ứng dụng đã cài trên máy.</Typography.Text>
+        ) : canInstall ? (
+          <Space orientation="vertical">
+            <Typography.Text>Cài lên màn hình chính để mở nhanh như một ứng dụng, không cần gõ địa chỉ.</Typography.Text>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={() => void install()}>
+              Cài ứng dụng
+            </Button>
+          </Space>
+        ) : isIos() ? (
+          <Typography.Text>
+            Trên iPhone / iPad: mở trang này bằng Safari, bấm nút <strong>Chia sẻ</strong> rồi chọn <strong>Thêm vào MH chính</strong>.
+          </Typography.Text>
+        ) : (
+          <Typography.Text>
+            Mở trang này bằng Chrome hoặc Edge trên điện thoại, chọn menu <strong>⋮</strong> → <strong>Cài đặt ứng dụng</strong> (hoặc Thêm vào màn
+            hình chính).
+          </Typography.Text>
+        )}
       </Card>
 
       <Card size="small" title="Đổi mật khẩu">

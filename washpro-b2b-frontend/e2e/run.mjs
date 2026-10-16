@@ -4,7 +4,7 @@
  *
  * Cần: backend (8080) + frontend (5173) đang chạy, dữ liệu demo (DEMO_DATA=true), mật khẩu chung của tài khoản demo.
  * Chạy:  npm run test:e2e                  (tất cả module)
- *        npm run test:e2e -- auth,pickup    (chọn module: auth, pickup, driver, confirm, admin-orders,
+ *        npm run test:e2e -- auth,pickup    (chọn module: auth, pickup, driver, confirm, admin-orders, pwa,
  *                                            receipt, finance, admin-manage)
  * Biến môi trường: E2E_APP_URL, E2E_API_URL, E2E_PASSWORD, E2E_BROWSER (msedge | chrome | chromium), E2E_OUT.
  * Kết quả: in PASS/FAIL từng bước; ảnh chụp bước lỗi trong e2e/results/. Mã thoát 1 nếu có bước lỗi hoặc lỗi API/JS.
@@ -71,7 +71,9 @@ async function orderStatus(id) {
 }
 
 async function open(user, viewport = DESKTOP, label = user, password = PW) {
-  const ctx = await browser.newContext({ viewport, acceptDownloads: true })
+  // Chặn service worker ở các bước nghiệp vụ: page.route (giả lập API chậm...) không thấy yêu cầu đi qua service worker.
+  // Module pwa kiểm tra riêng service worker.
+  const ctx = await browser.newContext({ viewport, acceptDownloads: true, serviceWorkers: 'block' })
   // In nguyên nhân gốc của lỗi React "có thể phục hồi" (React gói lỗi thật vào error.cause)
   await ctx.addInitScript(() => {
     window.addEventListener('error', (e) => {
@@ -734,6 +736,41 @@ if (want('admin-manage')) {
     if (token) throw new Error('phiên vẫn còn trong trình duyệt')
   }, t.page)
   await t.ctx.close()
+}
+
+// ============ M9. Ứng dụng cài được (PWA) ============
+if (want('pwa')) {
+  const ctx = await browser.newContext({ viewport: MOBILE })
+  const page = await ctx.newPage()
+  page.on('pageerror', (e) => problems.push(`[pwa] JS: ${e.message}`))
+  await step('pwa: có manifest, icon cài đặt và service worker', async () => {
+    const m = await (await fetch(APP + '/manifest.webmanifest')).json()
+    expect(m.display === 'standalone' && m.start_url === '/', 'manifest sai')
+    expect(m.icons.some((i) => i.purpose === 'maskable') && m.icons.some((i) => i.sizes === '512x512'), 'thiếu icon 512 / maskable')
+    for (const i of m.icons) expect((await fetch(APP + i.src)).ok, 'không tải được icon ' + i.src)
+    expect((await fetch(APP + '/sw.js')).ok, 'không tải được sw.js')
+  }, page)
+  // Service worker chỉ đăng ký ở bản build (CI chạy bằng Docker): E2E_PWA=1
+  if (process.env.E2E_PWA) {
+    await step('pwa: mất mạng vẫn mở được ứng dụng, có báo mất kết nối', async () => {
+      await login(page, 'hoasen.nv')
+      await page.evaluate(() => navigator.serviceWorker.ready)
+      // Lần tải thứ hai do service worker phục vụ: trang và các gói JS được lưu đệm
+      await page.reload()
+      await page.locator('h1').first().waitFor()
+      await page.waitForLoadState('networkidle')
+      await ctx.setOffline(true)
+      await page.reload()
+      await page.locator('.offline-banner').waitFor()
+      await page.locator('.app-header').waitFor()
+      // Trang chưa từng mở (gói JS được service worker lưu sẵn lúc cài) cũng mở được khi mất mạng
+      await page.goto(APP + '/profile')
+      await page.getByText('Thông tin tài khoản').first().waitFor()
+      await ctx.setOffline(false)
+      await page.locator('.offline-banner').waitFor({ state: 'detached' })
+    }, page)
+  }
+  await ctx.close()
 }
 
 await browser.close()

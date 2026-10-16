@@ -290,6 +290,22 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Cài lên điện thoại (PWA)
+
+Giao diện là ứng dụng web cài được (PWA): trên Android (Chrome / Edge) dùng nút **Cài ứng dụng** trong trang Tài khoản
+hoặc menu tài khoản; trên iPhone mở bằng Safari → Chia sẻ → Thêm vào MH chính. Ứng dụng đã cài mở toàn màn hình, có
+biểu tượng THANHXUAN và lối tắt Lấy đồ / Đơn hàng.
+
+Service worker (`public/sw.js`, viết tay, không thêm thư viện; chỉ bật ở bản build):
+
+- Lưu sẵn mọi gói JS / CSS ngay khi cài (danh sách lấy từ `dist/.vite/manifest.json`), trang lấy mạng trước, mất mạng
+  thì dùng bản đã lưu: **mất sóng vẫn mở được ứng dụng** và các trang, kèm dải báo "Mất kết nối mạng".
+- **Không lưu đệm API**: dữ liệu nghiệp vụ luôn lấy mới; khi mất mạng các thao tác báo lỗi bình thường, không có thao
+  tác "chờ gửi" ngầm (tránh xác nhận / thu tiền hai lần).
+- Bản cập nhật: nginx trả `sw.js` với `Cache-Control: no-cache` nên trình duyệt nhận phiên bản mới ở lần mở sau.
+
+Không mở được một trang (VD mất mạng ngay lần cài đầu): hiện thông báo kèm nút Thử lại thay vì màn hình trắng.
+
 ### Lộ trình tài xế
 
 Trang **Lộ trình** của tài xế (hôm nay / ngày mai) liệt kê các điểm cần đi: yêu cầu lấy đồ đã nhận hẹn tới ngày đó (kể
@@ -447,9 +463,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(58 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(59 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị, PWA (manifest, icon; trên bản build: mất mạng vẫn mở được ứng dụng). Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell
@@ -461,7 +477,8 @@ npm run test:e2e -- auth,pickup      # chọn module
 
 Script **ghi dữ liệu thật** vào CSDL (gắn nhãn `E2E-...`), chỉ chạy trên CSDL thử / dữ liệu demo. Trên Windows dùng sẵn
 trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` một lần. Ảnh chụp bước lỗi nằm trong
-`e2e/results/`. Biến môi trường: `E2E_APP_URL`, `E2E_API_URL`, `E2E_PASSWORD`, `E2E_BROWSER`.
+`e2e/results/`. Biến môi trường: `E2E_APP_URL`, `E2E_API_URL`, `E2E_PASSWORD`, `E2E_BROWSER`, `E2E_PWA=1` (chỉ khi
+chạy trên bản build có service worker, như CI).
 
 ### CI
 

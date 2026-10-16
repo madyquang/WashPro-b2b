@@ -214,6 +214,19 @@ button:focus-visible,
   flex-shrink: 0;
 }
 
+/* ===== Mất kết nối mạng ===== */
+.offline-banner {
+  position: sticky;
+  top: 64px;
+  z-index: 9;
+  padding: var(--space-2) var(--space-4);
+  background: #fff4d6;
+  color: #8a5a00;
+  font-size: 13px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ===== Lộ trình tài xế ===== */
 .route-list {
   list-style: none;

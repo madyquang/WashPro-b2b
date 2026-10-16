@@ -4,6 +4,7 @@ import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Typography
 import type { MenuProps } from 'antd'
 import {
   AppstoreOutlined,
+  DownloadOutlined,
   BarChartOutlined,
   CarOutlined,
   DollarOutlined,
@@ -22,6 +23,7 @@ import { BRAND } from '../theme'
 import NotificationBell from './NotificationBell'
 import ToneTag from './ToneTag'
 import TouchFriendly from './TouchFriendly'
+import { useInstallPrompt, useOnline } from '../utils/pwa'
 import { clearSession, canManagePrices, canViewFinance, getSession, isCustomerRole } from '../utils/auth'
 import { ROLE_LABELS, type Role } from '../types'
 
@@ -98,6 +100,8 @@ export default function MainLayout() {
   const session = getSession()
   const contentRef = useRef<HTMLElement>(null)
   const firstRender = useRef(true)
+  const online = useOnline()
+  const { canInstall, install } = useInstallPrompt()
 
   // Đổi trang: đưa focus về vùng nội dung để trình đọc màn hình / bàn phím bắt đầu từ trang mới
   useEffect(() => {
@@ -139,6 +143,9 @@ export default function MainLayout() {
   }
 
   const userMenu: MenuProps['items'] = [
+    ...(canInstall
+      ? [{ key: 'install', icon: <DownloadOutlined />, label: 'Cài ứng dụng lên máy', onClick: () => void install() }, { type: 'divider' as const }]
+      : []),
     {
       key: 'who',
       disabled: true,
@@ -222,6 +229,11 @@ export default function MainLayout() {
           </div>
         </Header>
 
+        {!online && (
+          <div className="offline-banner" role="status">
+            Mất kết nối mạng. Vẫn xem được trang đã mở; thao tác (gửi, xác nhận, lưu) sẽ chưa thực hiện được cho tới khi có mạng lại.
+          </div>
+        )}
         <Content className="app-content" id="main-content" ref={contentRef} tabIndex={-1}>
           <TouchFriendly>
             <Outlet />

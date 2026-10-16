@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, type ReactElement } from 'react'
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { App as AntApp, ConfigProvider, Spin } from 'antd'
 import viVN from 'antd/locale/vi_VN'
 import MainLayout from './components/MainLayout'
+import PageErrorBoundary from './components/PageErrorBoundary'
 import Login from './pages/Login'
 import { antdTheme } from './theme'
 import { bindMessage } from './utils/message'
@@ -33,10 +34,13 @@ function RoleRoute({ roles, children }: { roles: Role[]; children: ReactElement 
 
 /** Vùng nội dung khi đang tải gói JS của trang (khung menu vẫn giữ nguyên). */
 function PageSuspense() {
+  const { pathname } = useLocation()
   return (
-    <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '96px auto' }} />}>
-      <Outlet />
-    </Suspense>
+    <PageErrorBoundary key={pathname}>
+      <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '96px auto' }} />}>
+        <Outlet />
+      </Suspense>
+    </PageErrorBoundary>
   )
 }
 

@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   build: {
+    // dist/.vite/manifest.json: danh sách mọi gói JS / CSS, service worker (public/sw.js) lưu sẵn để mở được khi mất mạng
+    manifest: true,
     rolldownOptions: {
       output: {
         // React ít thay đổi nên tách gói riêng để trình duyệt giữ cache qua các lần cập nhật ứng dụng.
