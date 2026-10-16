@@ -44,9 +44,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 /** Ký vào khung chữ ký bằng chuột. */
 async function sign(page, scope) {
   const canvas = scope.locator('.signature-pad canvas')
-  await canvas.scrollIntoViewIfNeeded()
+  // hover tự cuộn tới và kiểm tra điểm đặt chuột không bị phần tử khác (chân modal...) che
+  await canvas.hover({ position: { x: 20, y: 40 } })
   const box = await canvas.boundingBox()
-  await page.mouse.move(box.x + 20, box.y + 40)
   await page.mouse.down()
   await page.mouse.move(box.x + 140, box.y + 100, { steps: 10 })
   await page.mouse.up()
@@ -114,7 +114,7 @@ async function step(name, fn, page) {
     console.log('PASS', name)
   } catch (e) {
     results.push(['FAIL', name, e.message.split('\n')[0]])
-    console.log('FAIL', name, '-', e.message.split('\n').slice(0, 2).join(' | '))
+    console.log('FAIL', name, '-', e.message.split('\n').slice(0, 6).join(' | '))
     if (page) await page.screenshot({ path: `${out}/FAIL-${name.replace(/[^\w-]+/g, '_')}.png` }).catch(() => {})
   }
 }
