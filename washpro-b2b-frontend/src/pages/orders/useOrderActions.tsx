@@ -2,6 +2,8 @@ import { useState, type ReactNode } from 'react'
 import { Input, Modal, Space, Typography } from 'antd'
 import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
+import PhotoPicker, { type PickedPhoto } from '../../components/PhotoPicker'
+import { uploadAttachments } from '../../utils/attachments'
 import DiscrepancyModal from './DiscrepancyModal'
 import ItemsModal from './ItemsModal'
 import OrderDrawer from './OrderDrawer'
@@ -64,6 +66,7 @@ export function useOrderActions(onChanged: () => void) {
   const [cancelReason, setCancelReason] = useState('')
   const [issueOrder, setIssueOrder] = useState<Order | null>(null)
   const [issueNote, setIssueNote] = useState('')
+  const [issuePhotos, setIssuePhotos] = useState<PickedPhoto[]>([])
   const [dueOrder, setDueOrder] = useState<Order | null>(null)
   const [dueValue, setDueValue] = useState('')
   const [dueNote, setDueNote] = useState('')
@@ -93,8 +96,18 @@ export function useOrderActions(onChanged: () => void) {
     if (!issueOrder || !issueNote.trim()) return
     const target = issueOrder
     setIssueOrder(null)
-    await run(target, () => axiosClient.put(`/orders/${target.id}/receipt-issue`, { note: issueNote.trim() }), 'Đã báo sự cố, xưởng sẽ liên hệ xử lý')
+    const photos = issuePhotos
+    await run(
+      target,
+      async () => {
+        await axiosClient.put(`/orders/${target.id}/receipt-issue`, { note: issueNote.trim() })
+        const failed = await uploadAttachments(target.id, photos.map((p) => ({ kind: 'ISSUE_PHOTO' as const, blob: p.blob })))
+        if (failed) message.warning(`Chưa tải được ${failed} ảnh, có thể thêm lại trong Chi tiết đơn`)
+      },
+      'Đã báo sự cố, xưởng sẽ liên hệ xử lý',
+    )
     setIssueNote('')
+    setIssuePhotos([])
   }
 
   const openDue = (o: Order) => {
@@ -147,6 +160,9 @@ export function useOrderActions(onChanged: () => void) {
     }
     if ((isCustomer || isDriver) && waiting) {
       actions.push({ key: 'discrepancy', label: isCustomer ? 'Số lượng không đúng' : 'Báo sai lệch', danger: true, onClick: () => setDiscrepancyOrder(o) })
+    }
+    if (isDriver && o.status === 'DELIVERING') {
+      actions.push({ key: 'proof', label: 'Ảnh & chữ ký giao', onClick: () => setDetailId(o.id) })
     }
     if (isAdmin) {
       for (const step of ADMIN_NEXT[o.status] ?? []) {
@@ -226,6 +242,9 @@ export function useOrderActions(onChanged: () => void) {
           value={issueNote}
           onChange={(e) => setIssueNote(e.target.value)}
         />
+        <div style={{ marginTop: 12 }}>
+          <PhotoPicker value={issuePhotos} onChange={setIssuePhotos} label="Chụp ảnh đồ thiếu / hỏng" />
+        </div>
       </Modal>
 
       <Modal

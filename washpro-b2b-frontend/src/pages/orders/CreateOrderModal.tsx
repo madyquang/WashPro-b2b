@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Alert, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
+import { Alert, Collapse, Form, Input, InputNumber, Modal, Select, Typography } from 'antd'
 import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import CatalogLines from '../../components/CatalogLines'
+import PhotoPicker, { type PickedPhoto } from '../../components/PhotoPicker'
+import SignaturePad from '../../components/SignaturePad'
+import { uploadAttachments, type PendingAttachment } from '../../utils/attachments'
 import { toItemRequest, useCatalog, type LineValue } from '../../utils/catalog'
 import { getErrorMessage } from '../../utils/format'
-import { CUSTOMER_TYPE_LABELS, type PickupRequest, type Customer } from '../../types'
+import { CUSTOMER_TYPE_LABELS, type Customer, type Order, type PickupRequest } from '../../types'
 
 interface Props {
   open: boolean
@@ -28,6 +31,8 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const { catalog, loading: loadingCatalog } = useCatalog(open)
+  const [photos, setPhotos] = useState<PickedPhoto[]>([])
+  const [signature, setSignature] = useState<Blob | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -45,15 +50,22 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
   const submit = async (values: FormValues) => {
     setSubmitting(true)
     try {
-      await axiosClient.post('/orders', {
+      const { data: order } = await axiosClient.post<Order>('/orders', {
         customerId: values.customerId,
         totalBags: values.totalBags,
         description: values.description?.trim() || null,
         items: values.items.map((l) => toItemRequest(l)),
         pickupRequestId: fromPickup?.id ?? null,
       })
-      message.success('Đã tạo đơn, đang chờ khách hàng xác nhận')
+      // Ảnh / chữ ký không bắt buộc: lỗi tải ảnh không làm hỏng đơn đã tạo
+      const files: PendingAttachment[] = photos.map((p) => ({ kind: 'PICKUP_PHOTO', blob: p.blob }))
+      if (signature) files.push({ kind: 'PICKUP_SIGNATURE', blob: signature })
+      const failed = files.length ? await uploadAttachments(order.id, files) : 0
+      if (failed) message.warning(`Đã tạo đơn #${order.id} nhưng chưa tải được ${failed} ảnh. Có thể thêm lại trong Chi tiết đơn`)
+      else message.success('Đã tạo đơn, đang chờ khách hàng xác nhận')
       form.resetFields()
+      setPhotos([])
+      setSignature(null)
       onDone()
     } catch (e) {
       message.error(getErrorMessage(e))
@@ -74,7 +86,11 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
       width={{ xs: '100%', md: 720 }}
       className="sheet-modal"
       destroyOnHidden
-      afterClose={() => form.resetFields()}
+      afterClose={() => {
+        form.resetFields()
+        setPhotos([])
+        setSignature(null)
+      }}
     >
       <Form<FormValues>
         form={form}
@@ -115,6 +131,21 @@ export default function CreateOrderModal({ open, onClose, onDone, fromPickup }: 
         <Form.Item name="description" label="Ghi chú" rules={[{ max: 1000, message: 'Tối đa 1000 ký tự' }]}>
           <Input.TextArea rows={2} maxLength={1000} placeholder="Ví dụ: 2 ga giường bị ố vàng, áo đầu bếp dính dầu..." />
         </Form.Item>
+        <Collapse
+          className="mb-3"
+          items={[
+            {
+              key: 'proof',
+              label: `Ảnh & chữ ký khách (không bắt buộc)${photos.length || signature ? ` · đã có ${photos.length} ảnh${signature ? ', chữ ký' : ''}` : ''}`,
+              children: (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  <PhotoPicker value={photos} onChange={setPhotos} label="Chụp ảnh túi đồ" />
+                  <SignaturePad onChange={setSignature} label="Khách ký xác nhận giao đồ" />
+                </div>
+              ),
+            },
+          ]}
+        />
         <Typography.Text type="secondary">Đơn giá do xưởng áp theo bảng giá của khách hàng, tài xế không cần nhập.</Typography.Text>
       </Form>
     </Modal>

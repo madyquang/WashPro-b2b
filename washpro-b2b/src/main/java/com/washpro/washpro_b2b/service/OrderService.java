@@ -486,6 +486,16 @@ public class OrderService {
         return order;
     }
 
+    /** Đơn (chưa hủy) trong phạm vi người dùng được xem; ngoài phạm vi trả 404. Dùng cho ảnh đính kèm. */
+    @Transactional(readOnly = true)
+    public Order requireAccessible(Long id, User user) {
+        Order order = orderRepository.findById(id)
+                .filter(o -> !o.isDeleted())
+                .orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn hàng"));
+        assertCanAccess(order, user);
+        return order;
+    }
+
     /** Trả về 404 (thay vì 403) khi đơn không thuộc phạm vi, để không lộ việc đơn có tồn tại. */
     private void assertCanAccess(Order order, User user) {
         boolean allowed = switch (user.getRole()) {

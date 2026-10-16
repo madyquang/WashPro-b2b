@@ -10,6 +10,7 @@ import { catalogLabel, formatQuantity, groupByCategory } from '../../utils/catal
 import { formatCurrency, formatDateTime, getErrorMessage } from '../../utils/format'
 import { getSession } from '../../utils/auth'
 import { printDeliverySlip } from '../../utils/print'
+import OrderAttachments from './OrderAttachments'
 import { CUSTOMER_TYPE_LABELS, STATUS_META, type Order, type OrderItem } from '../../types'
 
 interface Props {
@@ -140,6 +141,9 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
               )}
             </>
           )}
+
+          <Divider titlePlacement="start">Ảnh & chữ ký</Divider>
+          <OrderAttachments order={order} />
 
           <Divider titlePlacement="start">Lịch sử xử lý</Divider>
           <Timeline

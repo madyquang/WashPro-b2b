@@ -39,6 +39,17 @@ async function api(user, path, init = {}) {
   const r = await fetch(API + path, { ...init, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokens[user]}`, ...(init.headers ?? {}) } })
   return r.status === 204 ? null : r.json()
 }
+/** Ảnh PNG nhỏ để thử đính kèm ảnh. */
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+/** Ký vào khung chữ ký bằng chuột. */
+async function sign(page, scope) {
+  const box = await scope.locator('.signature-pad canvas').boundingBox()
+  await page.mouse.move(box.x + 20, box.y + 40)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 140, box.y + 100, { steps: 10 })
+  await page.mouse.up()
+  await scope.getByText('Đã ký').waitFor()
+}
 /** Tìm đơn theo ghi chú (mô tả) trong các đơn gần nhất. */
 async function findOrder(note) {
   const page = await api('admin', '/orders?size=50')
@@ -267,7 +278,7 @@ if (want('driver')) {
     const map = await card().getByRole('link', { name: 'Chỉ đường' }).getAttribute('href')
     expect(call?.startsWith('tel:') && map?.includes('google.com/maps'), `href sai: ${call} / ${map}`)
   }, page)
-  await step('driver: đã đến, tạo đơn từ yêu cầu (2 loại đồ)', async () => {
+  await step('driver: đã đến, tạo đơn từ yêu cầu (2 loại đồ, kèm ảnh và chữ ký khách)', async () => {
     await card().getByRole('button', { name: 'Đã đến · Tạo đơn' }).click()
     const d = modal(page)
     await d.getByText(`Khách dặn: ${TAG}`).waitFor()
@@ -278,9 +289,16 @@ if (want('driver')) {
     await pick(page, d, 'Loại đồ dòng 2', 'Ga')
     await d.getByLabel('Số lượng dòng 2').fill('4')
     await d.getByLabel('Ghi chú').fill(`${TAG} từ yêu cầu`)
+    await d.getByText(/Ảnh & chữ ký khách/).click()
+    await d.locator('input[type=file]').setInputFiles({ name: 'tui-do.png', mimeType: 'image/png', buffer: PNG })
+    await d.locator('.photo-thumb').first().waitFor()
+    await sign(page, d)
     await d.getByRole('button', { name: 'Tạo đơn' }).click()
     await toast(page, 'Đã tạo đơn')
     const o = await findOrder(`${TAG} từ yêu cầu`)
+    const att = await api('admin', `/orders/${o.id}/attachments`)
+    const kinds = att.map((a) => a.kind).sort().join(',')
+    expect(kinds === 'PICKUP_PHOTO,PICKUP_SIGNATURE', `ảnh đính kèm sai: ${kinds}`)
     expect(o.status === 'PENDING_CONFIRM' && o.totalBags === 3 && o.items.length === 2, `đơn sai: ${o.status} ${o.totalBags} túi ${o.items.length} dòng`)
     const pk = (await api('admin', '/pickups')).find((p) => (p.note ?? '').includes(`${TAG} lấy ở cửa sau`))
     expect(pk?.status === 'DONE' && pk.orderId === o.id, `yêu cầu lấy đồ chưa gắn đơn: ${pk?.status} ${pk?.orderId}`)
@@ -398,6 +416,11 @@ if (want('admin-orders')) {
     const dr = drawer(page)
     await dr.getByText('Lịch sử xử lý').waitFor()
     await dr.getByText(`${TAG} khách lùi hạn`).waitFor()
+    // Ảnh và chữ ký tài xế đính kèm lúc lấy đồ hiện được (tải kèm token)
+    await dr.getByText('Chữ ký khách khi giao đồ bẩn').waitFor()
+    const img = dr.locator('.attachment-card img').first()
+    await img.waitFor()
+    await page.waitForFunction((el) => el.complete && el.naturalWidth > 0, await img.elementHandle())
     const popup = page.waitForEvent('popup', { timeout: 5000 })
     await dr.getByRole('button', { name: /In phiếu/ }).click()
     const w = await popup

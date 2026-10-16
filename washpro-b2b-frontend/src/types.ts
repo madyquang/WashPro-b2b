@@ -94,6 +94,26 @@ export const TURNAROUND_OPTIONS = [12, 24, 48, 72, 96]
 export const PAYMENT_TERM_OPTIONS = [0, 7, 15, 30, 45, 60]
 export const paymentTermLabel = (days: number) => (days === 0 ? 'Thanh toán ngay' : `Công nợ ${days} ngày`)
 
+export type AttachmentKind = 'PICKUP_PHOTO' | 'PICKUP_SIGNATURE' | 'DELIVERY_PHOTO' | 'DELIVERY_SIGNATURE' | 'ISSUE_PHOTO'
+
+export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {
+  PICKUP_PHOTO: 'Ảnh lấy đồ',
+  PICKUP_SIGNATURE: 'Chữ ký lấy đồ',
+  DELIVERY_PHOTO: 'Ảnh giao trả',
+  DELIVERY_SIGNATURE: 'Chữ ký nhận đồ',
+  ISSUE_PHOTO: 'Ảnh thiếu / hỏng',
+}
+
+export interface OrderAttachment {
+  id: number
+  kind: AttachmentKind
+  kindLabel: string
+  contentType: string
+  sizeBytes: number
+  uploadedBy: string
+  createdAt: string
+}
+
 export type NotificationType =
   | 'PICKUP_NEW'
   | 'PICKUP_ACCEPTED'

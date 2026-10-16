@@ -34,3 +34,6 @@ build/
 
 ### Bí mật cục bộ ###
 .env
+
+### Ảnh / chữ ký đính kèm đơn khi chạy trên máy ###
+uploads/

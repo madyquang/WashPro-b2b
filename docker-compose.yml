@@ -35,6 +35,9 @@ services:
       DEMO_DATA: ${DEMO_DATA:-false}
       # Truy cập qua địa chỉ khác (tên miền, HTTPS ở proxy ngoài): khai báo địa chỉ đó trong CORS_ALLOWED_ORIGINS
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    volumes:
+      # Ảnh / chữ ký đính kèm đơn
+      - uploads:/app/uploads
 
   frontend:
     build:
@@ -49,3 +52,4 @@ services:
 
 volumes:
   mysql-data:
+  uploads:
