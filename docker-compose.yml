@@ -33,6 +33,8 @@ services:
       BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
       DEMO_DATA: ${DEMO_DATA:-false}
+      # Tin X-Forwarded-Proto từ nginx: khi đặt sau HTTPS, Origin https://... vẫn được coi là cùng nguồn
+      SERVER_FORWARD_HEADERS_STRATEGY: native
 
   frontend:
     build:
