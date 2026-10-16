@@ -23,7 +23,7 @@ Tên mã nguồn và gói Java là `washpro` (tên ban đầu của dự án); t
 
 | Thành phần | Công nghệ |
 |---|---|
-| Backend | Java 21, Spring Boot 4.1, Spring Security (JWT), Spring Data JPA / Hibernate, Bean Validation, Lombok |
+| Backend | Java 25 (LTS), Spring Boot 4.1, Spring Security (JWT), Spring Data JPA / Hibernate, Bean Validation, Lombok |
 | Cơ sở dữ liệu | MySQL 8 (cần MySQL ≥ 8.0.16 nếu dùng ràng buộc CHECK) |
 | Frontend | React 19, TypeScript, Vite, Ant Design 6, React Router, Axios |
 | Kiểm thử | JUnit 5, Spring MockMvc, H2 (test đơn vị và test tích hợp backend) |
@@ -51,7 +51,7 @@ washpro-b2b-frontend/            Frontend (Vite)
 
 ### Yêu cầu
 
-- JDK 21 trở lên
+- JDK 25 (LTS) trở lên
 - MySQL 8, đã tạo database rỗng `washpro_b2b`
 - Node.js 20 trở lên
 
@@ -281,16 +281,31 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `LoginAttemptServiceTest` | Khóa tạm khi đăng nhập sai nhiều lần |
 | `ReportServiceCsvTest` | Escape CSV và chặn CSV injection |
 
-Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng `npm run lint`; chưa có test tự động cho giao diện.
+Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng `npm run lint`.
 
-**Lỗi đỏ ở `@RequiredArgsConstructor` trong VS Code** (`The Java feature 'Flexible Constructor Bodies' is only
-available with source level 25 and above`). Đây là lỗi của extension *Language Support for Java* bản **1.57.0**: trình
-biên dịch Eclipse đi kèm (ECJ 3.46.200) không tương thích với Lombok ở mức Java 21 (đã thử Lombok 1.18.39 → 1.18.48 đều
-lỗi; ECJ 3.44 → 3.46.100 đều dịch được). Mã nguồn không có lỗi, Maven (`javac`) vẫn build bình thường.
-Cách xử lý: cài bản 1.56.0 và ghim lại (`code --install-extension redhat.java@1.56.0 --force`, hoặc Extensions →
-Language Support for Java → biểu tượng bánh răng → *Install Specific Version…* → 1.56.0), rồi *Developer: Reload Window*.
-Nếu ứng dụng / test báo `Unresolved compilation problems` hoặc `Invalid method Code length 0` (lớp do bản lỗi biên dịch
-còn nằm trong `target/`), build lại sạch bằng `./mvnw clean test` hoặc `./mvnw clean spring-boot:run`.
+### Kiểm thử đầu-cuối (E2E) qua giao diện
+
+`washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
+(49 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn, khách xác nhận /
+báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
+/ thu tiền / hủy thu / sao kê / xuất CSV, quản lý khách hàng / tài khoản / bảng giá, đổi mật khẩu. Ngoài kết quả từng
+bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
+
+```powershell
+# Cần: MySQL + backend (8080) + frontend (5173) đang chạy, có dữ liệu demo (DEMO_DATA=true)
+cd washpro-b2b-frontend
+npm run test:e2e                     # tất cả module
+npm run test:e2e -- auth,pickup      # chọn module
+```
+
+Script **ghi dữ liệu thật** vào CSDL (gắn nhãn `E2E-...`), chỉ chạy trên CSDL thử / dữ liệu demo. Trên Windows dùng sẵn
+trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` một lần. Ảnh chụp bước lỗi nằm trong
+`e2e/results/`. Biến môi trường: `E2E_APP_URL`, `E2E_API_URL`, `E2E_PASSWORD`, `E2E_BROWSER`.
+
+### CI
+
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 25 test
+backend (H2, không cần MySQL), build + lint frontend.
 
 ## Hạn chế hiện tại
 

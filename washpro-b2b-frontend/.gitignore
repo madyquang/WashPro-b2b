@@ -25,3 +25,6 @@ dist-ssr
 
 # Biến môi trường cục bộ
 .env
+
+# Kết quả kiểm thử E2E (ảnh chụp bước lỗi)
+e2e/results/

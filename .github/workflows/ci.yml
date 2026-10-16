@@ -1,0 +1,42 @@
+# Kiểm tra tự động mỗi lần push / pull request vào main
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Backend – build và test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: washpro-b2b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      # Test tích hợp dùng H2 trong bộ nhớ (profile "it"), không cần MySQL
+      - run: chmod +x mvnw && ./mvnw -B clean test
+
+  frontend:
+    name: Frontend – build và lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: washpro-b2b-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: washpro-b2b-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
