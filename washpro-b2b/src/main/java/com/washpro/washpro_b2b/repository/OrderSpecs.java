@@ -43,6 +43,21 @@ public final class OrderSpecs {
                 cb.lessThan(root.get("dueAt"), now));
     }
 
+    /** Tạo trong khoảng [from, to). */
+    public static Specification<Order> createdBetween(LocalDateTime from, LocalDateTime to) {
+        return (root, query, cb) -> cb.and(
+                cb.greaterThanOrEqualTo(root.get("createdAt"), from),
+                cb.lessThan(root.get("createdAt"), to));
+    }
+
+    /** Chưa hoàn thành, chưa quá hạn (hạn trả từ `now`) và hạn trả trước `to`. */
+    public static Specification<Order> dueBetween(LocalDateTime now, LocalDateTime to) {
+        return (root, query, cb) -> cb.and(
+                cb.notEqual(root.get("status"), OrderStatus.COMPLETED),
+                cb.greaterThanOrEqualTo(root.get("dueAt"), now),
+                cb.lessThan(root.get("dueAt"), to));
+    }
+
     /** Đơn có ít nhất một dòng đồ giặt thuộc nhóm này. */
     public static Specification<Order> hasCategory(ItemCategory category) {
         return (root, query, cb) -> {

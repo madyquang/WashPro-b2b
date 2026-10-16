@@ -304,6 +304,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 |---|---|
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
+| `ReportApiIntegrationTest` | Số liệu tổng quan theo vai trò, công nợ và tuổi nợ (trả FIFO, kỳ thanh toán khác nhau), sao kê tháng, chặn thu vượt nợ; bỏ đơn đã hủy / khoản đã hủy / dòng chưa có giá, đơn cũ chưa có ngày hoàn thành |
 | `AuthApiIntegrationTest` | Đổi mật khẩu đăng xuất thiết bị khác nhưng giữ thiết bị đang dùng; đặt lại mật khẩu, đăng xuất mọi thiết bị thu hồi token; token cũ không có phiên bản bị từ chối |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
 | `PriceUnitTest` | Số lượng hợp lệ theo đơn vị, đọc đơn vị dạng chữ của dữ liệu cũ |
@@ -334,7 +335,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 29 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 34 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
@@ -345,8 +346,9 @@ rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend đư�
 - JWT lưu trong `localStorage` của trình duyệt (dễ bị ảnh hưởng nếu có lỗ hổng XSS); chưa có refresh token
   (phiên hết hạn sau `JWT_EXPIRATION_MS`, nhưng có thể thu hồi sớm, xem mục API).
 - Bộ đếm đăng nhập sai lưu trong bộ nhớ, không chia sẻ được khi chạy nhiều máy chủ.
-- Danh sách đơn đã phân trang phía máy chủ; trang tổng quan (`/dashboard`) và báo cáo/xuất CSV vẫn tải toàn bộ đơn
-  trong phạm vi rồi tính trong bộ nhớ.
+- Danh sách đơn, trang tổng quan, công nợ / tuổi nợ và sao kê đều tính trong CSDL (COUNT / SUM / GROUP BY; công nợ
+  gộp sẵn theo khách và ngày hoàn thành). Riêng xuất CSV danh sách đơn / chi tiết đồ giặt vẫn tải toàn bộ đơn trong
+  phạm vi (bản chất là xuất hết dữ liệu).
 - Chưa có thông báo (email, SMS, push) khi có yêu cầu lấy đồ mới, đơn trễ hạn hoặc nợ quá hạn.
 - Chưa hỗ trợ đính kèm ảnh (đồ hư hỏng, chữ ký khi giao nhận) và chưa xuất hóa đơn điện tử.
 - Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).

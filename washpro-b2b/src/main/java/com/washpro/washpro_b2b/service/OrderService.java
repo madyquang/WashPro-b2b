@@ -156,8 +156,8 @@ public class OrderService {
         return new PageResponse(content, result.getTotalElements(), page, size, counts, overdueCount);
     }
 
-    /** Điều kiện "đơn chưa hủy mà người dùng được phép thấy", chạy trong CSDL. */
-    private Specification<Order> scope(User user) {
+    /** Điều kiện "đơn chưa hủy mà người dùng được phép thấy", chạy trong CSDL. Dùng chung cho báo cáo. */
+    public Specification<Order> scope(User user) {
         Specification<Order> alive = OrderSpecs.notDeleted();
         return switch (user.getRole()) {
             case WORKSHOP_ADMIN, WORKSHOP_ACCOUNTANT -> alive;

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -31,12 +32,41 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     @EntityGraph(attributePaths = { "restaurant", "driver", "items" })
     List<Order> findByRestaurantIdAndIsDeletedFalseOrderByCreatedAtDesc(Long restaurantId);
 
-    /** Đơn hoàn thành (kèm chi tiết để tính tiền): dùng cho tuổi nợ và sao kê. */
-    @EntityGraph(attributePaths = { "restaurant", "items" })
-    List<Order> findByStatusAndIsDeletedFalse(OrderStatus status);
+    /**
+     * Đơn hoàn thành gộp theo [khách, ngày hoàn thành]: mỗi dòng [restaurantId, ngày, số đơn, tổng tiền].
+     * Đủ để tính công nợ và tuổi nợ mà không phải tải từng đơn. Đơn cũ chưa có completed_at lấy lần cập nhật cuối
+     * (khớp Order#getEffectiveCompletedAt); dòng chưa có đơn giá không tính tiền. restaurantId null = mọi khách.
+     */
+    @Query("""
+            select o.restaurant.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate), count(distinct o.id),
+                   sum(i.quantity * i.unitPrice)
+            from LaundryOrder o left join o.items i
+            where o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED and o.isDeleted = false
+              and (:restaurantId is null or o.restaurant.id = :restaurantId)
+            group by o.restaurant.id, cast(coalesce(o.completedAt, o.updatedAt) as LocalDate)
+            """)
+    List<Object[]> completedByDay(@Param("restaurantId") Long restaurantId);
 
-    @EntityGraph(attributePaths = { "restaurant", "items" })
-    List<Order> findByRestaurantIdAndStatusAndIsDeletedFalse(Long restaurantId, OrderStatus status);
+    /** Tổng tiền các đơn của khách hoàn thành trước mốc `before` (nợ đầu kỳ của sao kê). */
+    @Query("""
+            select coalesce(sum(i.quantity * i.unitPrice), 0)
+            from LaundryOrder o join o.items i
+            where o.restaurant.id = :restaurantId and o.isDeleted = false
+              and o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED
+              and coalesce(o.completedAt, o.updatedAt) < :before
+            """)
+    BigDecimal billedBefore(@Param("restaurantId") Long restaurantId, @Param("before") LocalDateTime before);
+
+    /** Đơn của khách hoàn thành trong khoảng [from, to), kèm chi tiết (dòng sao kê). */
+    @EntityGraph(attributePaths = "items")
+    @Query("""
+            select o from LaundryOrder o
+            where o.restaurant.id = :restaurantId and o.isDeleted = false
+              and o.status = com.washpro.washpro_b2b.entity.OrderStatus.COMPLETED
+              and coalesce(o.completedAt, o.updatedAt) >= :from and coalesce(o.completedAt, o.updatedAt) < :to
+            """)
+    List<Order> findCompletedBetween(@Param("restaurantId") Long restaurantId, @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 
     /** Khóa dòng khi đổi trạng thái để hai người thao tác cùng lúc không làm hỏng luồng. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -9,18 +9,19 @@ import com.washpro.washpro_b2b.dto.FinanceDtos.StatementResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderStatus;
-import com.washpro.washpro_b2b.entity.Payment;
 import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.Restaurant;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.OrderRepository;
+import com.washpro.washpro_b2b.repository.OrderSpecs;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
 import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.RestaurantRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,25 +60,22 @@ public class ReportService {
     @Transactional(readOnly = true)
     public DashboardResponse dashboard() {
         User user = currentUserService.getCurrentUser();
-        List<Order> orders = orderService.visibleOrders(user);
+        // Mọi số đếm chạy trong CSDL (COUNT / GROUP BY), không tải danh sách đơn
+        Specification<Order> scope = orderService.scope(user);
 
         Map<String, Long> counts = new LinkedHashMap<>();
         for (OrderStatus s : OrderStatus.values()) {
             counts.put(s.name(), 0L);
         }
-        orders.forEach(o -> counts.merge(o.getStatus().name(), 1L, Long::sum));
+        orderRepository.countByStatus(scope).forEach((s, n) -> counts.put(s.name(), n));
+        long totalOrders = counts.values().stream().mapToLong(Long::longValue).sum();
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
-        LocalDateTime endOfToday = today.plusDays(1).atStartOfDay();
-        long ordersToday = orders.stream()
-                .filter(o -> o.getCreatedAt() != null && o.getCreatedAt().toLocalDate().equals(today))
-                .count();
-        long overdueOrders = orders.stream().filter(o -> o.isOverdue(now)).count();
-        long dueToday = orders.stream()
-                .filter(o -> o.getStatus().isOpen() && o.getDueAt() != null && !o.isOverdue(now)
-                        && o.getDueAt().isBefore(endOfToday))
-                .count();
+        LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
+        LocalDateTime endOfToday = startOfToday.plusDays(1);
+        long ordersToday = orderRepository.count(scope.and(OrderSpecs.createdBetween(startOfToday, endOfToday)));
+        long overdueOrders = orderRepository.count(scope.and(OrderSpecs.overdue(now)));
+        long dueToday = orderRepository.count(scope.and(OrderSpecs.dueBetween(now, endOfToday)));
 
         var activePickup = EnumSet.of(PickupStatus.OPEN, PickupStatus.ACCEPTED);
         long openPickups = user.getRole().isRestaurantRole()
@@ -95,7 +93,7 @@ public class ReportService {
             balance = billed.subtract(paid);
             overdueDebt = sum(rows, DebtRow::overdueTotal);
         }
-        return new DashboardResponse(counts, orders.size(), ordersToday, overdueOrders, dueToday, openPickups,
+        return new DashboardResponse(counts, totalOrders, ordersToday, overdueOrders, dueToday, openPickups,
                 billed, paid, balance, overdueDebt);
     }
 
@@ -111,9 +109,9 @@ public class ReportService {
     /** Công nợ hiện tại của một khách hàng (dùng để chặn thanh toán vượt số nợ). */
     @Transactional(readOnly = true)
     public BigDecimal balanceOf(Long restaurantId) {
-        BigDecimal billed = orderRepository.findByRestaurantIdAndStatusAndIsDeletedFalse(restaurantId,
-                OrderStatus.COMPLETED).stream().map(Order::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return billed.subtract(paidByRestaurant().getOrDefault(restaurantId, BigDecimal.ZERO));
+        BigDecimal billed = completedByDay(restaurantId).stream().map(CompletedDay::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return billed.subtract(paymentRepository.sumPaid(restaurantId));
     }
 
     // ===================== Sao kê tháng =====================
@@ -142,39 +140,25 @@ public class ReportService {
         LocalDate startDate = start.toLocalDate();
         LocalDate endDate = end.toLocalDate();
 
-        BigDecimal billedBefore = BigDecimal.ZERO;
-        List<StatementOrder> orders = new ArrayList<>();
-        for (Order o : orderRepository.findByRestaurantIdAndStatusAndIsDeletedFalse(restaurant.getId(),
-                OrderStatus.COMPLETED)) {
-            LocalDateTime completed = o.getEffectiveCompletedAt();
-            if (completed == null || !completed.isBefore(end)) {
-                continue;
-            }
-            if (completed.isBefore(start)) {
-                billedBefore = billedBefore.add(o.getTotalAmount());
-            } else {
-                orders.add(new StatementOrder(o.getId(), completed,
-                        completed.toLocalDate().plusDays(restaurant.getPaymentTermDays()), o.getItems().size(),
-                        o.getTotalAmount()));
-            }
-        }
-        orders.sort(Comparator.comparing(StatementOrder::completedAt));
+        // Nợ đầu kỳ tính bằng SUM trong CSDL; chỉ tải các đơn / khoản thanh toán của tháng sao kê
+        BigDecimal opening = orderRepository.billedBefore(restaurant.getId(), start)
+                .subtract(paymentRepository.sumPaidBefore(restaurant.getId(), startDate));
 
-        BigDecimal paidBefore = BigDecimal.ZERO;
-        List<StatementPayment> payments = new ArrayList<>();
-        for (Payment p : paymentRepository.findByRestaurantIdOrderByPaidDateDescIdDesc(restaurant.getId())) {
-            if (p.isVoided() || !p.getPaidDate().isBefore(endDate)) {
-                continue;
-            }
-            if (p.getPaidDate().isBefore(startDate)) {
-                paidBefore = paidBefore.add(p.getAmount());
-            } else {
-                payments.add(new StatementPayment(p.getId(), p.getPaidDate(), p.getAmount(), p.getNote()));
-            }
-        }
-        payments.sort(Comparator.comparing(StatementPayment::paidDate).thenComparing(StatementPayment::id));
+        List<StatementOrder> orders = orderRepository.findCompletedBetween(restaurant.getId(), start, end).stream()
+                .map(o -> {
+                    LocalDateTime completed = o.getEffectiveCompletedAt();
+                    return new StatementOrder(o.getId(), completed,
+                            completed.toLocalDate().plusDays(restaurant.getPaymentTermDays()), o.getItems().size(),
+                            o.getTotalAmount());
+                })
+                .sorted(Comparator.comparing(StatementOrder::completedAt).thenComparing(StatementOrder::id))
+                .toList();
 
-        BigDecimal opening = billedBefore.subtract(paidBefore);
+        List<StatementPayment> payments = paymentRepository.findActiveBetween(restaurant.getId(), startDate, endDate)
+                .stream()
+                .map(p -> new StatementPayment(p.getId(), p.getPaidDate(), p.getAmount(), p.getNote()))
+                .toList();
+
         BigDecimal totalBilled = orders.stream().map(StatementOrder::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal totalPaid = payments.stream().map(StatementPayment::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new StatementResponse(restaurant.getId(), restaurant.getName(), restaurant.getCustomerType(),
@@ -297,44 +281,70 @@ public class ReportService {
         return user.getRestaurant();
     }
 
-    /** Công nợ từng khách, sắp theo nợ quá hạn rồi tổng nợ giảm dần (khách cần đòi gấp lên đầu). */
+    /**
+     * Công nợ từng khách, sắp theo nợ quá hạn rồi tổng nợ giảm dần (khách cần đòi gấp lên đầu).
+     * CSDL gộp sẵn tiền theo [khách, ngày hoàn thành] nên số dòng phải xử lý không tăng theo số đơn.
+     */
     private List<DebtRow> debtRowsFor(User user) {
         List<Restaurant> restaurants;
-        List<Order> completed;
+        List<CompletedDay> completed;
         if (user.getRole() == Role.RESTAURANT_MANAGER) {
             Restaurant own = requireRestaurant(user);
             restaurants = List.of(own);
-            completed = orderRepository.findByRestaurantIdAndStatusAndIsDeletedFalse(own.getId(), OrderStatus.COMPLETED);
+            completed = completedByDay(own.getId());
         } else {
             restaurants = restaurantRepository.findAllByOrderByNameAsc();
-            completed = orderRepository.findByStatusAndIsDeletedFalse(OrderStatus.COMPLETED);
+            completed = completedByDay(null);
         }
 
-        Map<Long, List<Order>> byRestaurant = completed.stream()
-                .collect(Collectors.groupingBy(o -> o.getRestaurant().getId()));
+        Map<Long, List<CompletedDay>> byRestaurant = completed.stream()
+                .collect(Collectors.groupingBy(CompletedDay::restaurantId));
         Map<Long, BigDecimal> paid = paidByRestaurant();
         LocalDate today = LocalDate.now();
 
         return restaurants.stream()
                 .map(r -> {
-                    List<Order> orders = byRestaurant.getOrDefault(r.getId(), List.of());
-                    List<DebtAging.Receivable> receivables = orders.stream()
-                            .map(o -> new DebtAging.Receivable(
-                                    o.getEffectiveCompletedAt().toLocalDate().plusDays(r.getPaymentTermDays()),
-                                    o.getTotalAmount()))
+                    List<CompletedDay> days = byRestaurant.getOrDefault(r.getId(), List.of());
+                    List<DebtAging.Receivable> receivables = days.stream()
+                            .map(d -> new DebtAging.Receivable(d.day().plusDays(r.getPaymentTermDays()), d.amount()))
                             .toList();
                     BigDecimal b = receivables.stream().map(DebtAging.Receivable::amount)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     BigDecimal p = paid.getOrDefault(r.getId(), BigDecimal.ZERO);
                     DebtAging.Result aging = DebtAging.compute(receivables, p, today);
+                    long orderCount = days.stream().mapToLong(CompletedDay::orders).sum();
                     return new DebtRow(r.getId(), r.getName(), r.getCustomerType(), r.isActive(),
-                            r.getPaymentTermDays(), orders.size(), b, p, b.subtract(p), aging.notDue(),
+                            r.getPaymentTermDays(), (int) orderCount, b, p, b.subtract(p), aging.notDue(),
                             aging.overdue1to30(), aging.overdue31to60(), aging.overdueOver60(),
                             aging.overdueTotal(), aging.oldestUnpaidDue());
                 })
                 .sorted(Comparator.comparing(DebtRow::overdueTotal).reversed()
                         .thenComparing(Comparator.comparing(DebtRow::balance).reversed()))
                 .toList();
+    }
+
+    /** Tiền các đơn hoàn thành của một khách trong một ngày. */
+    private record CompletedDay(Long restaurantId, LocalDate day, long orders, BigDecimal amount) {
+    }
+
+    private List<CompletedDay> completedByDay(Long restaurantId) {
+        return orderRepository.completedByDay(restaurantId).stream()
+                .map(row -> new CompletedDay(
+                        ((Number) row[0]).longValue(),
+                        toLocalDate(row[1]),
+                        ((Number) row[2]).longValue(),
+                        row[3] == null ? BigDecimal.ZERO : new BigDecimal(row[3].toString())))
+                .toList();
+    }
+
+    private static LocalDate toLocalDate(Object value) {
+        if (value instanceof LocalDate d) {
+            return d;
+        }
+        if (value instanceof java.sql.Date d) {
+            return d.toLocalDate();
+        }
+        return LocalDate.parse(value.toString().substring(0, 10));
     }
 
     private Map<Long, BigDecimal> paidByRestaurant() {
