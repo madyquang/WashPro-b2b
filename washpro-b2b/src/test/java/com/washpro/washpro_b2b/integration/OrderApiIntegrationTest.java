@@ -1,7 +1,6 @@
 package com.washpro.washpro_b2b.integration;
 
 import com.jayway.jsonpath.JsonPath;
-import com.washpro.washpro_b2b.config.LegacyDataRunner;
 import com.washpro.washpro_b2b.entity.Restaurant;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
@@ -19,7 +18,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
@@ -42,9 +40,6 @@ class OrderApiIntegrationTest {
 
     private static final String PASSWORD = "Test@1234";
 
-    /** Câu UPDATE ... JOIN của bước nâng cấp dữ liệu cũ chỉ chạy trên MySQL; CSDL test luôn mới nên bỏ qua. */
-    @MockitoBean
-    LegacyDataRunner legacyDataRunner;
 
     @Autowired
     MockMvc mvc;

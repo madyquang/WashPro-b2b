@@ -2,6 +2,8 @@ package com.washpro.washpro_b2b.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -31,8 +33,10 @@ public class User {
     @Column(length = 20)
     private String phone;
 
+    // Lưu dạng VARCHAR (không dùng kiểu ENUM của MySQL) để đổi / thêm vai trò không phải sửa kiểu cột
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 30)
     private Role role;
 
     /** Chỉ có giá trị với tài khoản khách hàng. */

@@ -63,7 +63,8 @@ cp .env.example .env          # điền DB_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN
 ./mvnw spring-boot:run        # Windows: mvnw.cmd spring-boot:run
 ```
 
-Backend chạy ở `http://localhost:8080`. Với `JPA_DDL_AUTO=update`, Hibernate tạo hoặc bổ sung bảng, cột khi khởi động.
+Backend chạy ở `http://localhost:8080`. Khi khởi động, **Flyway** tạo / nâng cấp cấu trúc bảng theo các file trong
+`washpro-b2b/src/main/resources/db/migration`; Hibernate chỉ kiểm tra bảng khớp với entity (`ddl-auto=validate`).
 Lần chạy đầu, nếu chưa có tài khoản Quản lý xưởng, hệ thống tạo tài khoản từ `BOOTSTRAP_ADMIN_USERNAME` /
 `BOOTSTRAP_ADMIN_PASSWORD`. Các tài khoản khác do Quản lý xưởng tạo trong ứng dụng; không có API đăng ký công khai.
 
@@ -80,14 +81,20 @@ Bản build: `npm run build` (kết quả trong `dist/`).
 
 ### Nâng cấp từ cơ sở dữ liệu của phiên bản trước
 
-Chạy `washpro-b2b/docs/nang-cap-csdl-cu.sql` một lần **trước** khi khởi động phiên bản mới. Script đổi kiểu cột
-trạng thái và số lượng (Hibernate không tự đổi kiểu cột đã có) và bỏ ràng buộc duy nhất cũ của bảng giá.
-Các thay đổi còn lại được xử lý tự động khi khởi động:
+Cấu trúc CSDL do Flyway quản lý. Mỗi thay đổi là một file `V<số>__<mô tả>` trong `db/migration` (SQL, hoặc lớp Java
+trong `src/main/java/db/migration` khi cần xử lý theo từng CSDL); Flyway ghi lại các bước đã chạy trong bảng
+`flyway_schema_history` và chỉ chạy bước mới.
 
-- Hibernate thêm các cột, bảng mới; dữ liệu cũ nhận giá trị mặc định (khách hàng loại "Nhà hàng",
-  mục bảng giá thuộc nhóm "Khác", dịch vụ "Giặt sấy", đơn vị "cái").
-- `LegacyDataRunner` gỡ các ràng buộc CHECK cũ trên cột trạng thái (không chứa trạng thái `DELIVERY_ISSUE`)
-  và điền ngày hoàn thành cho đơn cũ từ nhật ký đơn.
+- **CSDL rỗng:** chạy từ `V1__khoi_tao.sql`.
+- **CSDL đã có bảng từ trước khi dùng Flyway** (do Hibernate `ddl-auto=update` tạo): tự đánh dấu đã ở V1
+  (`baseline-on-migrate`) rồi chạy `V2__chuan_hoa_csdl_cu`: gỡ các ràng buộc CHECK cũ trên cột trạng thái / loại
+  (từng chặn trạng thái mới như `DELIVERY_ISSUE`), chuyển cột `users.role` sang `VARCHAR`, điền ngày hoàn thành cho
+  đơn cũ từ nhật ký đơn. Không cần làm gì thêm.
+- **CSDL của phiên bản rất cũ** (còn thiếu cột, ứng dụng báo lỗi `Schema-validation`): chạy
+  `washpro-b2b/docs/nang-cap-csdl-cu.sql` một lần, khởi động **một lần** với `JPA_DDL_AUTO=update` để Hibernate thêm
+  các cột còn thiếu, sau đó chạy bình thường.
+
+Thêm thay đổi cấu trúc mới: tạo file `V<số tiếp theo>__<mô tả>.sql`; không sửa file migration đã chạy.
 
 ## Cấu hình
 
@@ -98,7 +105,7 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `DB_URL` | | `jdbc:mysql://localhost:3306/washpro_b2b?...` | Chuỗi kết nối MySQL |
 | `DB_USERNAME` | | `root` | Tài khoản MySQL |
 | `DB_PASSWORD` | ✓ | | Mật khẩu MySQL |
-| `JPA_DDL_AUTO` | | `update` | Chế độ quản lý cấu trúc bảng của Hibernate |
+| `JPA_DDL_AUTO` | | `validate` | Hibernate chỉ kiểm tra cấu trúc bảng (Flyway quản lý); `update` chỉ dùng khi nâng cấp CSDL rất cũ |
 | `JWT_SECRET` | ✓ | | Khóa ký JWT, tối thiểu 32 ký tự |
 | `JWT_EXPIRATION_MS` | | `28800000` (8 giờ) | Thời hạn phiên đăng nhập |
 | `CORS_ALLOWED_ORIGINS` | | `http://localhost:5173` | Origin frontend được phép gọi API |
@@ -309,9 +316,8 @@ backend (H2, không cần MySQL), build + lint frontend.
 
 ## Hạn chế hiện tại
 
-- Test tích hợp mới bao phủ luồng đơn hàng; chưa có cho lấy đồ, bảng giá, thanh toán. Chưa có test giao diện tự động.
-- Cấu trúc CSDL do Hibernate (`ddl-auto=update`) quản lý, chưa dùng công cụ migration (Flyway/Liquibase);
-  các bước nâng cấp phải thực hiện bằng script SQL và mã khởi động.
+- Test tích hợp backend bao phủ đơn hàng và thanh toán; lấy đồ, bảng giá được kiểm qua E2E. Migration Flyway chưa có
+  test tự động (test H2 dựng bảng từ entity); đã thử trên MySQL với CSDL rỗng và bản sao CSDL đang dùng.
 - JWT lưu trong `localStorage` của trình duyệt (dễ bị ảnh hưởng nếu có lỗ hổng XSS); chưa có refresh token.
 - Bộ đếm đăng nhập sai lưu trong bộ nhớ, không chia sẻ được khi chạy nhiều máy chủ.
 - Danh sách đơn đã phân trang phía máy chủ; trang tổng quan (`/dashboard`) và báo cáo/xuất CSV vẫn tải toàn bộ đơn

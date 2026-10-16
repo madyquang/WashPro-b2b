@@ -1,7 +1,6 @@
 package com.washpro.washpro_b2b.integration;
 
 import com.jayway.jsonpath.JsonPath;
-import com.washpro.washpro_b2b.config.LegacyDataRunner;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
@@ -22,7 +21,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -53,8 +51,6 @@ class PaymentApiIntegrationTest {
 
     private static final String PASSWORD = "Test@1234";
 
-    @MockitoBean
-    LegacyDataRunner legacyDataRunner;
 
     @Autowired
     MockMvc mvc;
