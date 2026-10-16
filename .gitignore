@@ -11,3 +11,6 @@
 .DS_Store
 Thumbs.db
 *.log
+
+# Bản sao lưu CSDL / ảnh (docker compose, scripts/backup.ps1)
+backups/

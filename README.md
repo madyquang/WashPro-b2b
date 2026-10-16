@@ -66,6 +66,36 @@ không cần cấu hình CORS. Dữ liệu MySQL nằm trong volume `mysql-data`
 
 Cách chạy từng phần riêng lẻ (để phát triển) như dưới đây.
 
+### Sao lưu và khôi phục
+
+**Chạy bằng Docker:** dịch vụ `backup` tự sao lưu mỗi ngày lúc `BACKUP_TIME` (mặc định 02:00 giờ Việt Nam) vào thư mục
+`BACKUP_DIR` trên máy chủ (mặc định `./backups`): CSDL dạng `washpro-<ngày>-<giờ>.sql.gz` (`mysqldump
+--single-transaction`, không khóa bảng, ứng dụng vẫn chạy), ảnh đính kèm chép thêm vào `backups/uploads/`. Bản sao lưu
+CSDL cũ hơn `BACKUP_KEEP_DAYS` ngày (mặc định 14) bị xóa. Nên chép thư mục này sang máy / ổ đĩa khác định kỳ.
+
+```bash
+docker compose exec backup sh /backup/backup.sh            # sao lưu ngay
+docker compose logs backup                                  # xem lịch sử sao lưu
+
+# Khôi phục (GHI ĐÈ dữ liệu hiện tại)
+docker compose stop backend
+docker compose run --rm backup sh /backup/restore.sh /backups/washpro-20261016-020000.sql.gz
+docker compose start backend
+```
+
+**Chạy trực tiếp trên Windows:** `scripts\backup.ps1` đọc kết nối từ `washpro-b2b\.env`, tạo cùng định dạng
+`.sql.gz` trong `backups\` (đổi bằng `-OutDir`, số ngày giữ `-KeepDays`). Đặt lịch chạy mỗi ngày bằng Task Scheduler:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\backup.ps1
+schtasks /Create /TN "WashPro sao luu" /SC DAILY /ST 02:00 /TR "powershell -NoProfile -ExecutionPolicy Bypass -File \"D:\duong-dan\scripts\backup.ps1\""
+# Khôi phục (GHI ĐÈ, phải thêm -Yes); -Database để khôi phục ra CSDL khác xem thử
+powershell -ExecutionPolicy Bypass -File scripts\restore.ps1 -File backups\washpro-20261016-020000.sql.gz -Yes
+```
+
+CI chạy sao lưu ngay sau bộ E2E rồi khôi phục vào một CSDL khác bằng `backup/restore.sh` và so số đơn, số ảnh với CSDL
+gốc, nên bản sao lưu luôn được kiểm tra là khôi phục được.
+
 ### Yêu cầu
 
 - JDK 25 (LTS) trở lên
@@ -131,6 +161,7 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `DEMO_DATA` | | `false` | `true` hoặc `reset` để sinh dữ liệu mẫu (xem bên dưới) |
 | `COMPANY_NAME`, `COMPANY_ADDRESS`, `COMPANY_PHONE`, `COMPANY_TAX_CODE` | | `Xưởng giặt là THANHXUAN` | Thông tin xưởng in trên hóa đơn tháng |
 | `COMPANY_BANK_NAME`, `COMPANY_BANK_ACCOUNT`, `COMPANY_ACCOUNT_HOLDER` | | | Thông tin chuyển khoản in trên hóa đơn (không đặt thì không in) |
+| `BACKUP_TIME` / `BACKUP_KEEP_DAYS` / `BACKUP_DIR` | | `02:00` / `14` / `./backups` | Lịch sao lưu tự động (chỉ khi chạy bằng Docker) |
 | `UPLOADS_DIR` | | `uploads` | Thư mục lưu ảnh / chữ ký đính kèm đơn (Docker: volume `uploads`). Cần sao lưu cùng CSDL |
 | `NOTIFICATION_DIGEST_CRON` | | `0 0 7 * * *` | Giờ gửi bản tin thông báo hằng ngày (cron Spring, giờ Việt Nam) |
 
@@ -436,7 +467,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 `.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 82 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
-rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
+rồi chạy bộ E2E trên đó, sau đó sao lưu và khôi phục thử; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 
 ## Hạn chế hiện tại
 

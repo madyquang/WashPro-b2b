@@ -81,6 +81,18 @@ jobs:
           npm ci
           npx playwright-core install --with-deps chromium
           npm run test:e2e
+      - name: Sao lưu CSDL + ảnh, khôi phục thử vào CSDL khác
+        run: |
+          docker compose logs backup | grep "Sao lưu tự động mỗi ngày"
+          docker compose exec -T backup sh /backup/backup.sh
+          f=$(ls backups/washpro-*.sql.gz | head -1)
+          echo "Bản sao lưu: $f"
+          test "$(find backups/uploads -type f | wc -l)" -gt 0
+          docker compose exec -T -e DB_NAME=restore_test backup sh /backup/restore.sh "/backups/$(basename "$f")"
+          same=$(docker compose exec -T backup mysql -h mysql -uroot -N -e             "SELECT (SELECT COUNT(*) FROM washpro_b2b.orders) = (SELECT COUNT(*) FROM restore_test.orders)
+                AND (SELECT COUNT(*) FROM washpro_b2b.order_attachments) = (SELECT COUNT(*) FROM restore_test.order_attachments)
+                AND (SELECT COUNT(*) FROM restore_test.orders) > 0")
+          test "$same" = "1"
       - name: Lưu ảnh chụp / log khi lỗi
         if: failure()
         run: docker compose logs backend > washpro-b2b-frontend/e2e/results/backend.log 2>&1 || true

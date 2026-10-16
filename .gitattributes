@@ -1,0 +1,2 @@
+# Script chạy trong container Linux: luôn xuống dòng kiểu LF (kể cả khi lấy mã về trên Windows)
+*.sh text eol=lf
