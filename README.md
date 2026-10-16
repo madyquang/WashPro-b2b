@@ -259,6 +259,23 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Lộ trình tài xế
+
+Trang **Lộ trình** của tài xế (hôm nay / ngày mai) liệt kê các điểm cần đi: yêu cầu lấy đồ đã nhận hẹn tới ngày đó (kể
+cả hẹn trước mà chưa lấy, gắn nhãn "Quá ngày hẹn") và các đơn đang giao trả (chỉ hôm nay). Không dùng API bản đồ trả
+phí:
+
+- **Gom theo khu vực**: quận / huyện đoán từ địa chỉ khách (`Q.1`, `Quận 3`, `Huyện Gia Lâm`, `TP. Thủ Đức`, hoặc thành
+  phần áp chót như `Hoàn Kiếm` trong "15 Hàng Bè, Hoàn Kiếm, Hà Nội"). Trong mỗi khu vực: quá hẹn trước, rồi theo khung
+  giờ. Địa chỉ không đoán được xếp cuối ("Chưa rõ khu vực").
+- **Tự sắp thứ tự**: mũi tên lên / xuống trên từng điểm; thứ tự lưu trên máy của tài xế (theo ngày), có nút về thứ tự
+  gợi ý.
+- **Google Maps nhiều điểm dừng**: một nút mở chỉ đường qua mọi điểm theo thứ tự đang xếp (xuất phát từ vị trí hiện
+  tại; tùy chọn kết thúc ở xưởng nếu đặt `COMPANY_ADDRESS`). Quá 10 điểm thì chia thành nhiều đoạn (giới hạn của Google
+  Maps).
+
+Quản lý xưởng xem được lộ trình của một tài xế qua API (`GET /routes?driverId=`).
+
 ### Hóa đơn tháng (PDF)
 
 Trong hộp thoại **Sao kê** (trang Công nợ), nút **Hóa đơn PDF** tải hóa đơn tháng của khách: thông tin xưởng, khách
@@ -341,6 +358,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
+| Lộ trình | `GET /routes?date=&driverId=` (tài xế xem của mình; quản lý xưởng truyền `driverId`) |
 | Báo cáo | `GET /reports/invoice?customerId=&month=` (PDF), `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
 
 Quyền của từng endpoint được khai báo bằng `@PreAuthorize` trong các lớp ở `controller/`.
@@ -379,6 +397,8 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `OrderApiIntegrationTest` | Gọi API thật qua JWT xuống CSDL: vòng đời đơn đến công nợ, phạm vi dữ liệu (404), phân quyền (401/403), lọc/phân trang/sắp xếp danh sách đơn |
 | `PaymentApiIntegrationTest` | Không thu vượt công nợ, kể cả hai người ghi nhận cùng lúc (khóa dòng khách hàng); khoản đã hủy không hủy lại được |
 | `ReportApiIntegrationTest` | Số liệu tổng quan theo vai trò, công nợ và tuổi nợ (trả FIFO, kỳ thanh toán khác nhau), sao kê tháng, chặn thu vượt nợ; bỏ đơn đã hủy / khoản đã hủy / dòng chưa có giá, đơn cũ chưa có ngày hoàn thành |
+| `RouteApiIntegrationTest` | Lộ trình: đúng điểm dừng (đã nhận, quá hẹn, đơn đang giao chỉ hôm nay; bỏ việc chưa nhận / đã xong / của tài xế khác), gom theo khu vực, quyền |
+| `AddressAreasTest` | Đoán quận / huyện từ địa chỉ (Q.1, Q1, Quận 03, Huyện, TP. Thủ Đức, không nhầm "Hoàn Kiếm" / "Phú Nhuận" với tiền tố viết tắt) |
 | `InvoiceApiIntegrationTest` | Hóa đơn tháng PDF: đọc lại chữ trong PDF để kiểm tra tên xưởng, số hóa đơn, khách, dòng dịch vụ gộp, tổng tiền, số tiền bằng chữ, công nợ; quản lý phía khách luôn nhận hóa đơn của mình; quyền, tháng không hợp lệ |
 | `VietnameseNumberWordsTest` | Đọc số tiền bằng chữ (linh, mười, mốt, tư, lăm, không trăm, tỷ...) |
 | `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
@@ -396,7 +416,7 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(57 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(58 bước, 8 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
 / thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị. Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
@@ -414,7 +434,7 @@ trình duyệt Edge; nơi khác chạy `npx playwright-core install chromium` m�
 
 ### CI
 
-`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 65 test
+`.github/workflows/ci.yml` chạy trên GitHub Actions mỗi lần push / pull request vào `main`: build và chạy 82 test
 backend (H2, không cần MySQL), build + lint frontend, và dựng toàn bộ hệ thống bằng Docker Compose (dữ liệu demo)
 rồi chạy bộ E2E trên đó; khi lỗi, ảnh chụp và log backend được lưu thành artifact `e2e-results`.
 

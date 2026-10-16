@@ -89,6 +89,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
     List<Object[]> performanceRows(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
             @Param("customerId") Long customerId);
 
+    /** Lộ trình: đơn của tài xế ở một trạng thái (VD đang giao), kèm khách. */
+    @EntityGraph(attributePaths = "customer")
+    List<Order> findByDriverIdAndStatusAndIsDeletedFalse(Long driverId, OrderStatus status);
+
     /** Khóa dòng khi đổi trạng thái để hai người thao tác cùng lúc không làm hỏng luồng. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from LaundryOrder o where o.id = :id")

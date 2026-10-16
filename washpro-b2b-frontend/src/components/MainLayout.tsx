@@ -11,6 +11,7 @@ import {
   HomeOutlined,
   LogoutOutlined,
   MenuOutlined,
+  NodeIndexOutlined,
   ShopOutlined,
   TagsOutlined,
   TeamOutlined,
@@ -49,6 +50,7 @@ function navFor(role: Role): NavGroup[] {
         { key: '/', icon: <HomeOutlined />, label: 'Việc hôm nay', short: 'Hôm nay' },
         { key: '/pickups', icon: <CarOutlined />, label: 'Việc lấy đồ', short: 'Lấy đồ' },
         { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn đã tạo', short: 'Đơn đã tạo' },
+        { key: '/route', icon: <NodeIndexOutlined />, label: 'Lộ trình', short: 'Lộ trình' },
       ]
     : customer
       ? [

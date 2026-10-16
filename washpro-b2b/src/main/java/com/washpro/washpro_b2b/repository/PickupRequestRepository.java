@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -31,6 +32,11 @@ public interface PickupRequestRepository extends JpaRepository<PickupRequest, Lo
             order by p.preferredDate desc, p.id desc
             """)
     List<PickupRequest> findForDriver(@Param("driverId") Long driverId);
+
+    /** Lộ trình: việc tài xế đã nhận, hẹn tới ngày `date` (kể cả hẹn trước mà chưa lấy). */
+    @EntityGraph(attributePaths = "customer")
+    List<PickupRequest> findByDriverIdAndStatusAndPreferredDateLessThanEqual(Long driverId, PickupStatus status,
+            LocalDate date);
 
     long countByStatusIn(Collection<PickupStatus> statuses);
 

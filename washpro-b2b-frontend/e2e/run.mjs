@@ -275,7 +275,23 @@ if (want('driver')) {
     await page.goto(APP + '/')
     await page.locator('.home-section').filter({ hasText: 'Việc của tôi' }).locator('.ant-card').filter({ hasText: `${TAG} lấy ở cửa sau` }).waitFor()
   }, page)
+  await step('driver: lộ trình có điểm vừa nhận, sắp lại thứ tự, mở Google Maps nhiều điểm', async () => {
+    await page.goto(APP + '/route')
+    const stop = page.locator('.route-stop').filter({ hasText: `${TAG} lấy ở cửa sau` })
+    await stop.waitFor()
+    await stop.getByText('Quận 1').waitFor()
+    const href = await page.getByRole('link', { name: /Mở Google Maps/ }).first().getAttribute('href')
+    expect(href?.startsWith('https://www.google.com/maps/dir/?') && href.includes('destination='), 'link Maps sai: ' + href)
+    if ((await page.locator('.route-stop').count()) > 1) {
+      const first = await page.locator('.route-stop').first().getAttribute('data-key')
+      await page.locator('.route-stop').first().getByRole('button', { name: /xuống sau/ }).click()
+      await page.waitForFunction((f) => document.querySelectorAll('.route-stop')[1]?.dataset.key === f, first, { timeout: 5000 })
+      await page.getByRole('button', { name: 'Về thứ tự gợi ý' }).click()
+      await page.waitForFunction((f) => document.querySelectorAll('.route-stop')[0]?.dataset.key === f, first, { timeout: 5000 })
+    }
+  }, page)
   await step('driver: nút Gọi / Chỉ đường đúng liên kết', async () => {
+    await page.goto(APP + '/')
     const call = await card().getByRole('link', { name: 'Gọi' }).getAttribute('href')
     const map = await card().getByRole('link', { name: 'Chỉ đường' }).getAttribute('href')
     expect(call?.startsWith('tel:') && map?.includes('google.com/maps'), `href sai: ${call} / ${map}`)

@@ -145,6 +145,33 @@ export interface PerformanceReport {
   drivers: PerformanceDriverRow[] | null
 }
 
+/** Một điểm dừng trên lộ trình tài xế: lấy đồ (yêu cầu đã nhận) hoặc giao trả (đơn đang giao). */
+export interface RouteStop {
+  type: 'PICKUP' | 'DELIVERY'
+  /** Mã yêu cầu lấy đồ hoặc mã đơn. */
+  id: number
+  customerId: number
+  customerName: string
+  address: string | null
+  /** Quận / huyện đoán từ địa chỉ. */
+  area: string | null
+  phone: string | null
+  contactName: string | null
+  date: string | null
+  timeSlot: TimeSlot | null
+  bags: number | null
+  note: string | null
+  late: boolean
+}
+
+export interface RoutePlan {
+  date: string
+  driverId: number
+  driverName: string
+  workshopAddress: string | null
+  stops: RouteStop[]
+}
+
 export type AttachmentKind = 'PICKUP_PHOTO' | 'PICKUP_SIGNATURE' | 'DELIVERY_PHOTO' | 'DELIVERY_SIGNATURE' | 'ISSUE_PHOTO'
 
 export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {
