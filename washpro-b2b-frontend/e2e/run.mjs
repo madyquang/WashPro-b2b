@@ -24,6 +24,8 @@ const CHANNEL = process.env.E2E_BROWSER ?? (process.platform === 'win32' ? 'msed
 const TAG = `E2E-${Date.now().toString(36)}`
 const MOBILE = { width: 390, height: 844 }
 const DESKTOP = { width: 1440, height: 900 }
+/** Người dùng ở Việt Nam: trình duyệt cùng múi giờ với máy chủ (CI chạy giờ UTC, lệch ngày từ 0h đến 7h sáng). */
+const TZ = 'Asia/Ho_Chi_Minh'
 
 const browser = await chromium.launch(CHANNEL === 'chromium' ? { headless: true } : { channel: CHANNEL, headless: true })
 const results = []
@@ -73,7 +75,7 @@ async function orderStatus(id) {
 async function open(user, viewport = DESKTOP, label = user, password = PW) {
   // Chặn service worker ở các bước nghiệp vụ: page.route (giả lập API chậm...) không thấy yêu cầu đi qua service worker.
   // Module pwa kiểm tra riêng service worker.
-  const ctx = await browser.newContext({ viewport, acceptDownloads: true, serviceWorkers: 'block' })
+  const ctx = await browser.newContext({ viewport, acceptDownloads: true, serviceWorkers: 'block', timezoneId: TZ })
   // In nguyên nhân gốc của lỗi React "có thể phục hồi" (React gói lỗi thật vào error.cause)
   await ctx.addInitScript(() => {
     window.addEventListener('error', (e) => {
@@ -740,7 +742,7 @@ if (want('admin-manage')) {
 
 // ============ M9. Ứng dụng cài được (PWA) ============
 if (want('pwa')) {
-  const ctx = await browser.newContext({ viewport: MOBILE })
+  const ctx = await browser.newContext({ viewport: MOBILE, timezoneId: TZ })
   const page = await ctx.newPage()
   page.on('pageerror', (e) => problems.push(`[pwa] JS: ${e.message}`))
   await step('pwa: có manifest, icon cài đặt và service worker', async () => {
