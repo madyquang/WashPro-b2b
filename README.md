@@ -164,6 +164,7 @@ Các biến môi trường đọc từ `washpro-b2b/.env` (xem `.env.example`):
 | `COMPANY_BANK_BIN` | | | Mã BIN 6 số của ngân hàng (VD Vietcombank `970436`, VietinBank `970415`, BIDV `970418`, Techcombank `970407`, MB `970422`): có thì in **mã QR VietQR** |
 | `BACKUP_TIME` / `BACKUP_KEEP_DAYS` / `BACKUP_DIR` | | `02:00` / `14` / `./backups` | Lịch sao lưu tự động (chỉ khi chạy bằng Docker) |
 | `UPLOADS_DIR` | | `uploads` | Thư mục lưu ảnh / chữ ký đính kèm đơn (Docker: volume `uploads`). Cần sao lưu cùng CSDL |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `PUSH_SUBJECT` | | tự sinh / tự sinh / `mailto:admin@thanhxuan.vn` | Khóa và liên hệ cho thông báo đẩy (Web Push). Đổi khóa thì mọi thiết bị phải bật lại |
 | `NOTIFICATION_DIGEST_CRON` | | `0 0 7 * * *` | Giờ gửi bản tin thông báo hằng ngày (cron Spring, giờ Việt Nam) |
 
 ## Dữ liệu mẫu
@@ -392,8 +393,16 @@ bấm vào một thông báo để mở đúng trang / đúng đơn. Ai nhận g
 | Bản tin 7h sáng: đơn trễ hạn trả | Quản lý xưởng |
 | Bản tin 7h sáng: nợ quá hạn | Quản lý xưởng, kế toán (tổng hợp); quản lý phía khách (nợ của mình) |
 
+**Thông báo đẩy về điện thoại / máy tính (Web Push):** trong trang Tài khoản bật "Thông báo trên điện thoại" (mỗi
+thiết bị bật riêng; iPhone cần cài ứng dụng ra màn hình chính trước). Khi đó mọi thông báo ở bảng trên còn hiện như
+thông báo của hệ điều hành, kể cả khi không mở ứng dụng; bấm vào mở đúng trang. Hệ thống tự cài đặt chuẩn Web Push
+(mã hóa nội dung RFC 8291, chữ ký VAPID RFC 8292) bằng thư viện có sẵn của Java, không dùng dịch vụ trả phí:
+khóa VAPID tự sinh lần đầu và lưu trong CSDL (hoặc đặt `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY`). Chỉ gửi tới máy chủ
+push chính thống (Google, Mozilla, Apple, Microsoft); thiết bị đã hủy đăng ký tự bị xóa; đăng xuất thì thiết bị ngừng
+nhận thông báo của tài khoản đó; "Đăng xuất mọi thiết bị" xóa mọi đăng ký.
+
 Người gây ra sự kiện không nhận thông báo của chính mình; tài khoản bị khóa không nhận. Bản tin mỗi loại gửi tối đa
-một lần mỗi ngày cho mỗi người; thông báo cũ hơn 90 ngày được dọn tự động. Chưa gửi qua email / SMS / push.
+một lần mỗi ngày cho mỗi người; thông báo cũ hơn 90 ngày được dọn tự động. Chưa gửi qua email / SMS / Zalo.
 
 ## API
 
@@ -410,6 +419,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Đơn hàng | `GET/POST /orders` (xem bên dưới), `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
+| Thông báo đẩy | `GET /push/public-key`, `POST /push/subscriptions` (dạng `PushSubscription.toJSON()`), `POST /push/subscriptions/remove` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 | Lộ trình | `GET /routes?date=&driverId=` (tài xế xem của mình; quản lý xưởng truyền `driverId`) |
 | Báo cáo | `GET /reports/invoice?customerId=&month=` (PDF), `GET /reports/payment-qr?customerId=&month=`, `GET /reports/performance?from=&to=`, `GET /dashboard`, `/reports/debts`, `/reports/revenue`, `/reports/statement`, `/reports/{debts,orders,items}/export` |
@@ -457,6 +467,8 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `VietnameseNumberWordsTest` | Đọc số tiền bằng chữ (linh, mười, mốt, tư, lăm, không trăm, tỷ...) |
 | `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
 | `AttachmentApiIntegrationTest` | Ảnh / chữ ký: loại được đính kèm theo vai trò, ngoài phạm vi đơn trả 404 (cả file), chỉ nhận ảnh thật, xóa cả file trên đĩa, chỉ người tải lên / quản lý xưởng được xóa |
+| `PushApiIntegrationTest` | Thông báo đẩy tới máy chủ push giả: chữ ký VAPID hợp lệ, thiết bị giải mã ra đúng nội dung, thiết bị đã hủy (410) bị xóa, đăng xuất mọi thiết bị thì không gửi nữa, người khác không tắt được thiết bị của mình |
+| `WebPushCryptoTest` / `PushEndpointTest` | Mã hóa khớp ví dụ chuẩn RFC 8291; chỉ chấp nhận máy chủ push chính thống (chặn SSRF) |
 | `NotificationApiIntegrationTest` | Đúng người nhận theo sự kiện (không gửi cho người gây ra, khách khác, tài khoản khóa), đọc / đọc hết, không đánh dấu được thông báo của người khác, bản tin hằng ngày không gửi trùng |
 | `AuthApiIntegrationTest` | Đổi mật khẩu đăng xuất thiết bị khác nhưng giữ thiết bị đang dùng; đặt lại mật khẩu, đăng xuất mọi thiết bị thu hồi token; token cũ không có phiên bản bị từ chối |
 | `OrderStatusTest` | Quy tắc chuyển trạng thái đơn |
@@ -470,7 +482,7 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(59 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(61 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
 / thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị, PWA (manifest, icon; trên bản build: mất mạng vẫn mở được ứng dụng). Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
@@ -503,7 +515,7 @@ rồi chạy bộ E2E trên đó, sau đó sao lưu và khôi phục thử; khi 
 - Danh sách đơn, trang tổng quan, công nợ / tuổi nợ và sao kê đều tính trong CSDL (COUNT / SUM / GROUP BY; công nợ
   gộp sẵn theo khách và ngày hoàn thành). Riêng xuất CSV danh sách đơn / chi tiết đồ giặt vẫn tải toàn bộ đơn trong
   phạm vi (bản chất là xuất hết dữ liệu).
-- Thông báo chỉ có trong ứng dụng (kiểm tra định kỳ 30 giây), chưa gửi email / SMS / push.
+- Thông báo trong ứng dụng và thông báo đẩy (Web Push), chưa gửi email / SMS / Zalo. Thông báo đẩy đã kiểm bằng máy chủ push giả trong test; trình duyệt chạy ẩn trong CI không có dịch vụ push nên chưa có E2E nhận thông báo thật.
 - Hóa đơn tháng là PDF (bảng kê kiêm đề nghị thanh toán), chưa nối nhà cung cấp hóa đơn điện tử (đã có `EInvoiceGateway`).
 - Giao diện chỉ có chế độ sáng (màu đã tách theo vai trò trong `src/theme.ts` nên có thể bổ sung chế độ tối sau).
   Bản build đã tách gói theo trang (lần tải đầu khoảng 800 KB, gzip ~270 KB); phần lõi antd dùng chung vẫn là gói

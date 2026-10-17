@@ -24,6 +24,7 @@ import NotificationBell from './NotificationBell'
 import ToneTag from './ToneTag'
 import TouchFriendly from './TouchFriendly'
 import { useInstallPrompt, useOnline } from '../utils/pwa'
+import { forgetThisDevice, syncPush } from '../utils/push'
 import { clearSession, canManagePrices, canViewFinance, getSession, isCustomerRole } from '../utils/auth'
 import { ROLE_LABELS, type Role } from '../types'
 
@@ -101,6 +102,10 @@ export default function MainLayout() {
   const contentRef = useRef<HTMLElement>(null)
   const firstRender = useRef(true)
   const online = useOnline()
+  // Thiết bị đã bật thông báo đẩy: gắn đăng ký với tài khoản vừa đăng nhập
+  useEffect(() => {
+    void syncPush()
+  }, [])
   const { canInstall, install } = useInstallPrompt()
 
   // Đổi trang: đưa focus về vùng nội dung để trình đọc màn hình / bàn phím bắt đầu từ trang mới
@@ -137,7 +142,8 @@ export default function MainLayout() {
     setDrawerOpen(false)
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await forgetThisDevice()
     clearSession()
     navigate('/login', { replace: true })
   }

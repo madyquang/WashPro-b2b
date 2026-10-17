@@ -10,6 +10,7 @@ import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import com.washpro.washpro_b2b.security.JwtUtils;
 import com.washpro.washpro_b2b.security.LoginAttemptService;
+import com.washpro.washpro_b2b.service.push.PushService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,17 +23,19 @@ public class AuthService {
     private final JwtUtils jwtUtils;
     private final LoginAttemptService loginAttemptService;
     private final CurrentUserService currentUserService;
+    private final PushService pushService;
 
     /** Hash giả dùng để so sánh khi tên đăng nhập không tồn tại, tránh lộ thông tin qua thời gian phản hồi. */
     private final String dummyHash;
 
     public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtils jwtUtils,
-            LoginAttemptService loginAttemptService, CurrentUserService currentUserService) {
+            LoginAttemptService loginAttemptService, CurrentUserService currentUserService, PushService pushService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtils = jwtUtils;
         this.loginAttemptService = loginAttemptService;
         this.currentUserService = currentUserService;
+        this.pushService = pushService;
         this.dummyHash = passwordEncoder.encode("washpro-dummy-password");
     }
 
@@ -94,5 +97,7 @@ public class AuthService {
         User user = currentUserService.getCurrentUser();
         user.setTokenVersion(user.getTokenVersion() + 1);
         userRepository.save(user);
+        // Thiết bị cũ (có thể đã mất) không còn nhận thông báo đẩy
+        pushService.removeAll(user.getId());
     }
 }

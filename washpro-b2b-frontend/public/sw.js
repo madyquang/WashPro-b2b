@@ -4,9 +4,10 @@
  * - /assets/* (tên có mã băm, không bao giờ đổi nội dung): lưu lần đầu rồi dùng mãi.
  * - Phông chữ Google: dùng bản đã lưu, cập nhật ngầm.
  * - API (/api/*) và mọi yêu cầu khác: KHÔNG đụng tới (dữ liệu nghiệp vụ luôn lấy mới, có token).
+ * - Thông báo đẩy: hiện thông báo của hệ điều hành; bấm vào thì mở / chuyển tới đúng trang.
  * Đổi VERSION khi sửa file này để xóa bộ nhớ đệm cũ.
  */
-const VERSION = 'v3'
+const VERSION = 'v4'
 const PAGES = `thanhxuan-pages-${VERSION}`
 const ASSETS = `thanhxuan-assets-${VERSION}`
 const FONTS = `thanhxuan-fonts-${VERSION}`
@@ -104,3 +105,44 @@ async function staleWhileRevalidate(req, name) {
     .catch(() => hit)
   return hit || update
 }
+
+// ===================== Thông báo đẩy (Web Push) =====================
+
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { title: event.data ? event.data.text() : '' }
+  }
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    lang: 'vi',
+    data: { link: data.link || '/' },
+  }
+  // Bản tin hằng ngày: bản mới thay bản cũ cùng loại; các việc khác hiện riêng từng cái
+  if (data.tag && data.tag.startsWith('OVERDUE')) {
+    options.tag = data.tag
+    options.renotify = true
+  }
+  event.waitUntil(self.registration.showNotification(data.title || 'THANHXUAN', options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const link = (event.notification.data && event.notification.data.link) || '/'
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin && 'focus' in w) {
+          await w.focus()
+          if ('navigate' in w) await w.navigate(link)
+          return
+        }
+      }
+      await self.clients.openWindow(link)
+    })(),
+  )
+})

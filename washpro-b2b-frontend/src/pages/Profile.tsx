@@ -9,6 +9,8 @@ import ToneTag from '../components/ToneTag'
 import { clearSession, getSession, saveSession } from '../utils/auth'
 import { getErrorMessage } from '../utils/format'
 import { isIos, isStandalone, useInstallPrompt } from '../utils/pwa'
+import { forgetThisDevice } from '../utils/push'
+import PushToggle from '../components/PushToggle'
 import { ROLE_LABELS, type Session } from '../types'
 
 interface PasswordForm {
@@ -46,7 +48,8 @@ export default function Profile() {
     }
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await forgetThisDevice()
     clearSession()
     navigate('/login', { replace: true })
   }
@@ -96,6 +99,10 @@ export default function Profile() {
             hình chính).
           </Typography.Text>
         )}
+      </Card>
+
+      <Card size="small" title="Thông báo trên điện thoại" className="mb-4">
+        <PushToggle />
       </Card>
 
       <Card size="small" title="Đổi mật khẩu">

@@ -781,6 +781,12 @@ if (want('pwa')) {
       await ctx.setOffline(false)
       await page.locator('.offline-banner').waitFor({ state: 'detached' })
     }, page)
+    await step('pwa: trang Tài khoản có công tắc bật thông báo trên điện thoại', async () => {
+      await page.goto(APP + '/profile')
+      const card = page.locator('.ant-card').filter({ hasText: 'Thông báo trên điện thoại' })
+      await card.getByRole('switch', { name: 'Thông báo trên thiết bị này' }).waitFor()
+      await card.getByText('Đang tắt trên thiết bị này').waitFor()
+    }, page)
   }
   await ctx.close()
 }

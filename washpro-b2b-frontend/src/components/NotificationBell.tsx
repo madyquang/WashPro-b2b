@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons'
 import axiosClient from '../api/axiosClient'
 import { getSession } from '../utils/auth'
+import { pushState } from '../utils/push'
 import { getErrorMessage } from '../utils/format'
 import type { AppNotification, NotificationType } from '../types'
 
@@ -53,6 +54,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<AppNotification[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [pushOff, setPushOff] = useState(false)
 
   const refreshCount = useCallback(async () => {
     if (!getSession() || document.visibilityState === 'hidden') return
@@ -87,7 +89,12 @@ export default function NotificationBell() {
 
   const toggle = (next: boolean) => {
     setOpen(next)
-    if (next) loadList()
+    if (next) {
+      loadList()
+      pushState()
+        .then((s) => setPushOff(s === 'off'))
+        .catch(() => setPushOff(false))
+    }
   }
 
   const openItem = (n: AppNotification) => {
@@ -121,6 +128,18 @@ export default function NotificationBell() {
         )}
       </div>
       {error && <div className="notif-error">{error}</div>}
+      {pushOff && (
+        <button
+          type="button"
+          className="notif-push-hint"
+          onClick={() => {
+            setOpen(false)
+            navigate('/profile')
+          }}
+        >
+          Bật thông báo trên điện thoại để biết việc mới ngay cả khi không mở ứng dụng →
+        </button>
+      )}
       {items === null && !error ? (
         <div className="notif-loading">
           <Spin />

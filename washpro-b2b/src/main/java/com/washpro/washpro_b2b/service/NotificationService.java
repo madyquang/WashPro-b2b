@@ -14,6 +14,7 @@ import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
+import com.washpro.washpro_b2b.service.push.PushService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -44,6 +45,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final CurrentUserService currentUserService;
+    private final PushService pushService;
 
     // ===================== Đọc thông báo của mình =====================
 
@@ -174,6 +176,8 @@ public class NotificationService {
                         .link(link).build())
                 .toList();
         notificationRepository.saveAll(rows);
+        // Cùng nội dung tới điện thoại / máy tính đã bật thông báo đẩy (gửi sau khi giao dịch lưu xong)
+        pushService.notifyUsers(unique.keySet(), cut(title, 200), cut(body, 500), link, type.name());
     }
 
     List<User> users(Role... roles) {
