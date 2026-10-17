@@ -17,6 +17,8 @@ import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
+import com.washpro.washpro_b2b.entity.AuditAction;
+import com.washpro.washpro_b2b.service.AuditService.Changes;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.entity.ServiceType;
@@ -72,6 +74,7 @@ public class OrderService {
     private final PickupService pickupService;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     // ===================== Tạo đơn =====================
 
@@ -294,7 +297,13 @@ public class OrderService {
         String note = blankToNull(request.note());
         if (target == OrderStatus.COMPLETED) {
             // Xưởng chốt thay khi khách không bấm xác nhận, hoặc sau khi xử lý xong sự cố
+            OrderStatus from = order.getStatus();
             complete(order, user.getUsername(), note != null ? note : "Xưởng chốt hoàn thành đơn");
+            auditService.record(AuditAction.ORDER_COMPLETED_BY_WORKSHOP, order.getId(), order.getCustomer().getId(),
+                    "Xưởng chốt hoàn thành đơn #" + order.getId() + " (" + order.getCustomer().getName() + ")",
+                    new Changes().line("Từ trạng thái: " + from.getLabel())
+                            .line("Ghi vào công nợ: " + AuditService.money(order.getTotalAmount()))
+                            .line(note == null ? null : "Ghi chú: " + note));
         } else {
             moveTo(order, target, user.getUsername(), note != null ? note : "Chuyển sang \"" + target.getLabel() + "\"");
             if (target == OrderStatus.DELIVERING) {
@@ -313,8 +322,11 @@ public class OrderService {
             throw ApiException.badRequest("Đơn đã hoàn thành, không đổi hạn trả được");
         }
         String old = order.getDueAt() == null ? "chưa có" : TS.format(order.getDueAt());
-        order.setDueAt(request.dueAt());
         String note = blankToNull(request.note());
+        auditService.record(AuditAction.ORDER_DUE_CHANGED, order.getId(), order.getCustomer().getId(),
+                "Đổi hạn trả đơn #" + order.getId() + " (" + order.getCustomer().getName() + ")",
+                new Changes().field("Hạn trả", order.getDueAt(), request.dueAt()).line(note == null ? null : "Lý do: " + note));
+        order.setDueAt(request.dueAt());
         order.addHistory(order.getStatus(), order.getStatus(), user.getUsername(),
                 "Đổi hạn trả: " + old + " → " + TS.format(request.dueAt()) + (note != null ? ". " + note : ""));
         return Response.from(orderRepository.saveAndFlush(order), true);
@@ -330,6 +342,10 @@ public class OrderService {
         }
         order.setDeleted(true);
         String why = blankToNull(reason) != null ? reason.trim() : "Không nêu lý do";
+        auditService.record(AuditAction.ORDER_CANCELLED, order.getId(), order.getCustomer().getId(),
+                "Hủy đơn #" + order.getId() + " (" + order.getCustomer().getName() + ")",
+                new Changes().line("Trạng thái lúc hủy: " + order.getStatus().getLabel()).line("Lý do: " + why)
+                        .line("Giá trị đơn: " + AuditService.money(order.getTotalAmount())));
         order.addHistory(order.getStatus(), order.getStatus(), user.getUsername(), "Hủy đơn. Lý do: " + why);
         notificationService.orderCancelled(order, user, blankToNull(reason));
         return Response.from(orderRepository.saveAndFlush(order), true);
@@ -366,11 +382,20 @@ public class OrderService {
             throw ApiException.badRequest("Đơn đang giao trả: mọi dòng đồ giặt phải có đơn giá");
         }
 
+        String beforeLines = priced(order.getItems());
+        BigDecimal beforeTotal = order.getTotalAmount();
         // Sửa trực tiếp trên danh sách hiện có (orphanRemoval sẽ xóa dòng cũ)
         order.getItems().clear();
         rebuilt.forEach(order::addItem);
         order.addHistory(order.getStatus(), order.getStatus(), user.getUsername(),
                 "Cập nhật chi tiết đồ giặt và đơn giá (" + rebuilt.size() + " dòng): " + summarize(rebuilt));
+        String afterLines = priced(order.getItems());
+        if (!beforeLines.equals(afterLines)) {
+            auditService.record(AuditAction.ORDER_ITEMS_UPDATED, order.getId(), order.getCustomer().getId(),
+                    "Sửa chi tiết đơn #" + order.getId() + " (" + order.getCustomer().getName() + ")",
+                    new Changes().field("Tổng tiền", beforeTotal, order.getTotalAmount())
+                            .line("Trước: " + beforeLines).line("Sau: " + afterLines));
+        }
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
 
@@ -465,6 +490,17 @@ public class OrderService {
     }
 
     /** "Khăn bàn 50 cái, Ga giường đôi 20 cái, Chăn ga (tính cân) 12.5 kg". */
+    /** Các dòng kèm đơn giá cho nhật ký, VD "Khăn bàn 10 cái × 5.000 đ". */
+    private static String priced(List<OrderItem> items) {
+        if (items.isEmpty()) {
+            return "chưa có chi tiết";
+        }
+        return items.stream()
+                .map(i -> i.getItemName() + " " + plain(i.getQuantity()) + " " + i.getUnit().getLabel() + " × "
+                        + (i.getUnitPrice() == null ? "chưa có giá" : AuditService.money(i.getUnitPrice())))
+                .collect(Collectors.joining("; "));
+    }
+
     private static String summarize(List<OrderItem> items) {
         if (items.isEmpty()) {
             return "chưa có chi tiết";

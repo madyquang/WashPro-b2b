@@ -5,6 +5,8 @@ import com.washpro.washpro_b2b.dto.PriceDtos.CustomerPriceRow;
 import com.washpro.washpro_b2b.dto.PriceDtos.Request;
 import com.washpro.washpro_b2b.dto.PriceDtos.Response;
 import com.washpro.washpro_b2b.entity.CustomerPrice;
+import com.washpro.washpro_b2b.entity.AuditAction;
+import com.washpro.washpro_b2b.service.AuditService.Changes;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.exception.ApiException;
@@ -42,6 +44,7 @@ public class PriceService {
     private final CustomerPriceRepository customerPriceRepository;
     private final CustomerRepository customerRepository;
     private final CurrentUserService currentUserService;
+    private final AuditService auditService;
 
     // ===================== Bảng giá chung =====================
 
@@ -68,7 +71,10 @@ public class PriceService {
                 .unit(request.unit())
                 .unitPrice(money(request.unitPrice()))
                 .build();
-        return Response.from(priceRepository.save(price));
+        ServicePrice saved = priceRepository.save(price);
+        auditService.record(AuditAction.PRICE_CREATED, saved.getId(), null,
+                "Thêm \"" + label(saved) + "\": " + AuditService.money(saved.getUnitPrice()), null);
+        return Response.from(saved);
     }
 
     @Transactional
@@ -76,19 +82,37 @@ public class PriceService {
         ServicePrice price = find(id);
         String name = request.name().trim();
         assertUnique(name, request, id);
+        Changes changes = new Changes()
+                .field("Tên", price.getName(), name)
+                .field("Nhóm đồ", price.getCategory().getLabel(), request.category().getLabel())
+                .field("Dịch vụ", price.getServiceType().getLabel(), request.serviceType().getLabel())
+                .field("Đơn vị", price.getUnit().getLabel(), request.unit().getLabel())
+                .field("Đơn giá chung", price.getUnitPrice(), money(request.unitPrice()));
         price.setName(name);
         price.setCategory(request.category());
         price.setServiceType(request.serviceType());
         price.setUnit(request.unit());
         price.setUnitPrice(money(request.unitPrice()));
+        if (!changes.isEmpty()) {
+            auditService.record(AuditAction.PRICE_UPDATED, id, null, "Sửa \"" + label(price) + "\"", changes);
+        }
         return Response.from(priceRepository.save(price));
     }
 
     @Transactional
     public Response setActive(Long id, boolean active) {
         ServicePrice price = find(id);
+        if (price.isActive() != active) {
+            auditService.record(active ? AuditAction.PRICE_SHOWN : AuditAction.PRICE_HIDDEN, id, null,
+                    (active ? "Áp dụng lại \"" : "Ẩn \"") + label(price) + "\"", null);
+        }
         price.setActive(active);
         return Response.from(priceRepository.save(price));
+    }
+
+    /** Tên mục giá cho nhật ký, VD "Khăn bàn · Giặt sấy (cái)". */
+    private static String label(ServicePrice p) {
+        return p.getName() + " · " + p.getServiceType().getLabel() + " (" + p.getUnit().getLabel() + ")";
     }
 
     // ===================== Giá riêng theo khách hàng =====================
@@ -111,18 +135,29 @@ public class PriceService {
         CustomerPrice custom = customerPriceRepository
                 .findByCustomerIdAndServicePriceId(customerId, servicePriceId)
                 .orElseGet(() -> CustomerPrice.builder().customer(customer).servicePrice(price).build());
+        BigDecimal before = custom.getUnitPrice();
         custom.setUnitPrice(money(unitPrice));
         custom.setUpdatedBy(currentUserService.getCurrentUser().getUsername());
+        if (before == null || before.compareTo(custom.getUnitPrice()) != 0) {
+            auditService.record(AuditAction.CUSTOMER_PRICE_SET, price.getId(), customerId,
+                    "Giá riêng \"" + label(price) + "\" cho " + customer.getName(),
+                    new Changes().field("Đơn giá", before != null ? before : "giá chung " + AuditService.money(price.getUnitPrice()),
+                            custom.getUnitPrice()));
+        }
         return CustomerPriceRow.of(price, customerPriceRepository.save(custom));
     }
 
     /** Bỏ giá riêng: khách hàng quay về dùng giá chung. */
     @Transactional
     public CustomerPriceRow removeCustomerPrice(Long customerId, Long servicePriceId) {
-        findCustomer(customerId);
+        Customer customer = findCustomer(customerId);
         ServicePrice price = find(servicePriceId);
-        customerPriceRepository.findByCustomerIdAndServicePriceId(customerId, servicePriceId)
-                .ifPresent(customerPriceRepository::delete);
+        customerPriceRepository.findByCustomerIdAndServicePriceId(customerId, servicePriceId).ifPresent(c -> {
+            auditService.record(AuditAction.CUSTOMER_PRICE_REMOVED, price.getId(), customerId,
+                    "Bỏ giá riêng \"" + label(price) + "\" của " + customer.getName(),
+                    new Changes().field("Đơn giá", c.getUnitPrice(), "giá chung " + AuditService.money(price.getUnitPrice())));
+            customerPriceRepository.delete(c);
+        });
         return CustomerPriceRow.of(price, null);
     }
 

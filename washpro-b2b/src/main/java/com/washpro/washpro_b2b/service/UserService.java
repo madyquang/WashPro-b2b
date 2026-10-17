@@ -2,6 +2,8 @@ package com.washpro.washpro_b2b.service;
 
 import com.washpro.washpro_b2b.dto.UserDtos.CreateRequest;
 import com.washpro.washpro_b2b.dto.UserDtos.Response;
+import com.washpro.washpro_b2b.entity.AuditAction;
+import com.washpro.washpro_b2b.service.AuditService.Changes;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
@@ -25,6 +27,7 @@ public class UserService {
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserService currentUserService;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<Response> list(Role role) {
@@ -63,7 +66,11 @@ public class UserService {
                 .role(request.role())
                 .customer(customer)
                 .build();
-        return Response.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        auditService.record(AuditAction.USER_CREATED, saved.getId(), customer == null ? null : customer.getId(),
+                "Tạo tài khoản " + saved.getUsername() + " (" + roleLabel(saved.getRole()) + ")"
+                        + (customer == null ? "" : " cho " + customer.getName()), null);
+        return Response.from(saved);
     }
 
     @Transactional
@@ -80,6 +87,12 @@ public class UserService {
                 throw ApiException.badRequest("Hệ thống phải còn ít nhất một Quản lý xưởng đang hoạt động");
             }
         }
+        if (target.isEnabled() != enabled) {
+            auditService.record(enabled ? AuditAction.USER_UNLOCKED : AuditAction.USER_LOCKED, target.getId(),
+                    target.getCustomer() == null ? null : target.getCustomer().getId(),
+                    (enabled ? "Mở khóa tài khoản " : "Khóa tài khoản ") + target.getUsername() + " (" + roleLabel(target.getRole()) + ")",
+                    null);
+        }
         target.setEnabled(enabled);
         return Response.from(userRepository.save(target));
     }
@@ -91,6 +104,19 @@ public class UserService {
         // Ai đang đăng nhập bằng mật khẩu cũ đều bị đăng xuất
         target.setTokenVersion(target.getTokenVersion() + 1);
         userRepository.save(target);
+        auditService.record(AuditAction.USER_PASSWORD_RESET, target.getId(),
+                target.getCustomer() == null ? null : target.getCustomer().getId(),
+                "Đặt lại mật khẩu tài khoản " + target.getUsername() + " (" + roleLabel(target.getRole()) + ")", null);
+    }
+
+    private static String roleLabel(Role role) {
+        return switch (role) {
+            case WORKSHOP_ADMIN -> "Quản lý xưởng";
+            case WORKSHOP_ACCOUNTANT -> "Kế toán xưởng";
+            case DRIVER -> "Tài xế";
+            case CUSTOMER_STAFF -> "Nhân viên khách hàng";
+            case CUSTOMER_MANAGER -> "Quản lý khách hàng";
+        };
     }
 
     private User find(Long id) {

@@ -18,6 +18,7 @@ const Prices = lazy(() => import('./pages/Prices'))
 const Finance = lazy(() => import('./pages/Finance'))
 const Performance = lazy(() => import('./pages/Performance'))
 const RoutePlan = lazy(() => import('./pages/RoutePlan'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
 const Profile = lazy(() => import('./pages/Profile'))
 import { getSession } from './utils/auth'
 import type { Role } from './types'
@@ -115,6 +116,14 @@ export default function App() {
                   element={
                     <RoleRoute roles={['DRIVER']}>
                       <RoutePlan />
+                    </RoleRoute>
+                  }
+                />
+                <Route
+                  path="audit"
+                  element={
+                    <RoleRoute roles={['WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT']}>
+                      <AuditLog />
                     </RoleRoute>
                   }
                 />

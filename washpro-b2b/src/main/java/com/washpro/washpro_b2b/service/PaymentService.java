@@ -2,6 +2,8 @@ package com.washpro.washpro_b2b.service;
 
 import com.washpro.washpro_b2b.dto.FinanceDtos.PaymentRequest;
 import com.washpro.washpro_b2b.dto.FinanceDtos.PaymentResponse;
+import com.washpro.washpro_b2b.entity.AuditAction;
+import com.washpro.washpro_b2b.service.AuditService.Changes;
 import com.washpro.washpro_b2b.entity.Payment;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
@@ -28,6 +30,7 @@ public class PaymentService {
     private final ReportService reportService;
     private final CurrentUserService currentUserService;
     private final NotificationService notificationService;
+    private final AuditService auditService;
 
     @Transactional
     public PaymentResponse create(PaymentRequest request) {
@@ -51,6 +54,10 @@ public class PaymentService {
                 .createdBy(user.getUsername())
                 .build();
         Payment saved = paymentRepository.save(payment);
+        auditService.record(AuditAction.PAYMENT_RECORDED, saved.getId(), customer.getId(),
+                "Thu " + AuditService.money(amount) + " của " + customer.getName(),
+                new Changes().line("Ngày trả: " + AuditService.show(saved.getPaidDate())).line(saved.getNote() == null ? null : "Ghi chú: " + saved.getNote())
+                        .line("Công nợ trước khi thu: " + AuditService.money(balance)));
         notificationService.paymentRecorded(saved, user);
         return PaymentResponse.from(saved);
     }
@@ -67,6 +74,10 @@ public class PaymentService {
         payment.setVoidedBy(user.getUsername());
         payment.setVoidedAt(java.time.LocalDateTime.now());
         payment.setVoidReason(reason.trim());
+        auditService.record(AuditAction.PAYMENT_VOIDED, payment.getId(), payment.getCustomer().getId(),
+                "Hủy khoản thu " + AuditService.money(payment.getAmount()) + " của " + payment.getCustomer().getName(),
+                new Changes().line("Ngày trả: " + AuditService.show(payment.getPaidDate()) + ", người ghi nhận: " + payment.getCreatedBy())
+                        .line("Lý do hủy: " + payment.getVoidReason()));
         return PaymentResponse.from(paymentRepository.save(payment));
     }
 

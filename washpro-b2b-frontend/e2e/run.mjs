@@ -583,6 +583,16 @@ if (want('finance')) {
       expect(d.suggestedFilename().includes(file) && d.suggestedFilename().endsWith('.csv'), 'tên file: ' + d.suggestedFilename())
     }, page)
   }
+  await step('finance: nhật ký thay đổi ghi khoản thu và hủy thu vừa làm', async () => {
+    await page.goto(APP + '/audit')
+    await page.getByText('Thu tiền', { exact: true }).click()
+    await page.getByLabel('Tìm trong nhật ký').fill(`${TAG} chuyển khoản`)
+    const row = page.locator('tr, .ant-card').filter({ hasText: 'Thu 1.000 đ của Khách sạn Hoa Sen' }).first()
+    await row.waitFor()
+    await row.getByText('ketoan.mai').first().waitFor()
+    await page.getByLabel('Tìm trong nhật ký').fill('Ghi nhầm')
+    await page.locator('tr, .ant-card').filter({ hasText: 'Hủy khoản thu 1.000 đ của Khách sạn Hoa Sen' }).first().waitFor()
+  }, page)
   await step('finance: báo cáo hiệu suất theo khách và tài xế', async () => {
     await page.goto(APP + '/performance')
     await page.getByText('Giao đúng hạn').first().waitFor()

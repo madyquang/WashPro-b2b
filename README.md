@@ -292,6 +292,21 @@ Quy tắc:
 - Báo cáo CSV (UTF-8 có BOM, đã chặn CSV injection): công nợ theo khách, danh sách đơn, chi tiết từng dòng đồ giặt.
 - Doanh thu theo tháng tính theo thời điểm đơn hoàn thành.
 
+### Nhật ký thay đổi
+
+Trang **Nhật ký thay đổi** (quản lý xưởng, kế toán) ghi lại ai đã làm gì, lúc nào, giá trị cũ → mới:
+
+| Nhóm | Ghi lại |
+|---|---|
+| Bảng giá | Thêm / sửa (tên, nhóm, dịch vụ, đơn vị, đơn giá) / ẩn / áp dụng lại mục giá; đặt / bỏ giá riêng của khách |
+| Thu tiền | Ghi nhận thanh toán (kèm công nợ trước khi thu), hủy khoản thu (kèm lý do) |
+| Đơn hàng | Sửa chi tiết / đơn giá (dòng trước và sau, tổng tiền cũ → mới), đổi hạn trả, hủy đơn, xưởng chốt hoàn thành thay khách |
+| Khách hàng | Thêm, sửa (tên, loại, địa chỉ, liên hệ, thời gian trả đồ, kỳ thanh toán), ngừng / hợp tác lại |
+| Tài khoản | Tạo, khóa / mở khóa, đặt lại mật khẩu |
+
+Nhật ký ghi trong cùng giao dịch với thao tác (thao tác lỗi thì không có nhật ký), chỉ thêm, không sửa / xóa được qua
+ứng dụng. Lọc theo nhóm, khoảng ngày, tìm theo người / tên khách / mã đơn / nội dung.
+
 ### Cài lên điện thoại (PWA)
 
 Giao diện là ứng dụng web cài được (PWA): trên Android (Chrome / Edge) dùng nút **Cài ứng dụng** trong trang Tài khoản
@@ -419,6 +434,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Đơn hàng | `GET/POST /orders` (xem bên dưới), `GET /orders/{id}`, `PUT /orders/{id}/approve`, `/discrepancy`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `DELETE /orders/{id}` |
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
+| Nhật ký thay đổi | `GET /audit?category=&q=&from=&to=&customerId=&page=&size=` (quản lý xưởng, kế toán) |
 | Thông báo đẩy | `GET /push/public-key`, `POST /push/subscriptions` (dạng `PushSubscription.toJSON()`), `POST /push/subscriptions/remove` |
 | Thông báo | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 | Lộ trình | `GET /routes?date=&driverId=` (tài xế xem của mình; quản lý xưởng truyền `driverId`) |
@@ -467,6 +483,7 @@ Hiện có 18 test đơn vị và 7 test tích hợp. Test tích hợp dùng H2 
 | `VietnameseNumberWordsTest` | Đọc số tiền bằng chữ (linh, mười, mốt, tư, lăm, không trăm, tỷ...) |
 | `PerformanceApiIntegrationTest` | Báo cáo hiệu suất: đúng hạn / trễ hạn, sai lệch, sự cố nhận, giá trị đơn, đáp ứng lấy đồ; theo khách và tài xế; quản lý phía khách chỉ thấy khách mình; kiểm tra khoảng ngày và quyền |
 | `AttachmentApiIntegrationTest` | Ảnh / chữ ký: loại được đính kèm theo vai trò, ngoài phạm vi đơn trả 404 (cả file), chỉ nhận ảnh thật, xóa cả file trên đĩa, chỉ người tải lên / quản lý xưởng được xóa |
+| `AuditApiIntegrationTest` | Nhật ký: đúng người / vai trò, giá trị cũ → mới (đơn giá, tổng tiền, hạn trả, bảng giá, giá riêng, kỳ thanh toán), thao tác lỗi không để lại nhật ký, lọc theo nhóm / từ khóa / khách, chỉ phía xưởng xem được |
 | `PushApiIntegrationTest` | Thông báo đẩy tới máy chủ push giả: chữ ký VAPID hợp lệ, thiết bị giải mã ra đúng nội dung, thiết bị đã hủy (410) bị xóa, đăng xuất mọi thiết bị thì không gửi nữa, người khác không tắt được thiết bị của mình |
 | `WebPushCryptoTest` / `PushEndpointTest` | Mã hóa khớp ví dụ chuẩn RFC 8291; chỉ chấp nhận máy chủ push chính thống (chặn SSRF) |
 | `NotificationApiIntegrationTest` | Đúng người nhận theo sự kiện (không gửi cho người gây ra, khách khác, tài khoản khóa), đọc / đọc hết, không đánh dấu được thông báo của người khác, bản tin hằng ngày không gửi trùng |
@@ -482,9 +499,9 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(61 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
+(63 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, tài xế nhận việc, xem lộ trình và tạo đơn (kèm ảnh, chữ ký khách), khách xác nhận /
 báo sai lệch, xưởng điều phối (mở lại, đổi hạn, giao, giao bù, hủy, in phiếu), khách nhận đồ / báo thiếu, kế toán nhập giá
-/ thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị, PWA (manifest, icon; trên bản build: mất mạng vẫn mở được ứng dụng). Ngoài kết quả từng
+/ thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, nhật ký thay đổi, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị, PWA (manifest, icon; trên bản build: mất mạng vẫn mở được ứng dụng). Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 
 ```powershell

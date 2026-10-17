@@ -5,6 +5,7 @@ import type { MenuProps } from 'antd'
 import {
   AppstoreOutlined,
   DownloadOutlined,
+  AuditOutlined,
   BarChartOutlined,
   CarOutlined,
   DollarOutlined,
@@ -70,6 +71,7 @@ function navFor(role: Role): NavGroup[] {
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/customers', icon: <ShopOutlined />, label: 'Khách hàng' })
   if (canManagePrices(role)) manage.push({ key: '/prices', icon: <TagsOutlined />, label: 'Bảng giá' })
   if (role === 'WORKSHOP_ADMIN') manage.push({ key: '/accounts', icon: <TeamOutlined />, label: 'Tài khoản' })
+  if (role === 'WORKSHOP_ADMIN' || role === 'WORKSHOP_ACCOUNTANT') manage.push({ key: '/audit', icon: <AuditOutlined />, label: 'Nhật ký thay đổi' })
   const finance: NavItem[] = canViewFinance(role)
     ? [
         { key: '/finance', icon: <DollarOutlined />, label: customer ? 'Công nợ' : 'Công nợ & thanh toán', short: 'Công nợ' },

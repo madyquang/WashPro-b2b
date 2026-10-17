@@ -182,6 +182,24 @@ export interface PaymentQr {
   image: string
 }
 
+export type AuditCategory = 'PRICE' | 'PAYMENT' | 'ORDER' | 'CUSTOMER' | 'ACCOUNT'
+
+/** Một dòng nhật ký thay đổi. */
+export interface AuditEntry {
+  id: number
+  createdAt: string
+  actor: string
+  actorRole: string
+  category: AuditCategory
+  action: string
+  actionLabel: string
+  entityId: number | null
+  customerId: number | null
+  summary: string
+  /** Giá trị cũ → mới, mỗi thay đổi một dòng. */
+  details: string | null
+}
+
 export type AttachmentKind = 'PICKUP_PHOTO' | 'PICKUP_SIGNATURE' | 'DELIVERY_PHOTO' | 'DELIVERY_SIGNATURE' | 'ISSUE_PHOTO'
 
 export const ATTACHMENT_LABELS: Record<AttachmentKind, string> = {
