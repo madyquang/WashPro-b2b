@@ -62,13 +62,20 @@ jobs:
           docker compose up -d --build
       - name: Chờ backend sẵn sàng
         run: |
+          # Chờ backend sinh xong dữ liệu demo và tạo tài khoản quản lý rồi mới đăng nhập thử:
+          # đăng nhập dồn dập khi tài khoản chưa có sẽ bị khóa tạm 5 phút (chống dò mật khẩu)
           for i in $(seq 1 90); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/login \
-              -H 'Content-Type: application/json' -d '{"username":"admin","password":"11111111"}' || true)
-            [ "$code" = "200" ] && echo "Sẵn sàng sau ${i}x2s" && exit 0
+            if docker compose logs backend | grep -q "Đã tạo tài khoản Quản lý xưởng đầu tiên"; then
+              code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/login \
+                -H 'Content-Type: application/json' -d '{"username":"admin","password":"11111111"}' || true)
+              [ "$code" = "200" ] && echo "Sẵn sàng sau ${i}x2s" && exit 0
+              echo "Đăng nhập thử qua nginx trả về HTTP $code"
+              break
+            fi
             sleep 2
           done
           docker compose logs backend | tail -100
+          docker compose logs frontend | tail -30
           exit 1
       - uses: actions/setup-node@v4
         with:
