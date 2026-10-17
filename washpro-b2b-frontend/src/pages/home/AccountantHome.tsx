@@ -37,7 +37,7 @@ export default function AccountantHome() {
       const [d, o] = await Promise.all([
         axiosClient.get<Dashboard>('/dashboard'),
         // Máy chủ chưa lọc được theo "thiếu giá": lấy các đơn chưa hoàn thành (hạn trả gần trước) rồi lọc tại đây
-        axiosClient.get<OrderPage>('/orders', { params: { status: 'WASHING,DELIVERY_ISSUE,PENDING_CONFIRM,DISCREPANCY', sort: 'DUE', size: 100 } }),
+        axiosClient.get<OrderPage>('/orders', { params: { status: 'RECEIVED,WASHING,WASHED,DELIVERY_ISSUE', sort: 'DUE', size: 100 } }),
       ])
       setData(d.data)
       setNeedPrice(o.data.content.filter((x) => !x.billable))

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Button, Card, Dropdown, Popconfirm, Space, Tooltip, Typography } from 'antd'
-import { MoreOutlined, PhoneOutlined } from '@ant-design/icons'
+import { CarOutlined, EnvironmentOutlined, MoreOutlined, PhoneOutlined, WarningOutlined } from '@ant-design/icons'
 import CategoryTag from '../../components/CategoryTag'
 import DueTag from '../../components/DueTag'
 import StatusTag from '../../components/StatusTag'
@@ -8,8 +8,8 @@ import ToneTag from '../../components/ToneTag'
 import { getSession, isCustomerRole } from '../../utils/auth'
 import { groupByCategory } from '../../utils/catalog'
 import { telHref } from '../../utils/company'
-import { formatCurrency, formatDateTime } from '../../utils/format'
-import type { Order } from '../../types'
+import { formatCurrency, formatDate, formatDateTime, todayIso } from '../../utils/format'
+import { isPickupStage, TIME_SLOT_LABELS, type Order } from '../../types'
 import type { OrderAction } from './useOrderActions'
 
 /** Một nút thao tác (kèm hỏi lại nếu cần). */
@@ -94,7 +94,8 @@ interface CardProps {
   order: Order
   actions: OrderAction[]
   busy?: boolean
-  onDetail: () => void
+  /** Không truyền: ẩn nút Chi tiết (VD yêu cầu đã hủy). */
+  onDetail?: () => void
   /** Hiện số tiền (chỉ vai trò được xem tiền). */
   showMoney?: boolean
   /** Ẩn tên khách hàng (tài khoản phía khách: luôn là đơn của chính họ). */
@@ -105,27 +106,97 @@ interface CardProps {
   onMenuAction?: (a: OrderAction) => void
 }
 
+/** "Hôm nay" / "Ngày mai" / ngày cụ thể. */
+export function whenLabel(date: string) {
+  const today = todayIso()
+  if (date === today) return 'Hôm nay'
+  const t = new Date(`${today}T00:00:00`)
+  t.setDate(t.getDate() + 1)
+  const tomorrow = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  return date === tomorrow ? 'Ngày mai' : formatDate(date)
+}
+
+const mapsUrl = (address: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+
+/** Dòng tóm tắt dưới tiêu đề: yêu cầu chưa lấy thì ngày hẹn; đã lấy thì số túi, tài xế, lúc nhận. */
+function metaLine(o: Order, hideCustomer?: boolean) {
+  // Tài xế không cần thấy tên chính mình trên việc của mình
+  const me = getSession()?.username
+  if (o.driverUsername === me || o.deliveryDriverUsername === me) {
+    return isPickupStage(o) && o.preferredDate
+      ? `${whenLabel(o.preferredDate)} · ${o.timeSlot ? TIME_SLOT_LABELS[o.timeSlot] : ''}`
+      : [o.totalBags != null ? `${o.totalBags} túi` : null, o.receivedAt ? `nhận ${formatDateTime(o.receivedAt)}` : null].filter(Boolean).join(' · ')
+  }
+  if (isPickupStage(o)) {
+    const when = o.preferredDate ? `${whenLabel(o.preferredDate)} · ${o.timeSlot ? TIME_SLOT_LABELS[o.timeSlot] : ''}` : ''
+    return o.driverName ? `${when} · tài xế ${o.driverName}` : when
+  }
+  const driver = o.deliveryDriverName ?? o.driverName
+  return [
+    o.totalBags != null ? `${o.totalBags} túi` : null,
+    driver ? (hideCustomer ? `tài xế ${driver}` : driver) : null,
+    o.receivedAt ? `nhận ${formatDateTime(o.receivedAt)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 /** Thẻ đơn: thông tin cần để quyết định + đủ nút thao tác, dùng trên điện thoại và trang chủ các vai trò. */
 export function OrderCard({ order: o, actions, busy, onDetail, showMoney, hideCustomer, hint, onMenuAction }: CardProps) {
   const main = onMenuAction ? actions.find((a) => a.primary) : undefined
   const rest = onMenuAction ? actions.filter((a) => a !== main) : []
+  const pickup = isPickupStage(o)
+  const role = getSession()?.role
+  // Tài xế ngoài đường: chỉ đường tới khách khi đi lấy hoặc đi giao
+  const showMap = role === 'DRIVER' && !!o.customerAddress && (pickup || o.status === 'WASHED' || o.status === 'DELIVERING')
+  const flagged = o.overdue || o.pickupLate
   return (
-    <Card className={o.overdue ? 'order-card is-flagged' : 'order-card'}>
+    <Card className={flagged ? 'order-card is-flagged' : 'order-card'}>
       <div className="order-card-head">
         <div style={{ minWidth: 0 }}>
-          <div className="order-card-title">{hideCustomer ? `Đơn #${o.id}` : `#${o.id} · ${o.customerName}`}</div>
-          <div className="order-card-meta">
-            {o.totalBags} túi · {hideCustomer ? `tài xế ${o.driverName}` : o.driverName} · nhận {formatDateTime(o.createdAt)}
-          </div>
+          <div className="order-card-title">{hideCustomer ? `${pickup ? 'Yêu cầu' : 'Đơn'} #${o.id}` : `#${o.id} · ${o.customerName}`}</div>
+          <div className="order-card-meta">{metaLine(o, hideCustomer)}</div>
         </div>
         <StatusTag status={o.status} />
       </div>
-      <Space size={[4, 4]} wrap className="mt-2">
-        {groupByCategory(o.items).map((g) => (
-          <CategoryTag key={g.category} category={g.category} />
-        ))}
-        {o.status !== 'COMPLETED' && o.dueAt && <DueTag order={o} />}
-      </Space>
+      {pickup ? (
+        <div className="pickup-body mt-2">
+          {o.pickupLate && (
+            <Typography.Text type="danger" strong>
+              <WarningOutlined aria-hidden /> Quá ngày hẹn lấy
+            </Typography.Text>
+          )}
+          {!hideCustomer && o.customerAddress && (
+            <span>
+              <EnvironmentOutlined aria-hidden /> {o.customerAddress}
+            </span>
+          )}
+          {o.estimatedBags != null && (
+            <span>
+              <CarOutlined aria-hidden /> Khoảng {o.estimatedBags} túi
+            </span>
+          )}
+          {o.pickupNote && <div className="pickup-note pre-wrap">“{o.pickupNote}”</div>}
+        </div>
+      ) : (
+        <Space size={[4, 4]} wrap className="mt-2">
+          {groupByCategory(o.items).map((g) => (
+            <CategoryTag key={g.category} category={g.category} />
+          ))}
+          {o.status !== 'COMPLETED' && o.dueAt && <DueTag order={o} />}
+        </Space>
+      )}
+      {showMap && !pickup && (
+        <div className="order-card-meta mt-2">
+          <EnvironmentOutlined aria-hidden /> {o.customerAddress}
+        </div>
+      )}
+      {o.cancelledBy && (
+        <Typography.Text type="secondary" className="mt-2" style={{ display: 'block' }}>
+          Hủy bởi {o.cancelledBy}
+          {o.cancelReason && `: ${o.cancelReason}`}
+        </Typography.Text>
+      )}
       {showMoney && o.items.length > 0 && (
         <div className="mt-2">
           <Typography.Text strong>{formatCurrency(o.totalAmount)}</Typography.Text> {!o.billable && <ToneTag tone="orange">thiếu giá</ToneTag>}
@@ -133,10 +204,17 @@ export function OrderCard({ order: o, actions, busy, onDetail, showMoney, hideCu
       )}
       {hint && <div className="order-card-hint">{hint}</div>}
       <div className="order-card-actions">
-        <Button size="middle" onClick={onDetail}>
-          Chi tiết
-        </Button>
-        <CallCustomer order={o} />
+        {onDetail && (
+          <Button size="middle" onClick={onDetail}>
+            Chi tiết
+          </Button>
+        )}
+        {!o.cancelledBy && <CallCustomer order={o} />}
+        {showMap && o.customerAddress && (
+          <Button size="middle" icon={<EnvironmentOutlined />} href={mapsUrl(o.customerAddress)} target="_blank" rel="noreferrer">
+            Chỉ đường
+          </Button>
+        )}
         {onMenuAction ? (
           <>
             {main && <ActionButton action={main} busy={busy} block />}
@@ -178,13 +256,13 @@ export function OrderRow({
   hint?: ReactNode
 }) {
   return (
-    <div className={o.overdue ? 'order-row is-flagged' : 'order-row'}>
+    <div className={o.overdue || o.pickupLate ? 'order-row is-flagged' : 'order-row'}>
       <div className="order-row-main">
         <div className="order-card-title">
           #{o.id} · {o.customerName}
         </div>
         <div className="order-card-meta">
-          {o.totalBags} túi · {groupByCategory(o.items).map((g) => g.label).join(', ') || 'chưa có chi tiết'}
+          {isPickupStage(o) ? metaLine(o) : `${o.totalBags} túi · ${groupByCategory(o.items).map((g) => g.label).join(', ') || 'chưa có chi tiết'}`}
           {hint && <> · {hint}</>}
         </div>
       </div>

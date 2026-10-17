@@ -8,6 +8,7 @@ import {
   ClockCircleOutlined,
   DollarOutlined,
   ExclamationCircleOutlined,
+  InboxOutlined,
   ReloadOutlined,
   UserAddOutlined,
   WalletOutlined,
@@ -22,12 +23,11 @@ import { STATUS_TONES, type StatusTone } from '../../theme'
 import { OrderCard, OrderRow } from '../orders/OrderCard'
 import { orderHint } from '../orders/hints'
 import { useOrderActions } from '../orders/useOrderActions'
-import { usePickupActions } from '../pickups/usePickupActions'
 import { CardGrid, Section, StatusStrip } from './HomeParts'
 import { greetingFor, todayLabel } from './greeting'
 import { getSession } from '../../utils/auth'
-import { formatCurrency, getErrorMessage, todayIso } from '../../utils/format'
-import type { Dashboard, Order, OrderPage, PickupRequest } from '../../types'
+import { formatCurrency, getErrorMessage } from '../../utils/format'
+import type { Dashboard, Order, OrderPage } from '../../types'
 
 /** Số việc tối đa trong khung "Đơn cần xử lý". */
 const ATTENTION_LIMIT = 8
@@ -43,14 +43,15 @@ interface Chip {
 
 /**
  * Trang chủ Quản lý xưởng (bảng điều phối, dùng trên máy tính): việc tồn đọng lên đầu thành các chip bấm được,
- * đơn cần xử lý có nút làm ngay, yêu cầu lấy đồ chưa có tài xế phân công ngay tại đây.
+ * đơn cần xử lý (bắt đầu giặt, giặt xong, phân công giao, sự cố) có nút làm ngay, yêu cầu chưa có tài xế phân công
+ * ngay tại đây.
  */
 export default function AdminHome() {
   const session = getSession()
   const navigate = useNavigate()
   const screens = Grid.useBreakpoint()
   const [data, setData] = useState<Dashboard | null>(null)
-  const [pickups, setPickups] = useState<PickupRequest[]>([])
+  const [pickups, setPickups] = useState<Order[]>([])
   const [attention, setAttention] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,12 +65,12 @@ export default function AdminHome() {
         axiosClient.get<OrderPage>('/orders', { params: { sort: 'DUE', size: ATTENTION_LIMIT, ...params } }).then((r) => r.data.content)
       const [d, p, byStatus, overdue] = await Promise.all([
         axiosClient.get<Dashboard>('/dashboard'),
-        axiosClient.get<PickupRequest[]>('/pickups'),
-        top({ status: 'DISCREPANCY,DELIVERY_ISSUE,WASHING,DELIVERING' }),
+        axiosClient.get<OrderPage>('/orders', { params: { status: 'PICKUP_PENDING,PICKUP_ASSIGNED', sort: 'PICKUP', size: 100 } }),
+        top({ status: 'RECEIVED,WASHED,DELIVERY_ISSUE,WASHING,DELIVERING' }),
         top({ overdue: true }),
       ])
       setData(d.data)
-      setPickups(p.data)
+      setPickups(p.data.content)
       // Gộp hai danh sách: đơn trễ hạn lên đầu, rồi theo hạn trả gần nhất
       const merged = new Map([...overdue, ...byStatus].map((o) => [o.id, o]))
       setAttention(
@@ -89,7 +90,6 @@ export default function AdminHome() {
   }, [load])
 
   const orderActions = useOrderActions(load)
-  const pickupActions = usePickupActions(load)
 
   // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
   if (!session) return null
@@ -101,7 +101,7 @@ export default function AdminHome() {
       actions={
         <>
           <Button icon={<ReloadOutlined />} onClick={load} loading={loading} aria-label="Làm mới" />
-          <Button icon={<UserAddOutlined />} onClick={pickupActions.openCreate}>
+          <Button icon={<UserAddOutlined />} onClick={orderActions.openCreate}>
             Tạo yêu cầu hộ khách
           </Button>
           <Button type="primary" icon={<CarOutlined />} onClick={() => navigate('/pickups')}>
@@ -118,27 +118,28 @@ export default function AdminHome() {
         {header}
         <LoadError error={error} onRetry={load} />
         {loading && <Skeleton active paragraph={{ rows: 10 }} />}
-        {pickupActions.ui}
+        {orderActions.ui}
       </>
     )
   }
 
-  const today = todayIso()
-  const unassigned = pickups.filter((p) => p.status === 'OPEN').sort((a, b) => a.preferredDate.localeCompare(b.preferredDate))
-  const latePickups = pickups.filter((p) => p.status === 'ACCEPTED' && p.preferredDate < today).length
+  const unassigned = pickups.filter((p) => p.status === 'PICKUP_PENDING')
+  const latePickups = pickups.filter((p) => p.pickupLate).length
+  const counts = data.countsByStatus
 
   const chips: Chip[] = [
     { key: 'overdue', count: data.overdueOrders, label: 'đơn trễ hạn trả', tone: 'red', icon: <WarningOutlined />, to: '/orders?overdue=1' },
     { key: 'unassigned', count: unassigned.length, label: 'yêu cầu chưa có tài xế', tone: 'gold', icon: <CarOutlined />, to: '/pickups?tab=open' },
-    { key: 'latePickup', count: latePickups, label: 'việc lấy đồ quá ngày hẹn', tone: 'orange', icon: <ClockCircleOutlined />, to: '/pickups?tab=assigned' },
-    { key: 'discrepancy', count: data.countsByStatus.DISCREPANCY ?? 0, label: 'đơn có sai lệch', tone: 'red', icon: <ExclamationCircleOutlined />, to: '/orders?status=DISCREPANCY' },
-    { key: 'issue', count: data.countsByStatus.DELIVERY_ISSUE ?? 0, label: 'sự cố giao trả', tone: 'orange', icon: <WarningOutlined />, to: '/orders?status=DELIVERY_ISSUE' },
+    { key: 'latePickup', count: latePickups, label: 'việc lấy đồ quá ngày hẹn', tone: 'orange', icon: <ClockCircleOutlined />, to: '/pickups?tab=open' },
+    { key: 'received', count: counts.RECEIVED ?? 0, label: 'đơn đang về xưởng, chờ bắt đầu giặt', tone: 'purple', icon: <InboxOutlined />, to: '/orders?status=RECEIVED' },
+    { key: 'washed', count: counts.WASHED ?? 0, label: 'đơn giặt xong chờ giao', tone: 'teal', icon: <ExclamationCircleOutlined />, to: '/pickups?tab=deliver' },
+    { key: 'issue', count: counts.DELIVERY_ISSUE ?? 0, label: 'sự cố giao trả', tone: 'orange', icon: <WarningOutlined />, to: '/orders?status=DELIVERY_ISSUE' },
   ].filter((c) => c.count > 0) as Chip[]
 
   const kpis: Stat[] = [
     { key: 'dueToday', icon: <ClockCircleOutlined />, tone: 'orange', label: 'Hạn trả trong hôm nay', value: data.dueToday, to: '/orders?status=WASHING' },
-    { key: 'washing', icon: <ExclamationCircleOutlined />, tone: 'blue', label: 'Đang giặt', value: data.countsByStatus.WASHING ?? 0, to: '/orders?status=WASHING' },
-    { key: 'delivering', icon: <CarOutlined />, tone: 'teal', label: 'Đang giao', value: data.countsByStatus.DELIVERING ?? 0, to: '/orders?status=DELIVERING' },
+    { key: 'washing', icon: <ExclamationCircleOutlined />, tone: 'blue', label: 'Đang giặt', value: counts.WASHING ?? 0, to: '/orders?status=WASHING' },
+    { key: 'delivering', icon: <CarOutlined />, tone: 'teal', label: 'Đang giao trả', value: counts.DELIVERING ?? 0, to: '/pickups?tab=delivering' },
     { key: 'today', icon: <CalendarOutlined />, tone: 'navy', label: 'Đơn nhận hôm nay', value: data.ordersToday, hint: `${data.totalOrders} đơn đang theo dõi` },
   ]
 
@@ -225,7 +226,18 @@ export default function AdminHome() {
             {unassigned.length === 0 ? (
               <EmptyState compact description="Mọi yêu cầu lấy đồ đều đã có tài xế." />
             ) : (
-              <div className="card-stack">{unassigned.slice(0, 2).map((p) => pickupActions.cardFor(p))}</div>
+              <div className="card-stack">
+                {unassigned.slice(0, 2).map((o) => (
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    actions={orderActions.actionsFor(o)}
+                    busy={orderActions.busyId === o.id}
+                    onDetail={() => orderActions.openDetail(o.id)}
+                    onMenuAction={orderActions.runFromMenu}
+                  />
+                ))}
+              </div>
             )}
           </Section>
         </Col>
@@ -240,7 +252,6 @@ export default function AdminHome() {
       </Section>
 
       {orderActions.ui}
-      {pickupActions.ui}
     </>
   )
 }

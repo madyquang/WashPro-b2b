@@ -54,8 +54,8 @@ function navFor(role: Role): NavGroup[] {
   const ops: NavItem[] = driver
     ? [
         { key: '/', icon: <HomeOutlined />, label: 'Việc hôm nay', short: 'Hôm nay' },
-        { key: '/pickups', icon: <CarOutlined />, label: 'Việc lấy đồ', short: 'Lấy đồ' },
-        { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn đã tạo', short: 'Đơn đã tạo' },
+        { key: '/pickups', icon: <CarOutlined />, label: 'Việc lấy & giao', short: 'Lấy & giao' },
+        { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn của tôi', short: 'Đơn' },
         { key: '/route', icon: <NodeIndexOutlined />, label: 'Lộ trình', short: 'Lộ trình' },
       ]
     : customer
@@ -66,7 +66,7 @@ function navFor(role: Role): NavGroup[] {
         ]
       : [
           { key: '/', icon: <AppstoreOutlined />, label: role === 'WORKSHOP_ADMIN' ? 'Điều phối' : 'Tổng quan', short: 'Tổng quan' },
-          { key: '/pickups', icon: <CarOutlined />, label: 'Lấy đồ', short: 'Lấy đồ' },
+          { key: '/pickups', icon: <CarOutlined />, label: 'Lấy & giao', short: 'Lấy & giao' },
           { key: '/orders', icon: <FileTextOutlined />, label: 'Đơn hàng', short: 'Đơn hàng' },
         ]
   const manage: NavItem[] = []

@@ -8,8 +8,6 @@ import com.washpro.washpro_b2b.entity.OrderHistory;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.Payment;
-import com.washpro.washpro_b2b.entity.PickupRequest;
-import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
@@ -20,7 +18,6 @@ import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.ServicePriceRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
@@ -59,6 +56,7 @@ public class DemoDataRunner implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DemoDataRunner.class);
     static final String PASSWORD = "11111111";
     private static final String MARKER_CUSTOMER = "Khách sạn Hoa Sen";
+    private static final java.time.format.DateTimeFormatter DAY = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ServicePriceRepository priceRepository;
     private final CustomerPriceRepository customerPriceRepository;
@@ -66,7 +64,6 @@ public class DemoDataRunner implements ApplicationRunner {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final PickupRequestRepository pickupRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbc;
 
@@ -78,14 +75,10 @@ public class DemoDataRunner implements ApplicationRunner {
 
     /** Tên đăng nhập Quản lý xưởng thật (ghi vào nhật ký đơn). */
     private String adminUser = "admin";
-    /** Khách demo → tài khoản quản lý phía khách; đơn demo đang xử lý (để gắn yêu cầu lấy đồ). */
-    private final Map<Long, String> managerOf = new HashMap<>();
-    private final List<Order> activeOrders = new ArrayList<>();
 
     public DemoDataRunner(ServicePriceRepository priceRepository, CustomerPriceRepository customerPriceRepository,
             CustomerRepository customerRepository, UserRepository userRepository, OrderRepository orderRepository,
-            PaymentRepository paymentRepository, PickupRequestRepository pickupRepository,
-            PasswordEncoder passwordEncoder, JdbcTemplate jdbc,
+            PaymentRepository paymentRepository, PasswordEncoder passwordEncoder, JdbcTemplate jdbc,
             @Value("${app.demo-data.enabled:false}") String mode) {
         this.mode = mode == null ? "false" : mode.trim();
         this.priceRepository = priceRepository;
@@ -94,7 +87,6 @@ public class DemoDataRunner implements ApplicationRunner {
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
-        this.pickupRepository = pickupRepository;
         this.passwordEncoder = passwordEncoder;
         this.jdbc = jdbc;
     }
@@ -137,7 +129,7 @@ public class DemoDataRunner implements ApplicationRunner {
             orderCount += seedOrders(p, r, catalog, drivers, now, completed);
             paymentCount += seedPayments(p, r, completed, now.toLocalDate());
         }
-        int pickups = seedPickups(drivers, now);
+        int pickups = seedRequests(drivers, now);
         log.info("Đã sinh dữ liệu demo: {} khách hàng, {} đơn, {} khoản thanh toán, {} yêu cầu lấy đồ. Mật khẩu: {}",
                 profiles.size(), orderCount, paymentCount, pickups, PASSWORD);
     }
@@ -151,7 +143,6 @@ public class DemoDataRunner implements ApplicationRunner {
         if (!customers.isEmpty()) {
             String ids = String.join(",", customers.stream().map(String::valueOf).toList());
             String orders = "SELECT id FROM orders WHERE customer_id IN (" + ids + ")";
-            jdbc.update("DELETE FROM pickup_requests WHERE customer_id IN (" + ids + ")");
             jdbc.update("DELETE FROM order_history WHERE order_id IN (" + orders + ")");
             jdbc.update("DELETE FROM order_items WHERE order_id IN (" + orders + ")");
             jdbc.update("DELETE FROM orders WHERE customer_id IN (" + ids + ")");
@@ -270,7 +261,6 @@ public class DemoDataRunner implements ApplicationRunner {
                 .paymentTermDays(p.term())
                 .build());
         user(p.managerUser(), p.contact().split(" - ")[0], p.phone(), Role.CUSTOMER_MANAGER, r);
-        managerOf.put(r.getId(), p.managerUser());
         if (p.staffUser() != null) {
             user(p.staffUser(), "Nhân viên " + p.name(), null, Role.CUSTOMER_STAFF, r);
         }
@@ -307,20 +297,22 @@ public class DemoDataRunner implements ApplicationRunner {
         }
         // Đơn đang xử lý: mỗi khách vài đơn ở các trạng thái khác nhau
         OrderStatus[] active = switch (p.habit()) {
-            case ON_TIME -> new OrderStatus[] { OrderStatus.WASHING, OrderStatus.DELIVERING, OrderStatus.PENDING_CONFIRM };
-            case LATE -> new OrderStatus[] { OrderStatus.WASHING, OrderStatus.DISCREPANCY };
+            case ON_TIME -> new OrderStatus[] { OrderStatus.WASHING, OrderStatus.DELIVERING, OrderStatus.RECEIVED,
+                    OrderStatus.WASHED };
+            case LATE -> new OrderStatus[] { OrderStatus.WASHING, OrderStatus.RECEIVED };
             case BAD -> new OrderStatus[] { OrderStatus.DELIVERY_ISSUE, OrderStatus.WASHING };
         };
         for (int i = 0; i < active.length; i++) {
             OrderStatus s = active[i];
             boolean late = s == OrderStatus.WASHING && i == 0 && p.turnaround() <= 24; // khách sạn 24h: 1 đơn trễ hạn
             double hoursAgo = switch (s) {
-                case PENDING_CONFIRM, DISCREPANCY -> 1 + rnd.nextInt(5);
+                case RECEIVED -> 1 + rnd.nextInt(3);
                 case WASHING -> late ? p.turnaround() + 6 : 6 + rnd.nextInt(10);
+                case WASHED -> Math.max(8, p.turnaround() - 8);
                 case DELIVERING -> p.turnaround() - 4;
                 default -> p.turnaround() + 10;
             };
-            activeOrders.add(createOrder(p, r, catalog, custom, drivers, now.minusMinutes((long) (hoursAgo * 60)), s, late));
+            createOrder(p, r, catalog, custom, drivers, now.minusMinutes((long) (hoursAgo * 60)), s, late);
             count++;
         }
         return count;
@@ -329,16 +321,27 @@ public class DemoDataRunner implements ApplicationRunner {
     private Order createOrder(Profile p, Customer r, Map<String, ServicePrice> catalog, Map<Long, BigDecimal> custom,
             List<User> drivers, LocalDateTime pickup, OrderStatus target, boolean late) {
         User driver = drivers.get(rnd.nextInt(drivers.size()));
+        User deliveryDriver = drivers.get(rnd.nextInt(drivers.size()));
         String admin = adminUser;
         String manager = p.managerUser();
+        // Khách gửi yêu cầu từ chiều hôm trước hoặc sáng sớm cùng ngày
+        LocalDateTime requested = pickup.minusHours(2 + rnd.nextInt(16));
 
         Order order = Order.builder()
                 .driver(driver)
                 .customer(r)
                 .status(target)
                 .totalBags(2 + rnd.nextInt(7))
+                .requestedBy(manager)
+                .preferredDate(pickup.toLocalDate())
+                .timeSlot(pickup.getHour() < 11 ? TimeSlot.MORNING : TimeSlot.ANYTIME)
+                .receivedAt(pickup)
                 .dueAt(pickup.plusHours(p.turnaround()))
                 .build();
+        order.setEstimatedBags(order.getTotalBags());
+        if (target.ordinal() >= OrderStatus.DELIVERING.ordinal()) {
+            order.setDeliveryDriver(deliveryDriver);
+        }
 
         // 2–4 món trong danh sách món hay gửi của khách
         List<String> pool = new ArrayList<>(p.items());
@@ -365,25 +368,30 @@ public class DemoDataRunner implements ApplicationRunner {
 
         // Nhật ký theo đúng quy trình, kèm mốc thời gian
         List<LocalDateTime> times = new ArrayList<>();
-        order.addHistory(null, OrderStatus.PENDING_CONFIRM, driver.getUsername(),
-                "Tài xế tạo đơn (" + order.getTotalBags() + " túi): " + items);
+        order.addHistory(null, OrderStatus.PICKUP_PENDING, manager, "Yêu cầu lấy đồ ngày " + DAY.format(pickup));
+        times.add(requested);
+        order.addHistory(OrderStatus.PICKUP_PENDING, OrderStatus.PICKUP_ASSIGNED, driver.getUsername(),
+                "Tài xế " + driver.getDisplayName() + " nhận việc lấy đồ");
+        times.add(requested.plusMinutes(20 + rnd.nextInt(60)));
+        order.addHistory(OrderStatus.PICKUP_ASSIGNED, OrderStatus.RECEIVED, driver.getUsername(),
+                "Tài xế nhận đồ, khách đã ký xác nhận (" + order.getTotalBags() + " túi): " + items);
         times.add(pickup);
         LocalDateTime t = pickup;
-        if (target == OrderStatus.DISCREPANCY) {
-            order.addHistory(OrderStatus.PENDING_CONFIRM, OrderStatus.DISCREPANCY, manager,
-                    "Báo sai lệch: " + summary.get(0).split(" ")[0] + " thiếu 2 cái so với phiếu. Kiểm lại kho thấy thiếu");
-            order.setDescription("Khách báo thiếu 2 món so với phiếu, chờ đối chiếu");
-            times.add(t.plusMinutes(40));
+        if (target.ordinal() >= OrderStatus.WASHING.ordinal()) {
+            t = t.plusMinutes(60 + rnd.nextInt(90));
+            order.addHistory(OrderStatus.RECEIVED, OrderStatus.WASHING, admin, "Xưởng nhận đồ, bắt đầu giặt");
+            times.add(t);
         }
-        if (target.ordinal() >= OrderStatus.WASHING.ordinal() && target != OrderStatus.DISCREPANCY) {
-            t = t.plusMinutes(30 + rnd.nextInt(90));
-            order.addHistory(OrderStatus.PENDING_CONFIRM, OrderStatus.WASHING, manager,
-                    "Khách hàng xác nhận số lượng: " + order.getTotalBags() + " túi, " + items + ". Chuyển xưởng giặt");
+        if (target.ordinal() >= OrderStatus.WASHED.ordinal()) {
+            t = pickup.plusHours(Math.max(4, p.turnaround() - 8 - rnd.nextInt(4)));
+            order.addHistory(OrderStatus.WASHING, OrderStatus.WASHED, admin,
+                    "Giặt xong, đã kiểm lại số lượng: " + order.getTotalBags() + " túi, " + items);
             times.add(t);
         }
         if (target.ordinal() >= OrderStatus.DELIVERING.ordinal()) {
-            t = pickup.plusHours(Math.max(4, p.turnaround() - 6 - rnd.nextInt(6)));
-            order.addHistory(OrderStatus.WASHING, OrderStatus.DELIVERING, admin, "Chuyển sang \"Đang giao\"");
+            t = t.plusMinutes(30 + rnd.nextInt(90));
+            order.addHistory(OrderStatus.WASHED, OrderStatus.DELIVERING, deliveryDriver.getUsername(),
+                    "Tài xế " + deliveryDriver.getDisplayName() + " nhận giao trả");
             times.add(t);
         }
         if (target == OrderStatus.DELIVERY_ISSUE) {
@@ -395,9 +403,11 @@ public class DemoDataRunner implements ApplicationRunner {
         }
         if (target == OrderStatus.COMPLETED) {
             t = t.plusMinutes(60 + rnd.nextInt(240));
-            boolean byCustomer = rnd.nextInt(10) < 8;
-            order.addHistory(OrderStatus.DELIVERING, OrderStatus.COMPLETED, byCustomer ? manager : admin,
-                    byCustomer ? "Khách hàng xác nhận đã nhận đủ đồ" : "Xưởng chốt hoàn thành đơn");
+            int who = rnd.nextInt(10);
+            order.addHistory(OrderStatus.DELIVERING, OrderStatus.COMPLETED,
+                    who < 6 ? deliveryDriver.getUsername() : who < 9 ? manager : admin,
+                    who < 6 ? "Tài xế giao xong, khách đã ký nhận / có ảnh lúc giao"
+                            : who < 9 ? "Khách hàng xác nhận đã nhận đủ đồ" : "Xưởng chốt hoàn thành đơn");
             times.add(t);
             order.setCompletedAt(t);
         }
@@ -405,16 +415,20 @@ public class DemoDataRunner implements ApplicationRunner {
         Order saved = orderRepository.save(order);
         // @PrePersist luôn ghi "bây giờ": đặt lại mốc thời gian thật của đơn và nhật ký
         LocalDateTime updated = times.get(times.size() - 1);
-        jdbc.update("UPDATE orders SET created_at = ?, updated_at = ?, due_at = ?, completed_at = ? WHERE id = ?",
-                pickup, updated, saved.getDueAt(), saved.getCompletedAt(), saved.getId());
-        List<OrderHistory> history = saved.getHistory();
-        for (int i = 0; i < history.size(); i++) {
-            jdbc.update("UPDATE order_history SET created_at = ? WHERE id = ?", times.get(i), history.get(i).getId());
-        }
+        jdbc.update("UPDATE orders SET created_at = ?, updated_at = ?, due_at = ?, completed_at = ?, received_at = ? WHERE id = ?",
+                requested, updated, saved.getDueAt(), saved.getCompletedAt(), pickup, saved.getId());
+        setHistoryTimes(saved, times);
         if (late) {
             log.debug("Đơn #{} cố ý trễ hạn để demo", saved.getId());
         }
         return saved;
+    }
+
+    private void setHistoryTimes(Order saved, List<LocalDateTime> times) {
+        List<OrderHistory> history = saved.getHistory();
+        for (int i = 0; i < history.size(); i++) {
+            jdbc.update("UPDATE order_history SET created_at = ? WHERE id = ?", times.get(i), history.get(i).getId());
+        }
     }
 
     // ===================== Thanh toán =====================
@@ -472,9 +486,9 @@ public class DemoDataRunner implements ApplicationRunner {
         return count;
     }
 
-    // ===================== Yêu cầu lấy đồ =====================
+    // ===================== Yêu cầu lấy đồ chưa lấy =====================
 
-    private int seedPickups(List<User> drivers, LocalDateTime now) {
+    private int seedRequests(List<User> drivers, LocalDateTime now) {
         Customer hoaSen = customerRepository.findByNameIgnoreCase(MARKER_CUSTOMER).orElseThrow();
         Customer bienXanh = customerRepository.findByNameIgnoreCase("Nhà hàng Biển Xanh").orElseThrow();
         Customer ngocLan = customerRepository.findByNameIgnoreCase("Spa Ngọc Lan").orElseThrow();
@@ -482,48 +496,53 @@ public class DemoDataRunner implements ApplicationRunner {
         Customer doiThong = customerRepository.findByNameIgnoreCase("Homestay Đồi Thông").orElseThrow();
         LocalDate today = now.toLocalDate();
 
-        List<PickupRequest> list = new ArrayList<>();
-        list.add(pickup(hoaSen, "hoasen.nv", today, TimeSlot.MORNING, 8, "Lấy ở cửa sau, có 3 bao chăn ga lớn",
-                PickupStatus.ACCEPTED, drivers.get(0)));
-        list.add(pickup(anTam, "antam.ql", today, TimeSlot.AFTERNOON, 5, "Đồ y tế đã đóng túi riêng, vui lòng mang găng tay",
-                PickupStatus.ACCEPTED, drivers.get(1)));
-        list.add(pickup(bienXanh, "bienxanh.ql", today.plusDays(1), TimeSlot.AFTERNOON, 4, null, PickupStatus.OPEN, null));
-        list.add(pickup(ngocLan, "ngoclan.ql", today, TimeSlot.ANYTIME, null, "Gọi trước 15 phút", PickupStatus.OPEN, null));
-        list.add(pickup(doiThong, "doithong.ql", today.minusDays(1), TimeSlot.MORNING, 3, null, PickupStatus.OPEN, null));
-        PickupRequest cancelled = pickup(bienXanh, "bienxanh.nv", today.minusDays(3), TimeSlot.EVENING, 2, null,
-                PickupStatus.CANCELLED, null);
-        cancelled.setCancelledBy("bienxanh.nv");
-        cancelled.setCancelReason("Đã gửi chung với đơn hôm trước");
-        list.add(cancelled);
-
-        // Một số đơn demo đang xử lý được tạo từ yêu cầu lấy đồ (chỉ đơn demo, không đụng đơn thật)
-        for (Order o : activeOrders.stream().filter(o -> o.getStatus() != OrderStatus.PENDING_CONFIRM).limit(6).toList()) {
-            PickupRequest done = pickup(o.getCustomer(), managerOf.get(o.getCustomer().getId()),
-                    o.getDueAt().minusHours(o.getCustomer().getTurnaroundHours()).toLocalDate(), TimeSlot.MORNING,
-                    o.getTotalBags(), null, PickupStatus.DONE, o.getDriver());
-            done.setOrder(o);
-            list.add(done);
-        }
-
-        for (PickupRequest p : pickupRepository.saveAll(list)) {
-            jdbc.update("UPDATE pickup_requests SET created_at = ?, updated_at = ? WHERE id = ?",
-                    p.getPreferredDate().minusDays(1).atTime(16, 0), now, p.getId());
-        }
-        return list.size();
+        request(hoaSen, "hoasen.nv", today, TimeSlot.MORNING, 8, "Lấy ở cửa sau, có 3 bao chăn ga lớn", drivers.get(0), null);
+        request(anTam, "antam.ql", today, TimeSlot.AFTERNOON, 5, "Đồ y tế đã đóng túi riêng, vui lòng mang găng tay",
+                drivers.get(1), null);
+        request(bienXanh, "bienxanh.ql", today.plusDays(1), TimeSlot.AFTERNOON, 4, null, null, null);
+        request(ngocLan, "ngoclan.ql", today, TimeSlot.ANYTIME, null, "Gọi trước 15 phút", null, null);
+        request(doiThong, "doithong.ql", today.minusDays(1), TimeSlot.MORNING, 3, null, null, null);
+        request(bienXanh, "bienxanh.nv", today.minusDays(3), TimeSlot.EVENING, 2, null, null,
+                "Đã gửi chung với đơn hôm trước");
+        return 6;
     }
 
-    private PickupRequest pickup(Customer r, String by, LocalDate date, TimeSlot slot, Integer bags, String note,
-            PickupStatus status, User driver) {
-        return PickupRequest.builder()
+    /** Một yêu cầu lấy đồ chưa lấy: chờ tài xế, đã có tài xế, hoặc đã hủy (cancelReason khác null). */
+    private void request(Customer r, String by, LocalDate date, TimeSlot slot, Integer bags, String note, User driver,
+            String cancelReason) {
+        OrderStatus status = driver == null ? OrderStatus.PICKUP_PENDING : OrderStatus.PICKUP_ASSIGNED;
+        Order order = Order.builder()
                 .customer(r)
+                .driver(driver)
+                .status(status)
                 .requestedBy(by)
                 .preferredDate(date)
                 .timeSlot(slot)
                 .estimatedBags(bags)
-                .note(note)
-                .status(status)
-                .driver(driver)
+                .pickupNote(note)
                 .build();
+        LocalDateTime requested = date.minusDays(1).atTime(16, 0);
+        List<LocalDateTime> times = new ArrayList<>();
+        order.addHistory(null, OrderStatus.PICKUP_PENDING, by,
+                "Yêu cầu lấy đồ ngày " + DAY.format(date) + ", " + slot.getLabel().toLowerCase());
+        times.add(requested);
+        if (driver != null) {
+            order.addHistory(OrderStatus.PICKUP_PENDING, OrderStatus.PICKUP_ASSIGNED, driver.getUsername(),
+                    "Tài xế " + driver.getDisplayName() + " nhận việc lấy đồ");
+            times.add(requested.plusHours(1));
+        }
+        if (cancelReason != null) {
+            order.setDeleted(true);
+            order.setCancelReason(cancelReason);
+            order.setCancelledBy(by);
+            order.setCancelledAt(requested.plusHours(2));
+            order.addHistory(status, status, by, "Hủy yêu cầu lấy đồ. Lý do: " + cancelReason);
+            times.add(requested.plusHours(2));
+        }
+        Order saved = orderRepository.save(order);
+        jdbc.update("UPDATE orders SET created_at = ?, updated_at = ? WHERE id = ?", requested,
+                times.get(times.size() - 1), saved.getId());
+        setHistoryTimes(saved, times);
     }
 
     private static BigDecimal money(long value) {

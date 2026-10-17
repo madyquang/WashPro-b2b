@@ -7,12 +7,12 @@ import CategoryTag from '../../components/CategoryTag'
 import DueTag from '../../components/DueTag'
 import StatusTag from '../../components/StatusTag'
 import { catalogLabel, formatQuantity, groupByCategory } from '../../utils/catalog'
-import { formatCurrency, formatDateTime, getErrorMessage } from '../../utils/format'
+import { formatCurrency, formatDate, formatDateTime, getErrorMessage } from '../../utils/format'
 import { getSession } from '../../utils/auth'
 import { printDeliverySlip } from '../../utils/print'
 import OrderAttachments from './OrderAttachments'
 import OrderNotes from './OrderNotes'
-import { CUSTOMER_TYPE_LABELS, STATUS_META, type Order, type OrderItem } from '../../types'
+import { CUSTOMER_TYPE_LABELS, STATUS_META, TIME_SLOT_LABELS, type Order, type OrderItem } from '../../types'
 
 interface Props {
   orderId: number | null
@@ -79,21 +79,39 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
                 {order.contactName && ` · ${order.contactName}`}
               </Descriptions.Item>
             )}
-            <Descriptions.Item label="Tài xế">{order.driverName}</Descriptions.Item>
             <Descriptions.Item label="Trạng thái">
               <StatusTag status={order.status} />
             </Descriptions.Item>
-            <Descriptions.Item label="Số túi / bao">{order.totalBags}</Descriptions.Item>
-            <Descriptions.Item label="Ngày nhận đồ">{formatDateTime(order.createdAt)}</Descriptions.Item>
-            <Descriptions.Item label="Hạn trả">
-              {order.status === 'COMPLETED' ? (
-                formatDateTime(order.dueAt)
-              ) : (
-                <>
-                  {formatDateTime(order.dueAt)} <DueTag order={order} onlyUrgent />
-                </>
-              )}
+            {order.preferredDate && (
+              <Descriptions.Item label="Hẹn lấy đồ">
+                {formatDate(order.preferredDate)}
+                {order.timeSlot && ` · ${TIME_SLOT_LABELS[order.timeSlot]}`}
+                {order.pickupLate && <Typography.Text type="danger"> · quá ngày hẹn</Typography.Text>}
+              </Descriptions.Item>
+            )}
+            {order.requestedBy && (
+              <Descriptions.Item label="Yêu cầu lúc">
+                {formatDateTime(order.createdAt)} · {order.requestedBy}
+              </Descriptions.Item>
+            )}
+            {order.pickupNote && <Descriptions.Item label="Khách dặn">{order.pickupNote}</Descriptions.Item>}
+            <Descriptions.Item label="Tài xế lấy đồ">{order.driverName ?? '—'}</Descriptions.Item>
+            {order.deliveryDriverName && <Descriptions.Item label="Tài xế giao trả">{order.deliveryDriverName}</Descriptions.Item>}
+            <Descriptions.Item label="Số túi / bao">
+              {order.totalBags ?? (order.estimatedBags != null ? `khoảng ${order.estimatedBags} (khách ước tính)` : '—')}
             </Descriptions.Item>
+            {order.receivedAt && <Descriptions.Item label="Ngày nhận đồ">{formatDateTime(order.receivedAt)}</Descriptions.Item>}
+            {order.dueAt && (
+              <Descriptions.Item label="Hạn trả">
+                {order.status === 'COMPLETED' ? (
+                  formatDateTime(order.dueAt)
+                ) : (
+                  <>
+                    {formatDateTime(order.dueAt)} <DueTag order={order} onlyUrgent />
+                  </>
+                )}
+              </Descriptions.Item>
+            )}
             {order.completedAt && <Descriptions.Item label="Hoàn thành">{formatDateTime(order.completedAt)}</Descriptions.Item>}
             <Descriptions.Item label="Cập nhật cuối">{formatDateTime(order.updatedAt)}</Descriptions.Item>
             <Descriptions.Item label="Ghi chú">

@@ -7,7 +7,6 @@ import com.washpro.washpro_b2b.entity.Notification;
 import com.washpro.washpro_b2b.entity.NotificationType;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.Payment;
-import com.washpro.washpro_b2b.entity.PickupRequest;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
@@ -31,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Thông báo trong ứng dụng: ai cần biết gì khi có sự kiện ở đơn, yêu cầu lấy đồ, thanh toán.
+ * Thông báo trong ứng dụng: ai cần biết gì khi có sự kiện ở đơn (từ yêu cầu lấy đồ đến giao xong), thanh toán.
  * Thông báo được ghi trong cùng giao dịch với thao tác nghiệp vụ (thao tác lỗi thì không có thông báo).
  * Người gây ra sự kiện không nhận thông báo của chính mình.
  */
@@ -78,77 +77,92 @@ public class NotificationService {
         notificationRepository.markAllRead(currentUserService.getCurrentUser().getId(), LocalDateTime.now());
     }
 
-    // ===================== Yêu cầu lấy đồ =====================
+    // ===================== Lấy đồ =====================
 
-    public void pickupCreated(PickupRequest p, User actor) {
+    public void pickupRequested(Order o, User actor) {
         // Mọi tài xế đang hoạt động thấy việc mới để nhận; quản lý xưởng để điều phối
         send(users(Role.WORKSHOP_ADMIN, Role.DRIVER), actor, NotificationType.PICKUP_NEW,
-                "Yêu cầu lấy đồ mới: " + p.getCustomer().getName(),
-                "Ngày " + DATE.format(p.getPreferredDate()) + ", " + p.getTimeSlot().getLabel().toLowerCase()
-                        + (p.getEstimatedBags() != null ? ", khoảng " + p.getEstimatedBags() + " túi" : ""),
-                "/pickups");
+                "Yêu cầu lấy đồ mới: " + o.getCustomer().getName(), when(o)
+                        + (o.getEstimatedBags() != null ? ", khoảng " + o.getEstimatedBags() + " túi" : ""),
+                "/pickups?tab=open");
     }
 
-    public void pickupAccepted(PickupRequest p, User actor) {
-        send(customerUsers(p.getCustomer()), actor, NotificationType.PICKUP_ACCEPTED,
-                "Tài xế " + p.getDriver().getDisplayName() + " sẽ đến lấy đồ",
-                "Ngày " + DATE.format(p.getPreferredDate()) + ", " + p.getTimeSlot().getLabel().toLowerCase(),
-                "/pickups");
+    public void pickupAccepted(Order o, User actor) {
+        send(customerUsers(o.getCustomer()), actor, NotificationType.PICKUP_ACCEPTED,
+                "Tài xế " + o.getDriver().getDisplayName() + " sẽ đến lấy đồ", when(o), "/pickups");
     }
 
-    public void pickupAssigned(PickupRequest p, User actor) {
-        send(List.of(p.getDriver()), actor, NotificationType.PICKUP_ASSIGNED,
-                "Bạn được phân công lấy đồ: " + p.getCustomer().getName(),
-                "Ngày " + DATE.format(p.getPreferredDate()) + ", " + p.getTimeSlot().getLabel().toLowerCase()
-                        + (p.getCustomer().getAddress() != null ? ". " + p.getCustomer().getAddress() : ""),
-                "/pickups");
-        pickupAccepted(p, actor);
+    public void pickupAssigned(Order o, User actor) {
+        send(List.of(o.getDriver()), actor, NotificationType.PICKUP_ASSIGNED,
+                "Bạn được phân công lấy đồ: " + o.getCustomer().getName(),
+                when(o) + (o.getCustomer().getAddress() != null ? ". " + o.getCustomer().getAddress() : ""),
+                "/pickups?tab=mine");
+        pickupAccepted(o, actor);
     }
 
-    public void pickupCancelled(PickupRequest p, User actor) {
-        List<User> to = new ArrayList<>(users(Role.WORKSHOP_ADMIN));
-        to.addAll(customerUsers(p.getCustomer()));
-        if (p.getDriver() != null) {
-            to.add(p.getDriver());
+    public void orderReceived(Order o, User actor) {
+        String body = o.getTotalBags() + " túi" + (o.getDriver() != null ? ", tài xế " + o.getDriver().getDisplayName() : "");
+        send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_RECEIVED,
+                "Đã nhận đồ đơn #" + o.getId(), body, orderLink(o));
+        send(users(Role.WORKSHOP_ADMIN), actor, NotificationType.ORDER_RECEIVED,
+                "Đơn #" + o.getId() + " (" + o.getCustomer().getName() + ") đang về xưởng",
+                body + ". Bấm \"Bắt đầu giặt\" khi đồ về tới xưởng", orderLink(o));
+    }
+
+    // ===================== Giặt, giao trả =====================
+
+    public void orderWashed(Order o, User actor) {
+        send(users(Role.DRIVER), actor, NotificationType.ORDER_WASHED,
+                "Đơn #" + o.getId() + " giặt xong, chờ giao: " + o.getCustomer().getName(),
+                o.getTotalBags() + " túi" + (o.getCustomer().getAddress() != null ? ". " + o.getCustomer().getAddress() : ""),
+                "/pickups?tab=deliver");
+        send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_WASHED,
+                "Đồ đơn #" + o.getId() + " đã giặt xong", "Xưởng sẽ sớm giao trả", orderLink(o));
+    }
+
+    public void deliveryAssigned(Order o, User actor, boolean startsDelivery) {
+        send(List.of(o.getDeliveryDriver()), actor, NotificationType.DELIVERY_ASSIGNED,
+                "Bạn được phân công giao trả đơn #" + o.getId() + ": " + o.getCustomer().getName(),
+                o.getTotalBags() + " túi" + (o.getCustomer().getAddress() != null ? ". " + o.getCustomer().getAddress() : ""),
+                "/pickups?tab=mine");
+        if (startsDelivery) {
+            orderDelivering(o, actor);
         }
-        send(to, actor, NotificationType.PICKUP_CANCELLED,
-                "Đã hủy yêu cầu lấy đồ: " + p.getCustomer().getName(),
-                p.getCancelReason() != null ? "Lý do: " + p.getCancelReason() : null,
-                "/pickups");
-    }
-
-    // ===================== Đơn hàng =====================
-
-    public void orderCreated(Order o, User actor) {
-        send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_TO_CONFIRM,
-                "Đơn #" + o.getId() + " chờ bạn xác nhận số lượng",
-                o.getTotalBags() + " túi, tài xế " + o.getDriver().getDisplayName(), orderLink(o));
-    }
-
-    public void orderDiscrepancy(Order o, User actor, String note) {
-        List<User> to = new ArrayList<>(users(Role.WORKSHOP_ADMIN));
-        to.addAll(customerUsers(o.getCustomer()));
-        to.add(o.getDriver());
-        send(to, actor, NotificationType.ORDER_DISCREPANCY,
-                "Đơn #" + o.getId() + " (" + o.getCustomer().getName() + ") có báo sai lệch", note, orderLink(o));
     }
 
     public void orderDelivering(Order o, User actor) {
         send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_DELIVERING,
                 "Đơn #" + o.getId() + " đang được giao trả",
-                "Kiểm đồ rồi bấm xác nhận đã nhận đủ, hoặc báo sự cố nếu thiếu / hỏng", orderLink(o));
+                (o.getDeliveryDriver() != null ? "Tài xế " + o.getDeliveryDriver().getDisplayName() + ". " : "")
+                        + "Kiểm đồ khi nhận; thiếu / hỏng thì báo ngay trên ứng dụng hoặc gọi xưởng",
+                orderLink(o));
+    }
+
+    public void orderCompleted(Order o, User actor) {
+        send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_COMPLETED,
+                "Đã giao xong đơn #" + o.getId(), "Có vấn đề với đồ đã nhận, vui lòng gọi hotline của xưởng",
+                orderLink(o));
     }
 
     public void orderReceiptIssue(Order o, User actor, String note) {
-        send(users(Role.WORKSHOP_ADMIN), actor, NotificationType.ORDER_RECEIPT_ISSUE,
+        List<User> to = new ArrayList<>(users(Role.WORKSHOP_ADMIN));
+        to.add(o.getDeliveryDriver());
+        send(to, actor, NotificationType.ORDER_RECEIPT_ISSUE,
                 "Đơn #" + o.getId() + " (" + o.getCustomer().getName() + ") báo sự cố khi nhận đồ", note, orderLink(o));
     }
 
+    /** Hủy yêu cầu lấy đồ: báo xưởng, khách, tài xế đã nhận; hủy đơn đang xử lý: báo khách và các tài xế của đơn. */
     public void orderCancelled(Order o, User actor, String reason) {
+        boolean pickup = o.getStatus().isPickupStage();
         List<User> to = new ArrayList<>(customerUsers(o.getCustomer()));
+        if (pickup) {
+            to.addAll(users(Role.WORKSHOP_ADMIN));
+        }
         to.add(o.getDriver());
-        send(to, actor, NotificationType.ORDER_CANCELLED, "Đơn #" + o.getId() + " đã bị hủy",
-                reason != null ? "Lý do: " + reason : null, "/orders");
+        to.add(o.getDeliveryDriver());
+        send(to, actor, pickup ? NotificationType.PICKUP_CANCELLED : NotificationType.ORDER_CANCELLED,
+                pickup ? "Đã hủy yêu cầu lấy đồ: " + o.getCustomer().getName() : "Đơn #" + o.getId() + " đã bị hủy",
+                reason != null ? "Lý do: " + reason : null, pickup ? "/pickups" : "/orders");
     }
 
     // ===================== Thanh toán =====================
@@ -191,6 +205,11 @@ public class NotificationService {
     /** Mở trang đơn ở đúng nhóm trạng thái hiện tại của đơn, tìm đơn đó và mở chi tiết. */
     private static String orderLink(Order o) {
         return "/orders?status=" + o.getStatus().name() + "&open=" + o.getId();
+    }
+
+    /** "Ngày 17/10, sáng (7h–11h)". */
+    private static String when(Order o) {
+        return "Ngày " + DATE.format(o.getPreferredDate()) + ", " + o.getTimeSlot().getLabel().toLowerCase();
     }
 
     static String money(BigDecimal amount) {

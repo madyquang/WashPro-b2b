@@ -4,12 +4,10 @@ import com.washpro.washpro_b2b.dto.PerformanceDtos.CustomerRow;
 import com.washpro.washpro_b2b.dto.PerformanceDtos.DriverRow;
 import com.washpro.washpro_b2b.dto.PerformanceDtos.Report;
 import com.washpro.washpro_b2b.dto.PerformanceDtos.Summary;
-import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.OrderRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,11 +38,10 @@ public class PerformanceService {
     static final int MAX_DAYS = 366;
 
     private final OrderRepository orderRepository;
-    private final PickupRequestRepository pickupRepository;
     private final CurrentUserService currentUserService;
 
     /** Chỉ số của một đơn. */
-    record OrderFact(Long customerId, String customerName, Long driverId, String driverName, LocalDateTime createdAt,
+    record OrderFact(Long customerId, String customerName, Long driverId, String driverName, LocalDateTime receivedAt,
             LocalDateTime dueAt, long bags, LocalDateTime firstDelivering, boolean discrepancy, boolean issue,
             BigDecimal value) {
 
@@ -57,11 +54,20 @@ public class PerformanceService {
         }
 
         double turnaroundHours() {
-            return Duration.between(createdAt, firstDelivering).toMinutes() / 60.0;
+            return Duration.between(receivedAt, firstDelivering).toMinutes() / 60.0;
         }
     }
 
-    record PickupFact(PickupStatus status, LocalDateTime requestedAt, LocalDateTime pickedAt, Long driverId) {
+    /** Một yêu cầu lấy đồ: đã lấy khi có lúc nhận đồ; đã hủy khi bị hủy trước khi lấy. */
+    record PickupFact(boolean deleted, LocalDateTime requestedAt, LocalDateTime pickedAt, Long driverId) {
+
+        boolean done() {
+            return pickedAt != null;
+        }
+
+        boolean cancelled() {
+            return deleted && pickedAt == null;
+        }
 
         Double hoursToPickup() {
             return pickedAt == null ? null : Duration.between(requestedAt, pickedAt).toMinutes() / 60.0;
@@ -95,9 +101,8 @@ public class PerformanceService {
         LocalDateTime toTime = end.plusDays(1).atStartOfDay();
         List<OrderFact> orders = orderRepository.performanceRows(fromTime, toTime, customerId).stream()
                 .map(PerformanceService::orderFact).toList();
-        List<PickupFact> pickups = pickupRepository.performanceRows(fromTime, toTime, customerId).stream()
-                .map(r -> new PickupFact((PickupStatus) r[0], (LocalDateTime) r[1], (LocalDateTime) r[2],
-                        (Long) r[3]))
+        List<PickupFact> pickups = orderRepository.pickupPerformanceRows(fromTime, toTime, customerId).stream()
+                .map(r -> new PickupFact((Boolean) r[0], (LocalDateTime) r[1], (LocalDateTime) r[2], (Long) r[3]))
                 .toList();
 
         List<DriverRow> drivers = customerId == null ? driverRows(orders, pickups) : null;
@@ -120,8 +125,8 @@ public class PerformanceService {
         return new Summary(orders.size(), orders.stream().mapToLong(OrderFact::bags).sum(), value(orders),
                 delivered, onTime, rate(onTime, delivered), avgTurnaround(orders), discrepancy,
                 rate(discrepancy, orders.size()), issue, rate(issue, delivered), pickups.size(),
-                pickups.stream().filter(p -> p.status() == PickupStatus.DONE).count(),
-                pickups.stream().filter(p -> p.status() == PickupStatus.CANCELLED).count(), avgPickup(pickups));
+                pickups.stream().filter(PickupFact::done).count(),
+                pickups.stream().filter(PickupFact::cancelled).count(), avgPickup(pickups));
     }
 
     /** Theo khách: nhiều đơn lên trước. */
@@ -141,13 +146,14 @@ public class PerformanceService {
                 .toList();
     }
 
-    /** Theo tài xế (người tạo đơn = người lấy đồ): nhiều đơn lên trước. */
+    /** Theo tài xế lấy đồ (bỏ đơn khách mang đến xưởng): nhiều đơn lên trước. */
     private static List<DriverRow> driverRows(List<OrderFact> orders, List<PickupFact> pickups) {
         Map<Long, List<PickupFact>> pickupsByDriver = pickups.stream()
-                .filter(p -> p.status() == PickupStatus.DONE && p.driverId() != null)
+                .filter(p -> p.done() && p.driverId() != null)
                 .collect(Collectors.groupingBy(PickupFact::driverId));
         List<DriverRow> rows = new ArrayList<>();
-        for (List<OrderFact> list : group(orders, OrderFact::driverId).values()) {
+        List<OrderFact> withDriver = orders.stream().filter(o -> o.driverId() != null).toList();
+        for (List<OrderFact> list : group(withDriver, OrderFact::driverId).values()) {
             OrderFact first = list.getFirst();
             List<PickupFact> done = pickupsByDriver.getOrDefault(first.driverId(), List.of());
             rows.add(new DriverRow(first.driverId(), first.driverName(), list.size(),

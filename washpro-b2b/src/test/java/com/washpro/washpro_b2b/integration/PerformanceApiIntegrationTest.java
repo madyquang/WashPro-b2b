@@ -5,8 +5,6 @@ import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
-import com.washpro.washpro_b2b.entity.PickupRequest;
-import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
@@ -14,7 +12,6 @@ import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,8 +57,6 @@ class PerformanceApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     NotificationRepository notificationRepository;
@@ -69,7 +64,6 @@ class PerformanceApiIntegrationTest {
     @BeforeEach
     void seed() {
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -87,6 +81,7 @@ class PerformanceApiIntegrationTest {
         LocalDateTime now = LocalDateTime.now();
         // Hoa Sen, tài xế Tài: giao đúng hạn, 100.000 đ, 2 túi
         Order onTime = order(hoaSen, tai, 2, now.plusDays(1), 100000);
+        onTime.setRequestedBy("hoasen.ql");
         onTime.addHistory(OrderStatus.WASHING, OrderStatus.DELIVERING, "admin", null);
         onTime = orderRepository.save(onTime);
         // Hoa Sen, tài xế Tài: có sai lệch, giao trễ hạn, khách báo sự cố; 50.000 đ, 1 túi
@@ -102,13 +97,11 @@ class PerformanceApiIntegrationTest {
         cancelled.setDeleted(true);
         orderRepository.save(cancelled);
 
-        // Yêu cầu lấy đồ: một đã lấy (gắn đơn đúng hạn), một bị hủy, một đang chờ
-        pickupRepository.save(PickupRequest.builder().customer(hoaSen).requestedBy("hoasen.ql")
-                .preferredDate(LocalDate.now()).status(PickupStatus.DONE).driver(tai).order(onTime).build());
-        pickupRepository.save(PickupRequest.builder().customer(hoaSen).requestedBy("hoasen.ql")
-                .preferredDate(LocalDate.now()).status(PickupStatus.CANCELLED).build());
-        pickupRepository.save(PickupRequest.builder().customer(bienXanh).requestedBy("admin")
-                .preferredDate(LocalDate.now()).build());
+        // Yêu cầu lấy đồ: một đã lấy (đơn đúng hạn ở trên), một bị hủy, một đang chờ
+        orderRepository.save(Order.builder().customer(hoaSen).requestedBy("hoasen.ql").preferredDate(LocalDate.now())
+                .status(OrderStatus.PICKUP_PENDING).isDeleted(true).build());
+        orderRepository.save(Order.builder().customer(bienXanh).requestedBy("admin").preferredDate(LocalDate.now())
+                .status(OrderStatus.PICKUP_PENDING).build());
     }
 
     @Test
@@ -169,7 +162,7 @@ class PerformanceApiIntegrationTest {
 
     private Order order(Customer customer, User driver, int bags, LocalDateTime dueAt, long amount) {
         Order order = Order.builder().driver(driver).customer(customer).status(OrderStatus.WASHING).totalBags(bags)
-                .dueAt(dueAt).build();
+                .receivedAt(LocalDateTime.now().minusHours(2)).dueAt(dueAt).build();
         order.addItem(OrderItem.builder().itemName("Khăn bàn").quantity(new BigDecimal("10"))
                 .unitPrice(amount == 0 ? null : BigDecimal.valueOf(amount / 10)).build());
         return order;

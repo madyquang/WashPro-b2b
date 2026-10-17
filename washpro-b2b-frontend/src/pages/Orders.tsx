@@ -12,14 +12,13 @@ import PageHeader from '../components/PageHeader'
 import StatusTag from '../components/StatusTag'
 import ToneTag from '../components/ToneTag'
 import { statusColor } from '../utils/statusLook'
-import CreateOrderModal from './orders/CreateOrderModal'
-import { CompactActions, OrderCard } from './orders/OrderCard'
+import { CompactActions, OrderCard, whenLabel } from './orders/OrderCard'
 import { fieldViews, orderHint, type OrderView } from './orders/hints'
 import { useOrderActions } from './orders/useOrderActions'
 import { getSession, isCustomerRole } from '../utils/auth'
 import { formatQuantity, groupByCategory } from '../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage } from '../utils/format'
-import { CATEGORY_META, CATEGORY_ORDER, STATUS_META, STATUS_ORDER, type ItemCategory, type Order, type OrderPage, type OrderStatus } from '../types'
+import { CATEGORY_META, CATEGORY_ORDER, isPickupStage, STATUS_META, STATUS_ORDER, TIME_SLOT_LABELS, type ItemCategory, type Order, type OrderPage, type OrderStatus } from '../types'
 
 /** NEWEST: mới nhận trước; DUE: hạn trả gần nhất trước. */
 type SortKey = 'NEWEST' | 'DUE'
@@ -49,7 +48,6 @@ export default function Orders() {
   /** Tăng lên để tải lại trang hiện tại (sau thao tác, nút Làm mới). */
   const [reloadKey, setReloadKey] = useState(0)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
-  const [creating, setCreating] = useState(false)
   const orderActions = useOrderActions(load)
   const overdueOnly = params.get('overdue') === '1'
 
@@ -166,13 +164,21 @@ export default function Orders() {
   const allColumns: TableColumnsType<Order> = [
     { title: 'Mã', dataIndex: 'id', width: 70, render: (id: number) => `#${id}` },
     { title: 'Khách hàng', dataIndex: 'customerName', ellipsis: true },
-    { title: 'Tài xế', dataIndex: 'driverName', responsive: ['xxl'] },
-    { title: 'Túi', dataIndex: 'totalBags', align: 'right', width: 56 },
+    { title: 'Tài xế', key: 'driver', responsive: ['xxl'], render: (_: unknown, o) => o.deliveryDriverName ?? o.driverName ?? '—' },
+    { title: 'Túi', key: 'bags', align: 'right', width: 56, render: (_: unknown, o) => o.totalBags ?? (o.estimatedBags != null ? `~${o.estimatedBags}` : '—') },
     {
       title: 'Đồ giặt',
       key: 'categories',
       responsive: ['md'],
       render: (_: unknown, o) => {
+        if (isPickupStage(o)) {
+          return (
+            <Typography.Text type={o.pickupLate ? 'danger' : 'secondary'}>
+              Hẹn lấy {o.preferredDate ? whenLabel(o.preferredDate).toLowerCase() : ''}
+              {o.timeSlot && ` · ${TIME_SLOT_LABELS[o.timeSlot]}`}
+            </Typography.Text>
+          )
+        }
         const groups = groupByCategory(o.items)
         const hidden = groups.slice(2)
         return (
@@ -217,7 +223,7 @@ export default function Orders() {
           </>
         ),
     },
-    { title: 'Ngày nhận', dataIndex: 'createdAt', responsive: ['xxl'], render: (v: string) => formatDateTime(v) },
+    { title: 'Ngày nhận đồ', dataIndex: 'receivedAt', responsive: ['xxl'], render: (v: string | null) => (v ? formatDateTime(v) : '—') },
     {
       title: 'Thao tác',
       key: 'actions',
@@ -243,10 +249,10 @@ export default function Orders() {
     <EmptyState
       description={view.empty}
       action={
-        isDriver && view.key === 'all'
-          ? { label: 'Tạo đơn', icon: <PlusOutlined />, onClick: () => setCreating(true) }
-          : field && view.key !== 'all'
-            ? { label: 'Xem tất cả đơn', onClick: () => changeView('all') }
+        field && view.key !== 'all'
+          ? { label: 'Xem tất cả đơn', onClick: () => changeView('all') }
+          : orderActions.canCreate
+            ? { label: isCustomer ? 'Yêu cầu lấy đồ' : 'Tạo yêu cầu hộ khách', icon: <PlusOutlined />, onClick: orderActions.openCreate }
             : undefined
       }
     />
@@ -272,21 +278,21 @@ export default function Orders() {
   return (
     <>
       <PageHeader
-        title={isCustomer ? 'Đơn giặt' : isDriver ? 'Đơn đã tạo' : 'Đơn hàng'}
+        title={isCustomer ? 'Đơn giặt' : isDriver ? 'Đơn của tôi' : 'Đơn hàng'}
         description={
-          (isDriver && 'Đơn bạn đã tạo khi lấy đồ: theo dõi khách xác nhận, báo sai lệch khi cần.') ||
-          (isCustomer && 'Xác nhận số lượng khi tài xế lấy đồ, xác nhận khi đã nhận đủ đồ sạch.') ||
-          (isAccountant && 'Nhập đơn giá cho đơn đang giặt để xưởng giao trả.') ||
-          'Điều phối đơn từ lúc nhận đồ đến khi giao trả.'
+          (isDriver && 'Đơn bạn đã lấy hoặc giao: theo dõi tới khi hoàn thành.') ||
+          (isCustomer && 'Theo dõi đơn từ lúc yêu cầu lấy đồ đến khi nhận đủ đồ sạch.') ||
+          (isAccountant && 'Nhập đơn giá cho đơn đang giặt để xưởng báo giặt xong và giao trả.') ||
+          'Điều phối đơn từ lúc khách yêu cầu lấy đồ đến khi giao trả.'
         }
         actions={
           <>
             <Button icon={<ReloadOutlined />} onClick={load} loading={loading}>
               Làm mới
             </Button>
-            {isDriver && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-                Tạo đơn
+            {orderActions.canCreate && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={orderActions.openCreate}>
+                {isCustomer ? 'Yêu cầu lấy đồ' : 'Tạo yêu cầu hộ khách'}
               </Button>
             )}
           </>
@@ -364,14 +370,6 @@ export default function Orders() {
         </>
       )}
 
-      <CreateOrderModal
-        open={creating}
-        onClose={() => setCreating(false)}
-        onDone={() => {
-          setCreating(false)
-          load()
-        }}
-      />
       {orderActions.ui}
     </>
   )

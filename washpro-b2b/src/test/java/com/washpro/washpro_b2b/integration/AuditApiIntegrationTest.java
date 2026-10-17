@@ -13,7 +13,6 @@ import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.ServicePriceRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,8 +62,6 @@ class AuditApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     ServicePriceRepository servicePriceRepository;
@@ -80,7 +77,6 @@ class AuditApiIntegrationTest {
     void seed() {
         auditRepository.deleteAll();
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();

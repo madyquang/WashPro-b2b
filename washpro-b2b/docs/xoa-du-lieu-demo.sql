@@ -12,7 +12,6 @@ SELECT id FROM customers WHERE name IN (
 CREATE TEMPORARY TABLE demo_orders AS
 SELECT id FROM orders WHERE customer_id IN (SELECT id FROM demo_customers);
 
-DELETE FROM pickup_requests WHERE customer_id IN (SELECT id FROM demo_customers);
 DELETE FROM order_history WHERE order_id IN (SELECT id FROM demo_orders);
 DELETE FROM order_items WHERE order_id IN (SELECT id FROM demo_orders);
 DELETE FROM orders WHERE id IN (SELECT id FROM demo_orders);

@@ -5,8 +5,19 @@ export type Role =
   | 'CUSTOMER_STAFF'
   | 'CUSTOMER_MANAGER'
 
-export type OrderStatus = 'PENDING_CONFIRM' | 'DISCREPANCY' | 'WASHING' | 'DELIVERING' | 'DELIVERY_ISSUE' | 'COMPLETED'
-export type PickupStatus = 'OPEN' | 'ACCEPTED' | 'DONE' | 'CANCELLED'
+/** Quy trình: chờ lấy → tài xế đang đến → đã tiếp nhận → đang giặt → đã giặt xong → đang giao → hoàn thành. */
+export type OrderStatus =
+  | 'PICKUP_PENDING'
+  | 'PICKUP_ASSIGNED'
+  | 'RECEIVED'
+  | 'WASHING'
+  | 'WASHED'
+  | 'DELIVERING'
+  | 'DELIVERY_ISSUE'
+  | 'COMPLETED'
+  /** Quy trình cũ: chỉ còn trong lịch sử của đơn cũ. */
+  | 'PENDING_CONFIRM'
+  | 'DISCREPANCY'
 export type TimeSlot = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'ANYTIME'
 
 export type CustomerType = 'RESTAURANT' | 'HOTEL' | 'SPA' | 'COMPANY' | 'HOSPITAL' | 'OTHER'
@@ -57,30 +68,25 @@ export const UNIT_META: Record<PriceUnit, { label: string; decimal: boolean }> =
   KG: { label: 'kg', decimal: true },
 }
 
-export const STATUS_META: Record<OrderStatus, { label: string; color: string }> = {
-  PENDING_CONFIRM: { label: 'Chờ xác nhận', color: 'gold' },
-  DISCREPANCY: { label: 'Có sai lệch', color: 'red' },
-  WASHING: { label: 'Đang giặt', color: 'blue' },
-  DELIVERING: { label: 'Đang giao', color: 'cyan' },
-  DELIVERY_ISSUE: { label: 'Sự cố giao trả', color: 'volcano' },
-  COMPLETED: { label: 'Hoàn thành', color: 'green' },
+export const STATUS_META: Record<OrderStatus, { label: string }> = {
+  PICKUP_PENDING: { label: 'Chờ lấy đồ' },
+  PICKUP_ASSIGNED: { label: 'Tài xế đang đến lấy' },
+  RECEIVED: { label: 'Đã tiếp nhận' },
+  WASHING: { label: 'Đang giặt' },
+  WASHED: { label: 'Đã giặt xong' },
+  DELIVERING: { label: 'Đang giao trả' },
+  DELIVERY_ISSUE: { label: 'Sự cố giao trả' },
+  COMPLETED: { label: 'Hoàn thành' },
+  PENDING_CONFIRM: { label: 'Chờ khách xác nhận' },
+  DISCREPANCY: { label: 'Có sai lệch' },
 }
 
-export const STATUS_ORDER: OrderStatus[] = [
-  'PENDING_CONFIRM',
-  'DISCREPANCY',
-  'WASHING',
-  'DELIVERING',
-  'DELIVERY_ISSUE',
-  'COMPLETED',
-]
+/** Các trạng thái của quy trình hiện tại, theo thứ tự. */
+export const STATUS_ORDER: OrderStatus[] = ['PICKUP_PENDING', 'PICKUP_ASSIGNED', 'RECEIVED', 'WASHING', 'WASHED', 'DELIVERING', 'DELIVERY_ISSUE', 'COMPLETED']
 
-export const PICKUP_STATUS_META: Record<PickupStatus, { label: string; color: string }> = {
-  OPEN: { label: 'Chờ tài xế nhận', color: 'gold' },
-  ACCEPTED: { label: 'Tài xế đã nhận', color: 'blue' },
-  DONE: { label: 'Đã lấy đồ', color: 'green' },
-  CANCELLED: { label: 'Đã hủy', color: 'default' },
-}
+/** Đơn còn là yêu cầu lấy đồ (tài xế chưa nhận đồ). */
+export const PICKUP_STAGE: OrderStatus[] = ['PICKUP_PENDING', 'PICKUP_ASSIGNED']
+export const isPickupStage = (o: Pick<Order, 'status'>) => PICKUP_STAGE.includes(o.status)
 
 export const TIME_SLOT_LABELS: Record<TimeSlot, string> = {
   MORNING: 'Sáng (7h–11h)',
@@ -145,10 +151,10 @@ export interface PerformanceReport {
   drivers: PerformanceDriverRow[] | null
 }
 
-/** Một điểm dừng trên lộ trình tài xế: lấy đồ (yêu cầu đã nhận) hoặc giao trả (đơn đang giao). */
+/** Một điểm dừng trên lộ trình tài xế: lấy đồ (đơn đã nhận việc) hoặc giao trả (đơn đang giao). */
 export interface RouteStop {
   type: 'PICKUP' | 'DELIVERY'
-  /** Mã yêu cầu lấy đồ hoặc mã đơn. */
+  /** Mã đơn. */
   id: number
   customerId: number
   customerName: string
@@ -225,14 +231,18 @@ export type NotificationType =
   | 'PICKUP_ACCEPTED'
   | 'PICKUP_ASSIGNED'
   | 'PICKUP_CANCELLED'
-  | 'ORDER_TO_CONFIRM'
-  | 'ORDER_DISCREPANCY'
+  | 'ORDER_RECEIVED'
+  | 'ORDER_WASHED'
+  | 'DELIVERY_ASSIGNED'
   | 'ORDER_DELIVERING'
+  | 'ORDER_COMPLETED'
   | 'ORDER_RECEIPT_ISSUE'
   | 'ORDER_CANCELLED'
   | 'PAYMENT_RECORDED'
   | 'OVERDUE_ORDERS'
   | 'OVERDUE_DEBT'
+  | 'ORDER_TO_CONFIRM'
+  | 'ORDER_DISCREPANCY'
 
 /** Thông báo trong ứng dụng (đặt tên khác Notification của trình duyệt). */
 export interface AppNotification {
@@ -293,19 +303,40 @@ export interface Order {
   customerAddress: string | null
   customerPhone: string | null
   contactName: string | null
-  driverId: number
-  driverName: string
+  /** Tài xế lấy đồ; null khi chưa có ai nhận việc. */
+  driverId: number | null
+  driverName: string | null
+  driverUsername: string | null
+  /** Tài xế giao trả; null khi chưa giao. */
+  deliveryDriverId: number | null
+  deliveryDriverName: string | null
+  deliveryDriverUsername: string | null
   status: OrderStatus
-  totalBags: number
+  /** Số túi thực tế khi nhận đồ; null khi chưa lấy đồ. */
+  totalBags: number | null
   description: string | null
+  /** Yêu cầu lấy đồ: người gửi, ngày / khung giờ hẹn, số túi ước tính, lời dặn tài xế. */
+  requestedBy: string | null
+  preferredDate: string | null
+  timeSlot: TimeSlot | null
+  estimatedBags: number | null
+  pickupNote: string | null
+  /** Đã qua ngày hẹn lấy mà chưa lấy. */
+  pickupLate: boolean
   items: OrderItem[]
   totalAmount: number
   billable: boolean
+  /** Lúc tài xế nhận đồ. */
+  receivedAt: string | null
   /** Hạn trả đồ sạch. */
   dueAt: string | null
   /** Chưa hoàn thành mà đã quá hạn trả. */
   overdue: boolean
   completedAt: string | null
+  /** Chỉ có với đơn / yêu cầu đã hủy. */
+  cancelReason: string | null
+  cancelledBy: string | null
+  /** Lúc khách gửi yêu cầu lấy đồ (tạo đơn). */
   createdAt: string
   updatedAt: string
   history: OrderHistory[] | null
@@ -339,28 +370,6 @@ export interface Customer {
   /** Số ngày được nợ sau khi đơn hoàn thành (0 = trả ngay). */
   paymentTermDays: number
   active: boolean
-  createdAt: string
-}
-
-export interface PickupRequest {
-  id: number
-  customerId: number
-  customerName: string
-  customerType: CustomerType
-  address: string | null
-  phone: string | null
-  contactName: string | null
-  requestedBy: string
-  preferredDate: string
-  timeSlot: TimeSlot
-  estimatedBags: number | null
-  note: string | null
-  status: PickupStatus
-  driverId: number | null
-  driverName: string | null
-  orderId: number | null
-  cancelReason: string | null
-  cancelledBy: string | null
   createdAt: string
 }
 

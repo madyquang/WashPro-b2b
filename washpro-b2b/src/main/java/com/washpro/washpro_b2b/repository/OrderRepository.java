@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -20,16 +21,16 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
         OrderRepositoryCustom {
 
     /** Nạp đủ khách, tài xế, chi tiết cho một trang đơn (bước 2 của phân trang, sau khi đã có danh sách id). */
-    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "deliveryDriver", "items" })
     List<Order> findByIdIn(Collection<Long> ids);
 
-    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "deliveryDriver", "items" })
     List<Order> findByIsDeletedFalseOrderByCreatedAtDesc();
 
-    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "deliveryDriver", "items" })
     List<Order> findByDriverIdAndIsDeletedFalseOrderByCreatedAtDesc(Long driverId);
 
-    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "deliveryDriver", "items" })
     List<Order> findByCustomerIdAndIsDeletedFalseOrderByCreatedAtDesc(Long customerId);
 
     /**
@@ -69,12 +70,13 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
             @Param("to") LocalDateTime to);
 
     /**
-     * Mỗi đơn nhận trong khoảng [from, to) một dòng chỉ số (báo cáo hiệu suất):
-     * [id, customerId, tên khách, driverId, tên tài xế, tên đăng nhập tài xế, lúc nhận, hạn trả, số túi,
-     *  lúc bắt đầu giao lần đầu, số lần báo sai lệch, số lần báo sự cố nhận, giá trị đơn]. customerId null = mọi khách.
+     * Mỗi đơn tài xế nhận đồ trong khoảng [from, to) một dòng chỉ số (báo cáo hiệu suất):
+     * [id, customerId, tên khách, driverId, tên tài xế, tên đăng nhập tài xế, lúc nhận đồ, hạn trả, số túi,
+     *  lúc bắt đầu giao lần đầu, số lần báo sai lệch (quy trình cũ), số lần báo sự cố nhận, giá trị đơn].
+     * driverId null khi khách mang đồ đến xưởng. customerId null = mọi khách.
      */
     @Query("""
-            select o.id, c.id, c.name, d.id, d.fullName, d.username, o.createdAt, o.dueAt, o.totalBags,
+            select o.id, c.id, c.name, d.id, d.fullName, d.username, o.receivedAt, o.dueAt, o.totalBags,
                    (select min(h.createdAt) from OrderHistory h
                     where h.order = o and h.toStatus = com.washpro.washpro_b2b.entity.OrderStatus.DELIVERING),
                    (select count(h2) from OrderHistory h2
@@ -82,23 +84,42 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
                    (select count(h3) from OrderHistory h3
                     where h3.order = o and h3.toStatus = com.washpro.washpro_b2b.entity.OrderStatus.DELIVERY_ISSUE),
                    (select coalesce(sum(i.quantity * i.unitPrice), 0) from OrderItem i where i.order = o)
-            from LaundryOrder o join o.customer c join o.driver d
-            where o.isDeleted = false and o.createdAt >= :from and o.createdAt < :to
+            from LaundryOrder o join o.customer c left join o.driver d
+            where o.isDeleted = false and o.receivedAt >= :from and o.receivedAt < :to
               and (:customerId is null or c.id = :customerId)
             """)
     List<Object[]> performanceRows(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
             @Param("customerId") Long customerId);
 
-    /** Lộ trình: đơn của tài xế ở một trạng thái (VD đang giao), kèm khách. */
+    /**
+     * Yêu cầu lấy đồ gửi trong khoảng [from, to) (báo cáo hiệu suất), kể cả đã hủy: mỗi dòng
+     * [đã hủy, lúc gửi, lúc tài xế nhận đồ (null nếu chưa lấy), driverId (null nếu chưa ai nhận)].
+     * Đơn cũ tài xế tạo trực tiếp (không có người yêu cầu) không tính.
+     */
+    @Query("""
+            select o.isDeleted, o.createdAt, o.receivedAt, d.id
+            from LaundryOrder o left join o.driver d
+            where o.requestedBy is not null and o.createdAt >= :from and o.createdAt < :to
+              and (:customerId is null or o.customer.id = :customerId)
+            """)
+    List<Object[]> pickupPerformanceRows(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
+            @Param("customerId") Long customerId);
+
+    /** Lộ trình: việc lấy đồ tài xế đã nhận, hẹn tới ngày `date` (kể cả hẹn trước mà chưa lấy). */
     @EntityGraph(attributePaths = "customer")
-    List<Order> findByDriverIdAndStatusAndIsDeletedFalse(Long driverId, OrderStatus status);
+    List<Order> findByDriverIdAndStatusAndPreferredDateLessThanEqualAndIsDeletedFalse(Long driverId,
+            OrderStatus status, LocalDate date);
+
+    /** Lộ trình: đơn tài xế đang giao. */
+    @EntityGraph(attributePaths = "customer")
+    List<Order> findByDeliveryDriverIdAndStatusAndIsDeletedFalse(Long driverId, OrderStatus status);
 
     /** Khóa dòng khi đổi trạng thái để hai người thao tác cùng lúc không làm hỏng luồng. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from LaundryOrder o where o.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = { "customer", "driver", "items" })
+    @EntityGraph(attributePaths = { "customer", "driver", "deliveryDriver", "items" })
     @Query("select o from LaundryOrder o where o.id = :id")
     Optional<Order> findDetailById(@Param("id") Long id);
 

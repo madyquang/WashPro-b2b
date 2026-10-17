@@ -13,22 +13,21 @@ import StatementModal from '../finance/StatementModal'
 import { OrderCard } from '../orders/OrderCard'
 import { orderHint } from '../orders/hints'
 import { useOrderActions } from '../orders/useOrderActions'
-import { isActivePickup, usePickupActions } from '../pickups/usePickupActions'
 import { CardGrid, Section } from './HomeParts'
 import { greetingFor } from './greeting'
 import { getSession } from '../../utils/auth'
 import { groupByCategory } from '../../utils/catalog'
 import { formatCurrency, formatDateTime, getErrorMessage } from '../../utils/format'
-import type { DebtRow, Order, OrderPage, PickupRequest } from '../../types'
+import { STATUS_META, type DebtRow, type Order, type OrderPage } from '../../types'
 
 /**
- * Trang chủ phía khách (nhân viên + quản lý): một nút gửi yêu cầu lấy đồ, các đơn cần bạn xác nhận với nút làm ngay,
- * đồ đang ở xưởng và (chỉ quản lý) công nợ + sao kê. Không có số liệu vận hành của xưởng.
+ * Trang chủ phía khách (nhân viên + quản lý): một nút gửi yêu cầu lấy đồ, đơn đang giao tới (xác nhận / báo thiếu ngay),
+ * yêu cầu đang chờ lấy, đồ đang ở xưởng và (chỉ quản lý) công nợ + sao kê. Không có số liệu vận hành của xưởng.
  */
 export default function CustomerHome() {
   const session = getSession()
   const isManager = session?.role === 'CUSTOMER_MANAGER'
-  const [pickups, setPickups] = useState<PickupRequest[]>([])
+  const [pickups, setPickups] = useState<Order[]>([])
   const [todo, setTodo] = useState<Order[]>([])
   const [todoTotal, setTodoTotal] = useState(0)
   const [atWorkshop, setAtWorkshop] = useState<Order[]>([])
@@ -47,13 +46,13 @@ export default function CustomerHome() {
       const orders = (status: string, size: number) =>
         axiosClient.get<OrderPage>('/orders', { params: { status, sort: 'DUE', size } }).then((r) => r.data)
       const [p, t, w, d] = await Promise.all([
-        axiosClient.get<PickupRequest[]>('/pickups'),
-        orders('PENDING_CONFIRM,DISCREPANCY,DELIVERING', 10),
-        orders('WASHING,DELIVERY_ISSUE', 5),
+        axiosClient.get<OrderPage>('/orders', { params: { status: 'PICKUP_PENDING,PICKUP_ASSIGNED', sort: 'PICKUP', size: 4 } }),
+        orders('DELIVERING', 10),
+        orders('RECEIVED,WASHING,WASHED,DELIVERY_ISSUE', 5),
         // Công nợ chỉ quản lý phía khách được xem; máy chủ trả về đúng một dòng của khách mình
         isManager ? axiosClient.get<DebtRow[]>('/reports/debts').then((r) => r.data[0] ?? null) : Promise.resolve(null),
       ])
-      setPickups(p.data)
+      setPickups(p.data.content)
       setTodo(t.content)
       setTodoTotal(t.total)
       setAtWorkshop(w.content)
@@ -71,12 +70,10 @@ export default function CustomerHome() {
     load()
   }, [load])
 
-  const pickupActions = usePickupActions(load)
   const orderActions = useOrderActions(load)
 
   // Đã đăng xuất trong lúc trang còn đang tải (dữ liệu về muộn làm trang vẽ lại): không vẽ gì, tránh đọc phiên rỗng
   if (!session) return null
-  const activePickups = pickups.filter(isActivePickup).sort((a, b) => a.preferredDate.localeCompare(b.preferredDate))
 
   return (
     <>
@@ -86,7 +83,7 @@ export default function CustomerHome() {
         actions={
           <>
             <Button icon={<ReloadOutlined />} onClick={load} loading={loading} aria-label="Làm mới" />
-            <Button type="primary" icon={<CarOutlined />} onClick={pickupActions.openCreate}>
+            <Button type="primary" icon={<CarOutlined />} onClick={orderActions.openCreate}>
               Yêu cầu lấy đồ
             </Button>
           </>
@@ -98,9 +95,9 @@ export default function CustomerHome() {
         loading && <Skeleton active paragraph={{ rows: 8 }} />
       ) : (
         <>
-          <Section title="Cần bạn xác nhận" count={todoTotal} extra={todoTotal > todo.length && <Link to="/orders?view=todo">Xem tất cả</Link>}>
+          <Section title="Đang giao tới" count={todoTotal} extra={todoTotal > todo.length && <Link to="/orders?view=todo">Xem tất cả</Link>}>
             {todo.length === 0 ? (
-              <EmptyState compact description="Không có đơn nào cần bạn xác nhận lúc này." />
+              <EmptyState compact description="Không có đơn nào đang giao tới lúc này." />
             ) : (
               <CardGrid>
                 {todo.map((o) => (
@@ -119,9 +116,21 @@ export default function CustomerHome() {
             )}
           </Section>
 
-          {activePickups.length > 0 && (
-            <Section title="Yêu cầu lấy đồ đang chờ" count={activePickups.length} extra={<Link to="/pickups">Xem tất cả</Link>}>
-              <CardGrid>{activePickups.slice(0, 4).map((p) => pickupActions.cardFor(p))}</CardGrid>
+          {pickups.length > 0 && (
+            <Section title="Yêu cầu lấy đồ đang chờ" count={pickups.length} extra={<Link to="/pickups">Xem tất cả</Link>}>
+              <CardGrid>
+                {pickups.map((o) => (
+                  <OrderCard
+                    key={o.id}
+                    order={o}
+                    actions={orderActions.actionsFor(o)}
+                    busy={orderActions.busyId === o.id}
+                    onDetail={() => orderActions.openDetail(o.id)}
+                    hideCustomer
+                    hint={orderHint(o, session.role)}
+                  />
+                ))}
+              </CardGrid>
             </Section>
           )}
 
@@ -135,7 +144,7 @@ export default function CustomerHome() {
                     <span style={{ minWidth: 0, textAlign: 'left' }}>
                       <Typography.Text strong>Đơn #{o.id}</Typography.Text>
                       <span className="order-card-meta" style={{ display: 'block' }}>
-                        {o.totalBags} túi · {groupByCategory(o.items).map((g) => g.label).join(', ')}
+                        {o.totalBags} túi · {groupByCategory(o.items).map((g) => g.label).join(', ')} · {STATUS_META[o.status].label.toLowerCase()}
                         {o.dueAt && ` · hẹn trả ${formatDateTime(o.dueAt)}`}
                       </span>
                     </span>
@@ -181,7 +190,6 @@ export default function CustomerHome() {
       )}
 
       {isManager && <StatementModal customer={statementOpen ? debt : null} onClose={() => setStatementOpen(false)} />}
-      {pickupActions.ui}
       {orderActions.ui}
     </>
   )

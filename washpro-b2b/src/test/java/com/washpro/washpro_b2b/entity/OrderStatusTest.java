@@ -3,6 +3,7 @@ package com.washpro.washpro_b2b.entity;
 import org.junit.jupiter.api.Test;
 
 import static com.washpro.washpro_b2b.entity.OrderStatus.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,16 +11,23 @@ class OrderStatusTest {
 
     @Test
     void luongChinhDiDungThuTu() {
-        assertTrue(PENDING_CONFIRM.canTransitionTo(WASHING));
-        assertTrue(WASHING.canTransitionTo(DELIVERING));
+        assertTrue(PICKUP_PENDING.canTransitionTo(PICKUP_ASSIGNED));
+        assertTrue(PICKUP_ASSIGNED.canTransitionTo(RECEIVED));
+        assertTrue(RECEIVED.canTransitionTo(WASHING));
+        assertTrue(WASHING.canTransitionTo(WASHED));
+        assertTrue(WASHED.canTransitionTo(DELIVERING));
         assertTrue(DELIVERING.canTransitionTo(COMPLETED));
     }
 
     @Test
-    void luongSaiLech() {
-        assertTrue(PENDING_CONFIRM.canTransitionTo(DISCREPANCY));
-        assertTrue(DISCREPANCY.canTransitionTo(PENDING_CONFIRM));
-        assertTrue(DISCREPANCY.canTransitionTo(WASHING));
+    void taiXeTraLaiViec() {
+        assertTrue(PICKUP_ASSIGNED.canTransitionTo(PICKUP_PENDING));
+        assertTrue(DELIVERING.canTransitionTo(WASHED));
+    }
+
+    @Test
+    void xuongNhanDoTaiXuongKhongCanTaiXe() {
+        assertTrue(PICKUP_PENDING.canTransitionTo(RECEIVED));
     }
 
     @Test
@@ -33,17 +41,25 @@ class OrderStatusTest {
 
     @Test
     void khongChoNhayBuocHoacLuiTrangThai() {
-        assertFalse(PENDING_CONFIRM.canTransitionTo(DELIVERING));
-        assertFalse(PENDING_CONFIRM.canTransitionTo(COMPLETED));
-        assertFalse(WASHING.canTransitionTo(PENDING_CONFIRM));
+        assertFalse(PICKUP_PENDING.canTransitionTo(WASHING));
+        assertFalse(RECEIVED.canTransitionTo(WASHED));
+        assertFalse(WASHING.canTransitionTo(DELIVERING));
         assertFalse(WASHING.canTransitionTo(COMPLETED));
-        assertFalse(DELIVERING.canTransitionTo(WASHING));
+        assertFalse(WASHED.canTransitionTo(COMPLETED));
+        assertFalse(WASHING.canTransitionTo(RECEIVED));
     }
 
     @Test
-    void donHoanThanhLaKetThuc() {
+    void donHoanThanhVaTrangThaiCuLaKetThuc() {
         for (OrderStatus next : OrderStatus.values()) {
             assertFalse(COMPLETED.canTransitionTo(next), "COMPLETED không được chuyển sang " + next);
+            assertFalse(PENDING_CONFIRM.canTransitionTo(next), "trạng thái cũ không được dùng tiếp");
         }
+    }
+
+    @Test
+    void quyTrinhKhongCoTrangThaiCu() {
+        assertEquals(8, OrderStatus.flow().size());
+        assertFalse(OrderStatus.flow().contains(DISCREPANCY));
     }
 }

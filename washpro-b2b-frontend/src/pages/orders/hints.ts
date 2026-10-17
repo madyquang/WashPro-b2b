@@ -11,17 +11,17 @@ export interface OrderView {
 }
 
 const CUSTOMER_VIEWS: OrderView[] = [
-  { key: 'todo', label: 'Cần bạn xác nhận', statuses: ['PENDING_CONFIRM', 'DISCREPANCY', 'DELIVERING'], empty: 'Không có đơn nào cần bạn xác nhận.' },
-  { key: 'washing', label: 'Đang ở xưởng', statuses: ['WASHING', 'DELIVERY_ISSUE'], empty: 'Không có đồ nào đang ở xưởng.' },
+  { key: 'todo', label: 'Đang giao tới', statuses: ['DELIVERING'], empty: 'Không có đơn nào đang giao tới.' },
+  { key: 'pickup', label: 'Chờ lấy đồ', statuses: ['PICKUP_PENDING', 'PICKUP_ASSIGNED'], empty: 'Không có yêu cầu lấy đồ nào đang chờ.' },
+  { key: 'washing', label: 'Đang ở xưởng', statuses: ['RECEIVED', 'WASHING', 'WASHED', 'DELIVERY_ISSUE'], empty: 'Không có đồ nào đang ở xưởng.' },
   { key: 'done', label: 'Hoàn thành', statuses: ['COMPLETED'], empty: 'Chưa có đơn hoàn thành.' },
   { key: 'all', label: 'Tất cả', statuses: [], empty: 'Chưa có đơn giặt nào.' },
 ]
 
 const DRIVER_VIEWS: OrderView[] = [
-  { key: 'all', label: 'Tất cả', statuses: [], empty: 'Bạn chưa tạo đơn nào.' },
-  { key: 'waiting', label: 'Chờ khách xác nhận', statuses: ['PENDING_CONFIRM', 'DISCREPANCY'], empty: 'Không có đơn nào đang chờ khách xác nhận.' },
-  { key: 'progress', label: 'Đang giặt / giao', statuses: ['WASHING', 'DELIVERING', 'DELIVERY_ISSUE'], empty: 'Không có đơn nào đang giặt hoặc giao.' },
+  { key: 'progress', label: 'Đang xử lý', statuses: ['RECEIVED', 'WASHING', 'WASHED', 'DELIVERING', 'DELIVERY_ISSUE'], empty: 'Không có đơn nào đang xử lý.' },
   { key: 'done', label: 'Hoàn thành', statuses: ['COMPLETED'], empty: 'Chưa có đơn hoàn thành.' },
+  { key: 'all', label: 'Tất cả', statuses: [], empty: 'Chưa có đơn nào.' },
 ]
 
 /** Nhóm việc cho tài khoản phía khách và tài xế; xưởng dùng tab theo từng trạng thái (null). */
@@ -34,16 +34,23 @@ export function fieldViews(role: Role): OrderView[] | null {
 /** Lời nhắc ngắn trên thẻ đơn: người dùng cần làm gì tiếp theo (hoặc đang chờ ai). */
 export function orderHint(o: Order, role: Role): string | undefined {
   if (isCustomerRole(role)) {
-    if (o.status === 'PENDING_CONFIRM') return 'Tài xế đã đếm đồ. Kiểm lại số lượng rồi xác nhận để xưởng bắt đầu giặt.'
-    if (o.status === 'DISCREPANCY') return 'Số lượng đang có sai lệch. Kiểm lại rồi xác nhận, hoặc báo lại nếu vẫn chưa đúng.'
-    if (o.status === 'DELIVERING') return 'Đồ sạch đang được giao. Kiểm đủ rồi bấm "Đã nhận đủ đồ".'
+    if (o.status === 'PICKUP_PENDING') return 'Xưởng đã nhận yêu cầu, đang sắp xếp tài xế.'
+    if (o.status === 'PICKUP_ASSIGNED') return `Tài xế ${o.driverName ?? ''} sẽ đến lấy đồ.`
+    if (o.status === 'RECEIVED') return 'Tài xế đã nhận đồ, đang mang về xưởng.'
+    if (o.status === 'WASHED') return 'Đồ đã giặt xong, xưởng sắp giao trả.'
+    if (o.status === 'DELIVERING') return 'Đồ sạch đang được giao. Kiểm đủ rồi bấm "Đã nhận đủ đồ", thiếu / hỏng thì báo ngay.'
     if (o.status === 'DELIVERY_ISSUE') return 'Xưởng đang xử lý phần thiếu / hỏng bạn đã báo.'
     return undefined
   }
   if (role === 'DRIVER') {
-    if (o.status === 'PENDING_CONFIRM') return 'Đang chờ khách xác nhận số lượng.'
-    if (o.status === 'DISCREPANCY') return 'Có sai lệch số lượng, chờ khách xác nhận lại hoặc xưởng mở lại đơn.'
-    if (o.status === 'DELIVERING') return 'Đang giao trả, chờ khách xác nhận đã nhận đủ.'
+    if (o.status === 'PICKUP_ASSIGNED') return 'Kiểm số lượng cùng khách, khách ký rồi bấm "Đã nhận đồ".'
+    if (o.status === 'WASHED') return 'Đồ đã giặt xong, chờ tài xế nhận giao.'
+    if (o.status === 'DELIVERING') return 'Giao xong thì cho khách ký nhận rồi bấm "Giao xong".'
+    return undefined
+  }
+  if (role === 'WORKSHOP_ADMIN') {
+    if (o.status === 'RECEIVED') return 'Đồ đang về xưởng: bấm "Bắt đầu giặt" khi nhận đủ.'
+    if (o.status === 'WASHED') return 'Giặt xong, chờ tài xế giao.'
     return undefined
   }
   if (role === 'WORKSHOP_ACCOUNTANT' && !o.billable && o.status !== 'COMPLETED') return 'Còn dòng chưa có đơn giá.'

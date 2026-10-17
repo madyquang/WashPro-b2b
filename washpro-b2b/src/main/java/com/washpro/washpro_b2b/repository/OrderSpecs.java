@@ -4,17 +4,25 @@ import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
+import com.washpro.washpro_b2b.entity.User;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Điều kiện lọc đơn hàng chạy trong CSDL (thay vì tải toàn bộ rồi lọc trong bộ nhớ).
  * Mỗi hàm trả về một điều kiện độc lập để ghép bằng and().
  */
 public final class OrderSpecs {
+
+    /** Việc đang chờ bất kỳ tài xế nào nhận: yêu cầu lấy đồ chưa có tài xế, đơn giặt xong chờ giao. */
+    public static final List<OrderStatus> OPEN_FOR_DRIVERS = List.of(OrderStatus.PICKUP_PENDING, OrderStatus.WASHED);
 
     private OrderSpecs() {
     }
@@ -23,8 +31,32 @@ public final class OrderSpecs {
         return (root, query, cb) -> cb.isFalse(root.get("isDeleted"));
     }
 
-    public static Specification<Order> driver(Long driverId) {
-        return (root, query, cb) -> cb.equal(root.get("driver").get("id"), driverId);
+    public static Specification<Order> deleted() {
+        return (root, query, cb) -> cb.isTrue(root.get("isDeleted"));
+    }
+
+    /** Tài xế thấy: đơn mình lấy, đơn mình giao, và việc đang chờ tài xế nhận. */
+    public static Specification<Order> visibleToDriver(Long driverId) {
+        return (root, query, cb) -> cb.or(
+                cb.equal(left(root, "driver").get("id"), driverId),
+                cb.equal(left(root, "deliveryDriver").get("id"), driverId),
+                root.get("status").in(OPEN_FOR_DRIVERS));
+    }
+
+    /** Tài xế từng lấy hoặc giao đơn này (dùng cho đơn đã hủy). */
+    public static Specification<Order> involvesDriver(Long driverId) {
+        return (root, query, cb) -> cb.or(
+                cb.equal(left(root, "driver").get("id"), driverId),
+                cb.equal(left(root, "deliveryDriver").get("id"), driverId));
+    }
+
+    /** Việc tài xế đang phải làm: đi lấy đồ đã nhận, đơn đang đi giao. */
+    public static Specification<Order> assignedTo(Long driverId) {
+        return (root, query, cb) -> cb.or(
+                cb.and(cb.equal(root.get("status"), OrderStatus.PICKUP_ASSIGNED),
+                        cb.equal(left(root, "driver").get("id"), driverId)),
+                cb.and(cb.equal(root.get("status"), OrderStatus.DELIVERING),
+                        cb.equal(left(root, "deliveryDriver").get("id"), driverId)));
     }
 
     public static Specification<Order> customer(Long customerId) {
@@ -43,11 +75,11 @@ public final class OrderSpecs {
                 cb.lessThan(root.get("dueAt"), now));
     }
 
-    /** Tạo trong khoảng [from, to). */
-    public static Specification<Order> createdBetween(LocalDateTime from, LocalDateTime to) {
+    /** Tài xế nhận đồ trong khoảng [from, to). */
+    public static Specification<Order> receivedBetween(LocalDateTime from, LocalDateTime to) {
         return (root, query, cb) -> cb.and(
-                cb.greaterThanOrEqualTo(root.get("createdAt"), from),
-                cb.lessThan(root.get("createdAt"), to));
+                cb.greaterThanOrEqualTo(root.get("receivedAt"), from),
+                cb.lessThan(root.get("receivedAt"), to));
     }
 
     /** Chưa hoàn thành, chưa quá hạn (hạn trả từ `now`) và hạn trả trước `to`. */
@@ -70,11 +102,12 @@ public final class OrderSpecs {
         };
     }
 
-    /** Tìm theo tên khách hàng, tên tài xế, tên loại đồ, hoặc mã đơn ("#12" / "12"). */
+    /** Tìm theo tên khách hàng, tên tài xế (lấy hoặc giao), tên loại đồ, hoặc mã đơn ("#12" / "12"). */
     public static Specification<Order> keyword(String keyword) {
         return (root, query, cb) -> {
             String pattern = "%" + escapeLike(keyword.toLowerCase()) + "%";
-            var driver = root.join("driver");
+            Join<Order, User> driver = left(root, "driver");
+            Join<Order, User> deliveryDriver = left(root, "deliveryDriver");
             Subquery<Long> sub = query.subquery(Long.class);
             var item = sub.from(OrderItem.class);
             sub.select(item.get("id")).where(
@@ -85,10 +118,23 @@ public final class OrderSpecs {
                     cb.like(cb.lower(root.get("customer").get("name")), pattern, '\\'),
                     cb.like(cb.lower(driver.get("fullName")), pattern, '\\'),
                     cb.like(cb.lower(driver.get("username")), pattern, '\\'),
+                    cb.like(cb.lower(deliveryDriver.get("fullName")), pattern, '\\'),
+                    cb.like(cb.lower(deliveryDriver.get("username")), pattern, '\\'),
                     cb.exists(sub));
             Long id = parseId(keyword);
             return id == null ? any : cb.or(any, cb.equal(root.get("id"), id));
         };
+    }
+
+    /** LEFT JOIN tới tài xế (đơn có thể chưa có tài xế); dùng lại join đã có trong cùng truy vấn. */
+    @SuppressWarnings("unchecked")
+    private static Join<Order, User> left(Root<Order> root, String attribute) {
+        for (Join<Order, ?> j : root.getJoins()) {
+            if (j.getAttribute().getName().equals(attribute) && j.getJoinType() == JoinType.LEFT) {
+                return (Join<Order, User>) j;
+            }
+        }
+        return root.join(attribute, JoinType.LEFT);
     }
 
     private static Long parseId(String keyword) {

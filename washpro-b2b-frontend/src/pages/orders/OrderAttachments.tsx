@@ -11,7 +11,8 @@ import { message } from '../../utils/message'
 import { useNow } from '../../utils/useNow'
 import { ATTACHMENT_LABELS, type AttachmentKind, type Order, type OrderAttachment, type Role } from '../../types'
 
-const PICKUP_STAGE = ['PENDING_CONFIRM', 'DISCREPANCY', 'WASHING']
+/** Đến khi giặt xong: ảnh / chữ ký thuộc lúc lấy đồ; sau đó thuộc lúc giao trả. */
+const PICKUP_STAGE = ['PICKUP_PENDING', 'PICKUP_ASSIGNED', 'RECEIVED', 'WASHING']
 /** Người tải lên tự xóa được ảnh của mình trong 24 giờ (khớp backend). */
 const SELF_DELETE_MS = 24 * 3600 * 1000
 
@@ -120,7 +121,7 @@ export default function OrderAttachments({ order }: { order: Order }) {
       {items === null && <Skeleton.Image active />}
       {error && <Typography.Text type="danger">{error}</Typography.Text>}
       {items && items.length === 0 && !adding && (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có ảnh hay chữ ký (không bắt buộc)" />
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có ảnh hay chữ ký" />
       )}
       {items && items.length > 0 && (
         <Image.PreviewGroup>

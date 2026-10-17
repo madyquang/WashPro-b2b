@@ -10,7 +10,6 @@ import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.PushSubscriptionRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.service.push.WebPushCrypto;
@@ -67,8 +66,6 @@ class PushApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     NotificationRepository notificationRepository;
@@ -87,7 +84,6 @@ class PushApiIntegrationTest {
     void seed() throws Exception {
         subscriptionRepository.deleteAll();
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -148,7 +144,7 @@ class PushApiIntegrationTest {
         String payload = new String(WebPushCryptoTest.decrypt(r.body(), (ECPrivateKey) device.getPrivate(), devicePublic, auth),
                 StandardCharsets.UTF_8);
         assertThat(JsonPath.<String>read(payload, "$.title")).isEqualTo("Yêu cầu lấy đồ mới: Nhà hàng Hoa Sen");
-        assertThat(JsonPath.<String>read(payload, "$.link")).isEqualTo("/pickups");
+        assertThat(JsonPath.<String>read(payload, "$.link")).isEqualTo("/pickups?tab=open");
         assertThat(JsonPath.<String>read(payload, "$.tag")).isEqualTo("PICKUP_NEW");
     }
 
@@ -204,7 +200,7 @@ class PushApiIntegrationTest {
     }
 
     private void createPickup() throws Exception {
-        mvc.perform(post("/api/pickups").header("Authorization", "Bearer " + login("hoasen.nv"))
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());

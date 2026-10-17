@@ -70,7 +70,7 @@ export default function RoutePlan() {
 
   return (
     <div className="narrow">
-      <PageHeader title="Lộ trình" description="Các điểm lấy đồ đã nhận và đơn đang giao, gom theo khu vực. Bấm mũi tên để đổi thứ tự đi." />
+      <PageHeader title="Lộ trình" description="Các điểm lấy đồ đã nhận việc và đơn đang giao, gom theo khu vực. Bấm mũi tên để đổi thứ tự đi." />
 
       <Segmented<Day>
         block
@@ -87,7 +87,7 @@ export default function RoutePlan() {
       {!plan && !error && <Skeleton active paragraph={{ rows: 6 }} />}
       {plan && stops.length === 0 && (
         <EmptyState
-          description={day === 'today' ? 'Chưa có điểm nào. Nhận việc ở mục Lấy đồ để thêm điểm vào lộ trình.' : 'Chưa có việc hẹn ngày mai.'}
+          description={day === 'today' ? 'Chưa có điểm nào. Nhận việc ở mục Lấy & giao để thêm điểm vào lộ trình.' : 'Chưa có việc hẹn ngày mai.'}
           action={day === 'today' ? { label: 'Xem việc chờ nhận', onClick: () => navigate('/pickups?tab=open') } : undefined}
         />
       )}
@@ -155,8 +155,8 @@ export default function RoutePlan() {
                         Chỉ đường
                       </Button>
                     </a>
-                    <Link to={s.type === 'PICKUP' ? '/pickups?tab=mine' : `/orders?status=DELIVERING&open=${s.id}`}>
-                      <Button size="small">{s.type === 'PICKUP' ? 'Mở việc' : 'Mở đơn'}</Button>
+                    <Link to="/pickups?tab=mine">
+                      <Button size="small">Mở việc</Button>
                     </Link>
                   </Space>
                 </div>

@@ -5,8 +5,6 @@ import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
-import com.washpro.washpro_b2b.entity.PickupRequest;
-import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.TimeSlot;
 import com.washpro.washpro_b2b.entity.User;
@@ -15,7 +13,6 @@ import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,8 +56,6 @@ class RouteApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     NotificationRepository notificationRepository;
@@ -70,7 +65,6 @@ class RouteApiIntegrationTest {
     @BeforeEach
     void seed() {
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -88,16 +82,17 @@ class RouteApiIntegrationTest {
         User hung = user("taixe.hung", Role.DRIVER, null);
 
         LocalDate today = LocalDate.now();
-        pickup(hoaSen, tai, today, TimeSlot.AFTERNOON, PickupStatus.ACCEPTED);
-        pickup(pho, tai, today, TimeSlot.MORNING, PickupStatus.ACCEPTED);
-        pickup(an, tai, today.minusDays(1), TimeSlot.EVENING, PickupStatus.ACCEPTED); // quá hẹn
-        pickup(vague, tai, today, TimeSlot.MORNING, PickupStatus.ACCEPTED);
-        pickup(hoaSen, tai, today.plusDays(1), TimeSlot.MORNING, PickupStatus.ACCEPTED); // ngày mai
-        pickup(hoaSen, null, today, TimeSlot.MORNING, PickupStatus.OPEN); // chưa ai nhận
-        pickup(hoaSen, tai, today, TimeSlot.MORNING, PickupStatus.DONE); // đã lấy
-        pickup(pho, hung, today, TimeSlot.MORNING, PickupStatus.ACCEPTED); // của tài xế khác
+        pickup(hoaSen, tai, today, TimeSlot.AFTERNOON, OrderStatus.PICKUP_ASSIGNED);
+        pickup(pho, tai, today, TimeSlot.MORNING, OrderStatus.PICKUP_ASSIGNED);
+        pickup(an, tai, today.minusDays(1), TimeSlot.EVENING, OrderStatus.PICKUP_ASSIGNED); // quá hẹn
+        pickup(vague, tai, today, TimeSlot.MORNING, OrderStatus.PICKUP_ASSIGNED);
+        pickup(hoaSen, tai, today.plusDays(1), TimeSlot.MORNING, OrderStatus.PICKUP_ASSIGNED); // ngày mai
+        pickup(hoaSen, null, today, TimeSlot.MORNING, OrderStatus.PICKUP_PENDING); // chưa ai nhận
+        pickup(hoaSen, tai, today, TimeSlot.MORNING, OrderStatus.RECEIVED); // đã lấy
+        pickup(pho, hung, today, TimeSlot.MORNING, OrderStatus.PICKUP_ASSIGNED); // của tài xế khác
 
-        Order delivering = Order.builder().driver(tai).customer(bien).status(OrderStatus.DELIVERING).totalBags(4).build();
+        Order delivering = Order.builder().driver(hung).deliveryDriver(tai).customer(bien).status(OrderStatus.DELIVERING)
+                .totalBags(4).build();
         delivering.addItem(OrderItem.builder().itemName("Khăn bàn").quantity(new BigDecimal("10")).build());
         orderRepository.save(delivering);
     }
@@ -145,8 +140,8 @@ class RouteApiIntegrationTest {
         return customerRepository.save(Customer.builder().name(name).address(address).build());
     }
 
-    private void pickup(Customer c, User driver, LocalDate date, TimeSlot slot, PickupStatus status) {
-        pickupRepository.save(PickupRequest.builder().customer(c).driver(driver).requestedBy("x").preferredDate(date)
+    private void pickup(Customer c, User driver, LocalDate date, TimeSlot slot, OrderStatus status) {
+        orderRepository.save(Order.builder().customer(c).driver(driver).requestedBy("x").preferredDate(date)
                 .timeSlot(slot).status(status).build());
     }
 

@@ -11,7 +11,6 @@ import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.repository.CustomerPriceRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,8 +61,6 @@ class ReportApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
 
     Customer hoaSen;
@@ -74,7 +71,6 @@ class ReportApiIntegrationTest {
 
     @BeforeEach
     void seed() {
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -105,7 +101,7 @@ class ReportApiIntegrationTest {
         // Đơn đang xử lý: một đơn quá hạn trả, một đơn hạn trả trong hôm nay
         orderRepository.save(order(hoaSen, OrderStatus.WASHING, now.minusHours(1), null, 0));
         LocalDateTime endOfToday = now.toLocalDate().plusDays(1).atStartOfDay();
-        orderRepository.save(order(hoaSen, OrderStatus.PENDING_CONFIRM,
+        orderRepository.save(order(hoaSen, OrderStatus.RECEIVED,
                 now.plusSeconds(java.time.Duration.between(now, endOfToday).getSeconds() / 2), null, 0));
 
         // Biển Xanh: hoàn thành 40 ngày trước, kỳ 30 ngày -> quá hạn 10 ngày; dòng chưa có giá không tính tiền
@@ -125,7 +121,7 @@ class ReportApiIntegrationTest {
                 .andExpect(jsonPath("$.totalOrders", is(7)))
                 .andExpect(jsonPath("$.countsByStatus.COMPLETED", is(5)))
                 .andExpect(jsonPath("$.countsByStatus.WASHING", is(1)))
-                .andExpect(jsonPath("$.countsByStatus.PENDING_CONFIRM", is(1)))
+                .andExpect(jsonPath("$.countsByStatus.RECEIVED", is(1)))
                 .andExpect(jsonPath("$.countsByStatus.DELIVERING", is(0)))
                 .andExpect(jsonPath("$.ordersToday", is(7)))
                 .andExpect(jsonPath("$.overdueOrders", is(1)))
@@ -213,6 +209,7 @@ class ReportApiIntegrationTest {
                 .customer(customer)
                 .status(status)
                 .totalBags(1)
+                .receivedAt(LocalDateTime.now())
                 .dueAt(dueAt)
                 .completedAt(completedAt)
                 .build();

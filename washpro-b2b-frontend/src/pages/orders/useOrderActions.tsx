@@ -1,17 +1,19 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Input, Modal, Space, Typography } from 'antd'
 import { message } from '../../utils/message'
 import axiosClient from '../../api/axiosClient'
 import PhotoPicker, { type PickedPhoto } from '../../components/PhotoPicker'
 import { uploadAttachments } from '../../utils/attachments'
-import DiscrepancyModal from './DiscrepancyModal'
+import AssignModal from './AssignModal'
+import DeliverModal from './DeliverModal'
 import ItemsModal from './ItemsModal'
 import NoteModal from './NoteModal'
 import OrderDrawer from './OrderDrawer'
+import ReceiveModal from './ReceiveModal'
+import RequestModal from './RequestModal'
 import { getSession, isCustomerRole } from '../../utils/auth'
-import { formatQuantity } from '../../utils/catalog'
 import { getErrorMessage, toLocalInput } from '../../utils/format'
-import { STATUS_META, type Order, type OrderStatus } from '../../types'
+import { isPickupStage, STATUS_META, type Order, type OrderStatus } from '../../types'
 
 /** Một thao tác trên đơn: có confirm thì hỏi lại trước khi làm. */
 export interface OrderAction {
@@ -28,17 +30,17 @@ interface AdminStep {
   status: OrderStatus
   label: string
   confirm: string
-  /** Cần đủ đơn giá mới làm được (giao trả / chốt). */
+  /** Cần đủ đơn giá mới làm được (giặt xong / chốt). */
   needsPrice?: boolean
   primary?: boolean
 }
 
-/** Các bước Quản lý xưởng có thể đẩy đơn đi. */
+/** Các bước Quản lý xưởng bấm để đẩy đơn đi (phân công tài xế là thao tác riêng). */
 const ADMIN_NEXT: Partial<Record<OrderStatus, AdminStep[]>> = {
-  DISCREPANCY: [{ status: 'PENDING_CONFIRM', label: 'Mở lại', confirm: 'Mở lại đơn, gửi cho khách xác nhận lại số lượng?', primary: true }],
-  WASHING: [{ status: 'DELIVERING', label: 'Bắt đầu giao', confirm: 'Đồ đã giặt xong, bắt đầu giao trả?', needsPrice: true, primary: true }],
+  RECEIVED: [{ status: 'WASHING', label: 'Bắt đầu giặt', confirm: 'Đồ đã về xưởng, đã kiểm số túi. Bắt đầu giặt?', primary: true }],
+  WASHING: [{ status: 'WASHED', label: 'Đã giặt xong', confirm: 'Đã giặt xong và kiểm lại số lượng? Đơn sẽ chờ tài xế giao.', needsPrice: true, primary: true }],
   DELIVERING: [
-    { status: 'COMPLETED', label: 'Chốt thay khách', confirm: 'Khách chưa bấm xác nhận. Xưởng chốt hoàn thành thay khách?', needsPrice: true },
+    { status: 'COMPLETED', label: 'Chốt thay khách', confirm: 'Tài xế / khách chưa xác nhận đã giao. Xưởng chốt hoàn thành?', needsPrice: true },
   ],
   DELIVERY_ISSUE: [
     { status: 'DELIVERING', label: 'Giao bù', confirm: 'Giao bù phần thiếu/hỏng cho khách?', primary: true },
@@ -47,12 +49,14 @@ const ADMIN_NEXT: Partial<Record<OrderStatus, AdminStep[]>> = {
 }
 
 /**
- * Toàn bộ thao tác trên đơn theo vai trò + các hộp thoại đi kèm (báo sai lệch, chi tiết & giá, hủy, báo thiếu/hỏng,
- * đổi hạn, xem chi tiết). Dùng chung cho trang Đơn hàng và trang chủ từng vai trò để thao tác được ngay tại chỗ.
- * Gọi onChanged sau mỗi thao tác thành công để nơi dùng tải lại dữ liệu.
+ * Toàn bộ thao tác trên đơn theo vai trò + các hộp thoại đi kèm, từ yêu cầu lấy đồ đến khi giao xong
+ * (nhận việc, phân công, nhận đồ, giặt, giao, hủy, ghi chú...). Dùng chung cho trang Đơn hàng, trang Lấy & giao
+ * và trang chủ từng vai trò để thao tác được ngay tại chỗ. Gọi onChanged sau mỗi thao tác thành công.
  */
 export function useOrderActions(onChanged: () => void) {
-  const role = getSession()?.role
+  const session = getSession()
+  const role = session?.role
+  const me = session?.username
   const isDriver = role === 'DRIVER'
   const isCustomer = role ? isCustomerRole(role) : false
   const isAdmin = role === 'WORKSHOP_ADMIN'
@@ -60,7 +64,6 @@ export function useOrderActions(onChanged: () => void) {
 
   const [modal, modalHolder] = Modal.useModal()
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [discrepancyOrder, setDiscrepancyOrder] = useState<Order | null>(null)
   const [itemsOrder, setItemsOrder] = useState<Order | null>(null)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null)
@@ -72,6 +75,11 @@ export function useOrderActions(onChanged: () => void) {
   const [dueValue, setDueValue] = useState('')
   const [dueNote, setDueNote] = useState('')
   const [noteOrderId, setNoteOrderId] = useState<number | null>(null)
+  const [assignOrder, setAssignOrder] = useState<Order | null>(null)
+  const [receiveOrder, setReceiveOrder] = useState<Order | null>(null)
+  const [deliverOrder, setDeliverOrder] = useState<Order | null>(null)
+  const [creating, setCreating] = useState(false)
+  const openCreate = useCallback(() => setCreating(true), [])
 
   const run = async (order: Order, request: () => Promise<unknown>, success: string) => {
     setBusyId(order.id)
@@ -90,7 +98,11 @@ export function useOrderActions(onChanged: () => void) {
     if (!cancelOrder) return
     const target = cancelOrder
     setCancelOrder(null)
-    await run(target, () => axiosClient.delete(`/orders/${target.id}`, { params: { reason: cancelReason.trim() || undefined } }), `Đã hủy đơn #${target.id}`)
+    await run(
+      target,
+      () => axiosClient.delete(`/orders/${target.id}`, { params: { reason: cancelReason.trim() || undefined } }),
+      isPickupStage(target) ? 'Đã hủy yêu cầu' : `Đã hủy đơn #${target.id}`,
+    )
     setCancelReason('')
   }
 
@@ -126,11 +138,19 @@ export function useOrderActions(onChanged: () => void) {
     await run(target, () => axiosClient.put(`/orders/${target.id}/due`, { dueAt: `${dueValue}:00`, note: dueNote.trim() || null }), `Đã đổi hạn trả đơn #${target.id}`)
   }
 
+  const release = (o: Order, what: string): OrderAction => ({
+    key: 'release',
+    label: 'Trả lại việc',
+    confirm: { title: `Trả lại việc ${what} cho tài xế khác?`, okText: 'Trả lại' },
+    onClick: () => run(o, () => axiosClient.put(`/orders/${o.id}/release`), 'Đã trả lại việc'),
+  })
+
   /** Các thao tác theo vai trò và trạng thái đơn; thao tác chính (primary) xếp trước. */
   const actionsFor = (o: Order): OrderAction[] => {
-    const waiting = o.status === 'PENDING_CONFIRM' || o.status === 'DISCREPANCY'
+    const pickup = isPickupStage(o)
     const actions: OrderAction[] = []
 
+    // ----- Khách hàng -----
     if (isCustomer && o.status === 'DELIVERING') {
       actions.push(
         {
@@ -143,30 +163,37 @@ export function useOrderActions(onChanged: () => void) {
         { key: 'issue', label: 'Báo thiếu / hỏng', danger: true, onClick: () => setIssueOrder(o) },
       )
     }
-    if (isCustomer && waiting) {
-      actions.push({
-        key: 'approve',
-        label: 'Xác nhận số lượng',
-        primary: true,
-        confirm: {
-          title: 'Số lượng đã đúng?',
-          description: (
-            <div style={{ maxWidth: 320 }}>
-              {o.totalBags} túi gồm: {o.items.map((i) => `${i.itemName} ${formatQuantity(i.quantity, i.unit)}`).join(', ')}. Đơn sẽ chuyển xưởng giặt.
-            </div>
-          ),
-          okText: 'Đúng, xác nhận',
-        },
-        onClick: () => run(o, () => axiosClient.put(`/orders/${o.id}/approve`), `Đã xác nhận đơn #${o.id}`),
-      })
+
+    // ----- Tài xế -----
+    if (isDriver) {
+      if (o.status === 'PICKUP_PENDING') {
+        actions.push({ key: 'accept', label: 'Nhận việc', primary: true, onClick: () => run(o, () => axiosClient.put(`/orders/${o.id}/accept`), 'Đã nhận việc') })
+      }
+      if (o.status === 'PICKUP_ASSIGNED' && o.driverUsername === me) {
+        actions.push({ key: 'receive', label: 'Đã nhận đồ', primary: true, onClick: () => setReceiveOrder(o) }, release(o, 'lấy đồ'))
+      }
+      if (o.status === 'WASHED') {
+        actions.push({ key: 'accept', label: 'Nhận giao', primary: true, onClick: () => run(o, () => axiosClient.put(`/orders/${o.id}/accept`), 'Đã nhận giao') })
+      }
+      if (o.status === 'DELIVERING' && o.deliveryDriverUsername === me) {
+        actions.push({ key: 'deliver', label: 'Giao xong', primary: true, onClick: () => setDeliverOrder(o) }, release(o, 'giao trả'))
+      }
     }
-    if ((isCustomer || isDriver) && waiting) {
-      actions.push({ key: 'discrepancy', label: isCustomer ? 'Số lượng không đúng' : 'Báo sai lệch', danger: true, onClick: () => setDiscrepancyOrder(o) })
-    }
-    if (isDriver && o.status === 'DELIVERING') {
-      actions.push({ key: 'proof', label: 'Ảnh & chữ ký giao', onClick: () => setDetailId(o.id) })
-    }
+
+    // ----- Quản lý xưởng -----
     if (isAdmin) {
+      if (pickup) {
+        actions.push(
+          { key: 'assign', label: o.driverId ? 'Đổi tài xế' : 'Phân công tài xế', primary: !o.driverId, onClick: () => setAssignOrder(o) },
+          { key: 'receive', label: 'Nhận đồ tại xưởng', onClick: () => setReceiveOrder(o) },
+        )
+      }
+      if (o.status === 'WASHED') {
+        actions.push({ key: 'assign', label: 'Phân công giao', primary: true, onClick: () => setAssignOrder(o) })
+      }
+      if (o.status === 'DELIVERING' || o.status === 'DELIVERY_ISSUE') {
+        actions.push({ key: 'assign', label: 'Đổi tài xế giao', onClick: () => setAssignOrder(o) })
+      }
       for (const step of ADMIN_NEXT[o.status] ?? []) {
         actions.push({
           key: `step-${step.status}`,
@@ -178,17 +205,17 @@ export function useOrderActions(onChanged: () => void) {
         })
       }
     }
-    if ((isAdmin || isAccountant) && o.status !== 'COMPLETED') {
+    if ((isAdmin || isAccountant) && !pickup && o.status !== 'COMPLETED') {
       actions.push({ key: 'items', label: isAccountant && !o.billable ? 'Nhập đơn giá' : 'Chi tiết & giá', primary: isAccountant && !o.billable, onClick: () => setItemsOrder(o) })
     }
     if (isAdmin || isAccountant || isDriver) {
       actions.push({ key: 'note', label: 'Ghi chú', onClick: () => setNoteOrderId(o.id) })
     }
-    if (isAdmin && o.status !== 'COMPLETED') {
-      actions.push(
-        { key: 'due', label: 'Đổi hạn trả', onClick: () => openDue(o) },
-        { key: 'cancel', label: 'Hủy đơn', danger: true, onClick: () => setCancelOrder(o) },
-      )
+    if (isAdmin && !pickup && o.status !== 'COMPLETED') {
+      actions.push({ key: 'due', label: 'Đổi hạn trả', onClick: () => openDue(o) })
+    }
+    if ((isAdmin && o.status !== 'COMPLETED') || (isCustomer && pickup)) {
+      actions.push({ key: 'cancel', label: pickup ? 'Hủy yêu cầu' : 'Hủy đơn', danger: true, onClick: () => setCancelOrder(o) })
     }
     return [...actions.filter((a) => a.primary), ...actions.filter((a) => !a.primary)]
   }
@@ -204,26 +231,39 @@ export function useOrderActions(onChanged: () => void) {
     onChanged()
   }
 
+  const cancelPickup = cancelOrder ? isPickupStage(cancelOrder) : false
+
   const ui = (
     <>
-      <DiscrepancyModal order={discrepancyOrder} onClose={() => setDiscrepancyOrder(null)} onDone={done(() => setDiscrepancyOrder(null))} />
       <ItemsModal order={itemsOrder} onClose={() => setItemsOrder(null)} onDone={done(() => setItemsOrder(null))} />
       <OrderDrawer orderId={detailId} onClose={() => setDetailId(null)} />
       <NoteModal orderId={noteOrderId} onClose={() => setNoteOrderId(null)} />
+      <AssignModal order={assignOrder} onClose={() => setAssignOrder(null)} onDone={done(() => setAssignOrder(null))} />
+      <ReceiveModal order={receiveOrder} atWorkshop={isAdmin} onClose={() => setReceiveOrder(null)} onDone={done(() => setReceiveOrder(null))} />
+      <DeliverModal order={deliverOrder} onClose={() => setDeliverOrder(null)} onDone={done(() => setDeliverOrder(null))} />
+      <RequestModal open={creating} forWorkshop={isAdmin} onClose={() => setCreating(false)} onDone={done(() => setCreating(false))} />
       {modalHolder}
 
       <Modal
-        title={cancelOrder ? `Hủy đơn #${cancelOrder.id}?` : ''}
+        title={cancelOrder ? (cancelPickup ? `Hủy yêu cầu lấy đồ #${cancelOrder.id}?` : `Hủy đơn #${cancelOrder.id}?`) : ''}
         open={cancelOrder !== null}
         onCancel={() => setCancelOrder(null)}
         onOk={confirmCancel}
-        okText="Hủy đơn"
+        okText={cancelPickup ? 'Hủy yêu cầu' : 'Hủy đơn'}
         cancelText="Đóng"
         okButtonProps={{ danger: true }}
         destroyOnHidden
       >
-        <Typography.Paragraph>Đơn sẽ bị ẩn khỏi danh sách nhưng vẫn được lưu để đối soát. Không thể hoàn tác.</Typography.Paragraph>
-        <Input.TextArea rows={3} maxLength={500} showCount placeholder="Lý do hủy (không bắt buộc)" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} />
+        {!cancelPickup && <Typography.Paragraph>Đơn sẽ bị ẩn khỏi danh sách nhưng vẫn được lưu để đối soát. Không thể hoàn tác.</Typography.Paragraph>}
+        <Input.TextArea
+          rows={3}
+          maxLength={500}
+          showCount
+          aria-label="Lý do hủy"
+          placeholder="Lý do (không bắt buộc)"
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+        />
       </Modal>
 
       <Modal
@@ -271,5 +311,5 @@ export function useOrderActions(onChanged: () => void) {
     </>
   )
 
-  return { actionsFor, runFromMenu, busyId, openDetail: setDetailId, ui }
+  return { actionsFor, runFromMenu, busyId, openDetail: setDetailId, openCreate, canCreate: isCustomer || isAdmin, ui }
 }

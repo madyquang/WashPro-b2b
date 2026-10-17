@@ -1,18 +1,27 @@
 package com.washpro.washpro_b2b.entity;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
- * Vòng đời của một đơn giặt:
- * PENDING_CONFIRM -> WASHING -> DELIVERING -> COMPLETED
- * Nếu lệch số lượng lúc nhận: PENDING_CONFIRM <-> DISCREPANCY -> WASHING
- * Nếu thiếu/hỏng lúc giao trả: DELIVERING -> DELIVERY_ISSUE -> (giao bù) DELIVERING hoặc (chốt lại) COMPLETED
+ * Vòng đời của một đơn giặt, từ lúc khách yêu cầu lấy đồ:
+ * PICKUP_PENDING -> PICKUP_ASSIGNED -> RECEIVED -> WASHING -> WASHED -> DELIVERING -> COMPLETED
+ * Tài xế trả lại việc: PICKUP_ASSIGNED -> PICKUP_PENDING, DELIVERING -> WASHED.
+ * Khách báo thiếu/hỏng khi nhận: DELIVERING -> DELIVERY_ISSUE -> (giao bù) DELIVERING hoặc (chốt lại) COMPLETED.
  */
 public enum OrderStatus {
-    PENDING_CONFIRM("Chờ xác nhận"), // Tài xế đã tạo đơn, chờ khách hàng xác nhận số lượng
-    DISCREPANCY("Có sai lệch"), // Số lượng bị báo lệch, chờ khách hàng chốt lại
-    WASHING("Đang giặt"), // Khách hàng đã chốt, xưởng đang giặt
-    DELIVERING("Đang giao"), // Giặt xong, đang giao trả, chờ khách xác nhận đã nhận
+    PICKUP_PENDING("Chờ lấy đồ"), // Khách gửi yêu cầu, chưa có tài xế
+    PICKUP_ASSIGNED("Tài xế đang đến lấy"), // Đã có tài xế nhận / được phân công
+    RECEIVED("Đã tiếp nhận"), // Tài xế đã kiểm số lượng, khách ký nhận; đồ đang về xưởng
+    WASHING("Đang giặt"), // Xưởng đã nhận đồ, đang giặt
+    WASHED("Đã giặt xong"), // Giặt xong, đã kiểm lại số lượng, chờ tài xế giao
+    DELIVERING("Đang giao trả"), // Tài xế đang giao trả
     DELIVERY_ISSUE("Sự cố giao trả"), // Khách báo thiếu/hỏng khi nhận, chờ xưởng xử lý
-    COMPLETED("Hoàn thành"); // Khách đã nhận đủ (hoặc xưởng chốt), tính vào công nợ
+    COMPLETED("Hoàn thành"), // Đã giao xong, tính vào công nợ
+    /** Quy trình cũ (khách xác nhận số lượng trên ứng dụng): chỉ còn trong lịch sử của đơn cũ. */
+    PENDING_CONFIRM("Chờ khách xác nhận"),
+    /** Quy trình cũ: chỉ còn trong lịch sử của đơn cũ. */
+    DISCREPANCY("Có sai lệch");
 
     private final String label;
 
@@ -24,20 +33,36 @@ public enum OrderStatus {
         return label;
     }
 
+    /** Các trạng thái của quy trình hiện tại, theo thứ tự (bỏ trạng thái cũ). */
+    public static List<OrderStatus> flow() {
+        return Arrays.stream(values()).filter(s -> !s.isLegacy()).toList();
+    }
+
+    public boolean isLegacy() {
+        return this == PENDING_CONFIRM || this == DISCREPANCY;
+    }
+
     /** Đơn còn đang xử lý (chưa hoàn thành): dùng để tính trễ hạn trả đồ. */
     public boolean isOpen() {
         return this != COMPLETED;
     }
 
-    /** Quy tắc chuyển trạng thái hợp lệ (không cho lùi, không cho nhảy bước). */
+    /** Đơn còn là yêu cầu lấy đồ (tài xế chưa nhận đồ). */
+    public boolean isPickupStage() {
+        return this == PICKUP_PENDING || this == PICKUP_ASSIGNED;
+    }
+
+    /** Quy tắc chuyển trạng thái hợp lệ (không nhảy bước; chỉ lùi khi tài xế trả lại việc). */
     public boolean canTransitionTo(OrderStatus next) {
         return switch (this) {
-            case PENDING_CONFIRM -> next == WASHING || next == DISCREPANCY;
-            case DISCREPANCY -> next == PENDING_CONFIRM || next == WASHING;
-            case WASHING -> next == DELIVERING;
-            case DELIVERING -> next == COMPLETED || next == DELIVERY_ISSUE;
+            case PICKUP_PENDING -> next == PICKUP_ASSIGNED || next == RECEIVED;
+            case PICKUP_ASSIGNED -> next == PICKUP_PENDING || next == RECEIVED;
+            case RECEIVED -> next == WASHING;
+            case WASHING -> next == WASHED;
+            case WASHED -> next == DELIVERING;
+            case DELIVERING -> next == COMPLETED || next == DELIVERY_ISSUE || next == WASHED;
             case DELIVERY_ISSUE -> next == DELIVERING || next == COMPLETED;
-            case COMPLETED -> false;
+            case COMPLETED, PENDING_CONFIRM, DISCREPANCY -> false;
         };
     }
 }

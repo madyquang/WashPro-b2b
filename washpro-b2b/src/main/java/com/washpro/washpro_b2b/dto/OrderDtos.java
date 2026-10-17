@@ -10,10 +10,13 @@ import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.ServiceType;
+import com.washpro.washpro_b2b.entity.TimeSlot;
+import com.washpro.washpro_b2b.entity.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -22,6 +25,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -46,13 +50,25 @@ public final class OrderDtos {
             @DecimalMin(value = "0", message = "Đơn giá không được âm") @Digits(integer = 12, fraction = 2, message = "Đơn giá không hợp lệ") BigDecimal unitPrice) {
     }
 
+    /** Yêu cầu lấy đồ: mở một đơn mới ở trạng thái "Chờ lấy đồ". */
     public record CreateRequest(
-            @NotNull(message = "Vui lòng chọn khách hàng") Long customerId,
+            /** Chỉ Quản lý xưởng cần gửi (tạo hộ khách gọi điện); tài khoản khách hàng tự lấy theo tài khoản. */
+            Long customerId,
+            @NotNull(message = "Vui lòng chọn ngày lấy đồ") @FutureOrPresent(message = "Ngày lấy đồ không được ở quá khứ") LocalDate preferredDate,
+            TimeSlot timeSlot,
+            @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer estimatedBags,
+            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
+    }
+
+    /** Tài xế (hoặc xưởng khi khách mang đồ đến) nhận đồ: số túi và số lượng từng loại đã kiểm cùng khách. */
+    public record ReceiveRequest(
             @NotNull(message = "Vui lòng nhập số túi") @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer totalBags,
             @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String description,
-            @NotEmpty(message = "Cần đếm ít nhất một loại đồ") @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemRequest> items,
-            /** Tạo đơn từ yêu cầu lấy đồ của khách (không bắt buộc). */
-            Long pickupRequestId) {
+            @NotEmpty(message = "Cần đếm ít nhất một loại đồ") @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemRequest> items) {
+    }
+
+    /** Quản lý xưởng phân công tài xế lấy đồ (đơn chờ lấy) hoặc giao trả (đơn đã giặt xong / đang giao). */
+    public record AssignRequest(@NotNull(message = "Vui lòng chọn tài xế") Long driverId) {
     }
 
     /** Khách báo thiếu/hỏng khi nhận đồ sạch. */
@@ -64,24 +80,6 @@ public final class OrderDtos {
     public record DueRequest(
             @NotNull(message = "Vui lòng chọn hạn trả mới") LocalDateTime dueAt,
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
-    }
-
-    /**
-     * Số lượng thực tế của một dòng khi báo sai lệch.
-     * Có itemId: sửa dòng đó (0 = không có món này). Không có itemId: thêm loại đồ bị sót.
-     */
-    public record ItemCountRequest(
-            Long itemId,
-            Long servicePriceId,
-            @Size(max = 100, message = "Tên đồ giặt tối đa 100 ký tự") String itemName,
-            PriceUnit unit,
-            @NotNull(message = "Vui lòng nhập số lượng thực tế") @DecimalMin(value = "0", message = "Số lượng không được âm") @DecimalMax(value = "100000", message = "Số lượng quá lớn") @Digits(integer = 6, fraction = 2, message = "Số lượng tối đa 2 chữ số thập phân") BigDecimal quantity) {
-    }
-
-    public record DiscrepancyRequest(
-            @NotNull(message = "Vui lòng nhập số túi thực tế") @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer totalBags,
-            @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemCountRequest> items,
-            @NotBlank(message = "Bắt buộc nhập lý do khi báo sai lệch") @Size(max = 500, message = "Lý do tối đa 500 ký tự") String note) {
     }
 
     public record StatusRequest(
@@ -97,13 +95,17 @@ public final class OrderDtos {
             @NotBlank(message = "Vui lòng nhập nội dung ghi chú") @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String body) {
     }
 
-    /** Thứ tự danh sách đơn: mới nhận trước, hoặc hạn trả gần nhất trước (đơn trễ hạn tự đứng đầu). */
+    /** Thứ tự danh sách đơn: mới nhận trước, hạn trả gần nhất trước, hoặc ngày hẹn lấy đồ gần nhất trước. */
     public enum Sort {
-        NEWEST, DUE
+        NEWEST, DUE, PICKUP
     }
 
-    /** Bộ lọc danh sách đơn; mọi trường đều không bắt buộc. */
-    public record Filter(List<OrderStatus> statuses, boolean overdueOnly, ItemCategory category, String keyword) {
+    /**
+     * Bộ lọc danh sách đơn; mọi trường đều không bắt buộc.
+     * mine: (tài xế) chỉ việc đang giao cho mình; cancelled: xem đơn / yêu cầu đã hủy thay vì đơn đang theo dõi.
+     */
+    public record Filter(List<OrderStatus> statuses, boolean overdueOnly, ItemCategory category, String keyword,
+            boolean mine, boolean cancelled) {
     }
 
     // ===== Response =====
@@ -149,25 +151,46 @@ public final class OrderDtos {
             Long customerId,
             String customerName,
             CustomerType customerType,
-            /** Địa chỉ, điện thoại, người liên hệ: để tài xế giao trả. */
+            /** Địa chỉ, điện thoại, người liên hệ: để tài xế lấy đồ / giao trả. */
             String customerAddress,
             String customerPhone,
             String contactName,
+            /** Tài xế lấy đồ; null khi chưa có ai nhận việc. */
             Long driverId,
             String driverName,
+            String driverUsername,
+            /** Tài xế giao trả; null khi chưa giao. */
+            Long deliveryDriverId,
+            String deliveryDriverName,
+            String deliveryDriverUsername,
             OrderStatus status,
+            /** Số túi thực tế khi nhận đồ; null khi chưa lấy đồ. */
             Integer totalBags,
             String description,
+            /** Yêu cầu lấy đồ: người gửi, ngày / khung giờ hẹn, số túi ước tính, lời dặn tài xế. */
+            String requestedBy,
+            LocalDate preferredDate,
+            TimeSlot timeSlot,
+            Integer estimatedBags,
+            String pickupNote,
+            /** Đã qua ngày hẹn lấy mà chưa lấy. */
+            boolean pickupLate,
             List<ItemResponse> items,
             /** Tổng tiền các dòng đã có đơn giá. */
             BigDecimal totalAmount,
             /** true khi đã có chi tiết và mọi dòng đều có đơn giá: đủ điều kiện giao trả/tính tiền. */
             boolean billable,
+            /** Lúc tài xế nhận đồ. */
+            LocalDateTime receivedAt,
             /** Hạn trả đồ sạch cho khách. */
             LocalDateTime dueAt,
             /** true khi đơn chưa hoàn thành mà đã quá hạn trả. */
             boolean overdue,
             LocalDateTime completedAt,
+            /** Chỉ có với đơn / yêu cầu đã hủy. */
+            String cancelReason,
+            String cancelledBy,
+            /** Lúc tạo đơn (khách gửi yêu cầu lấy đồ). */
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             /** Chỉ có khi xem chi tiết một đơn. */
@@ -182,6 +205,9 @@ public final class OrderDtos {
         public static Response from(Order o, boolean withHistory, List<NoteResponse> notes) {
             List<ItemResponse> items = o.getItems().stream().map(ItemResponse::from).toList();
             var r = o.getCustomer();
+            User d = o.getDriver();
+            User dd = o.getDeliveryDriver();
+            LocalDateTime now = LocalDateTime.now();
             return new Response(
                     o.getId(),
                     r.getId(),
@@ -190,17 +216,30 @@ public final class OrderDtos {
                     r.getAddress(),
                     r.getPhone(),
                     r.getContactName(),
-                    o.getDriver().getId(),
-                    o.getDriver().getDisplayName(),
+                    d == null ? null : d.getId(),
+                    d == null ? null : d.getDisplayName(),
+                    d == null ? null : d.getUsername(),
+                    dd == null ? null : dd.getId(),
+                    dd == null ? null : dd.getDisplayName(),
+                    dd == null ? null : dd.getUsername(),
                     o.getStatus(),
                     o.getTotalBags(),
                     o.getDescription(),
+                    o.getRequestedBy(),
+                    o.getPreferredDate(),
+                    o.getTimeSlot(),
+                    o.getEstimatedBags(),
+                    o.getPickupNote(),
+                    !o.isDeleted() && o.isPickupLate(now.toLocalDate()),
                     items,
                     o.getTotalAmount(),
                     o.isBillable(),
+                    o.getReceivedAt(),
                     o.getDueAt(),
-                    o.isOverdue(LocalDateTime.now()),
+                    !o.isDeleted() && o.isOverdue(now),
                     o.getStatus() == OrderStatus.COMPLETED ? o.getEffectiveCompletedAt() : null,
+                    o.getCancelReason(),
+                    o.getCancelledBy(),
                     o.getCreatedAt(),
                     o.getUpdatedAt(),
                     withHistory ? o.getHistory().stream().map(HistoryResponse::from).toList() : null,

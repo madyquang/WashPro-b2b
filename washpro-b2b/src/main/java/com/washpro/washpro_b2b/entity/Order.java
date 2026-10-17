@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,15 @@ public class Order {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "driver_id", nullable = false)
+    /** Tài xế lấy đồ; null khi chưa ai nhận việc (hoặc khách mang đồ đến xưởng). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "driver_id")
     private User driver;
+
+    /** Tài xế giao trả (có thể khác người lấy đồ). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_driver_id")
+    private User deliveryDriver;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
@@ -62,6 +69,41 @@ public class Order {
     @Builder.Default
     private List<OrderHistory> history = new ArrayList<>();
 
+    // ----- Yêu cầu lấy đồ (null với đơn cũ tài xế tạo trực tiếp) -----
+
+    /** Tên đăng nhập người gửi yêu cầu (khách, hoặc quản lý xưởng tạo hộ). */
+    @Column(name = "requested_by", length = 50)
+    private String requestedBy;
+
+    @Column(name = "preferred_date")
+    private LocalDate preferredDate;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "time_slot", length = 20)
+    private TimeSlot timeSlot;
+
+    /** Số túi khách ước tính khi gửi yêu cầu (số thật nằm ở totalBags khi tài xế nhận đồ). */
+    @Column(name = "estimated_bags")
+    private Integer estimatedBags;
+
+    /** Khách dặn tài xế (VD lấy ở cửa sau). */
+    @Column(name = "pickup_note", length = 500)
+    private String pickupNote;
+
+    /** Lúc tài xế nhận đồ (đã kiểm số lượng, khách ký): mốc tính hạn trả. */
+    @Column(name = "received_at")
+    private LocalDateTime receivedAt;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @Column(name = "cancelled_by", length = 50)
+    private String cancelledBy;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
     /** Hạn trả đồ sạch cho khách: lúc nhận đồ + thời gian trả đồ đã cam kết với khách. */
     @Column(name = "due_at")
     private LocalDateTime dueAt;
@@ -79,6 +121,11 @@ public class Order {
     /** Đơn chưa hoàn thành mà đã quá hạn trả đồ. */
     public boolean isOverdue(LocalDateTime now) {
         return status.isOpen() && dueAt != null && now.isAfter(dueAt);
+    }
+
+    /** Yêu cầu lấy đồ đã qua ngày hẹn mà tài xế chưa lấy. */
+    public boolean isPickupLate(LocalDate today) {
+        return status.isPickupStage() && preferredDate != null && preferredDate.isBefore(today);
     }
 
     /** Thời điểm hoàn thành; đơn cũ trước khi có cột completed_at thì lấy lần cập nhật cuối. */

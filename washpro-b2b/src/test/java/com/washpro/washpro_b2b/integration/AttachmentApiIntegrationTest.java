@@ -13,7 +13,6 @@ import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderAttachmentRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,8 +68,6 @@ class AttachmentApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     NotificationRepository notificationRepository;
@@ -85,7 +82,6 @@ class AttachmentApiIntegrationTest {
     void seed() {
         attachmentRepository.deleteAll();
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -101,7 +97,7 @@ class AttachmentApiIntegrationTest {
         user("hoasen.nv", Role.CUSTOMER_STAFF, hoaSen);
         user("bienxanh.nv", Role.CUSTOMER_STAFF, bienXanh);
 
-        Order order = Order.builder().driver(driver).customer(hoaSen).status(OrderStatus.PENDING_CONFIRM)
+        Order order = Order.builder().driver(driver).customer(hoaSen).status(OrderStatus.RECEIVED)
                 .totalBags(1).dueAt(LocalDateTime.now().plusDays(1)).build();
         order.addItem(OrderItem.builder().itemName("Khăn bàn").quantity(new BigDecimal("10")).build());
         orderId = orderRepository.save(order).getId();

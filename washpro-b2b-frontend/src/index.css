@@ -691,14 +691,7 @@ button:focus-visible,
   color: var(--muted);
 }
 
-/* ===== Thẻ yêu cầu lấy đồ ===== */
-.pickup-when {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
+/* ===== Thẻ đơn chờ lấy đồ ===== */
 .pickup-body {
   display: grid;
   gap: 6px;
@@ -710,17 +703,14 @@ button:focus-visible,
   color: var(--ink);
 }
 
-/* Gọi / Chỉ đường: hai nút ngang nhau, đủ lớn để bấm khi đứng ngoài đường */
-.pickup-quick {
+/* Chữ ký / ảnh của khách khi nhận đồ, giao trả */
+.proof-box {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-
-.pickup-actions {
-  display: grid;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 /* ===== Dải chỉ số: một thẻ chia ô, thay cho nhiều thẻ nhỏ ===== */
@@ -800,7 +790,7 @@ a.stat-cell:hover {
 
 /* ===== Dải trạng thái đơn ===== */
 .status-strip {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
 }
 
 .status-strip .stat-cell {
@@ -1324,12 +1314,12 @@ a.stat-cell:hover {
 /* Số cột đặt trực tiếp (không qua --cols) vì --cols được StatStrip ghi inline cho máy tính */
 @media (max-width: 1199px) {
   .status-strip {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
-  .status-strip .stat-cell:nth-child(3n + 1) {
+  .status-strip .stat-cell:nth-child(4n + 1) {
     border-inline-start: 0;
   }
-  .status-strip .stat-cell:nth-child(n + 4) {
+  .status-strip .stat-cell:nth-child(n + 5) {
     border-top: 1px solid var(--border);
   }
 }

@@ -9,7 +9,6 @@ import com.washpro.washpro_b2b.dto.FinanceDtos.StatementResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderStatus;
-import com.washpro.washpro_b2b.entity.PickupStatus;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.User;
@@ -17,7 +16,6 @@ import com.washpro.washpro_b2b.exception.ApiException;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.OrderSpecs;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +31,6 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,7 +49,6 @@ public class ReportService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final CustomerRepository customerRepository;
-    private final PickupRequestRepository pickupRepository;
     private final CurrentUserService currentUserService;
 
     // ===================== Tổng quan =====================
@@ -64,23 +60,24 @@ public class ReportService {
         Specification<Order> scope = orderService.scope(user);
 
         Map<String, Long> counts = new LinkedHashMap<>();
-        for (OrderStatus s : OrderStatus.values()) {
+        for (OrderStatus s : OrderStatus.flow()) {
             counts.put(s.name(), 0L);
         }
-        orderRepository.countByStatus(scope).forEach((s, n) -> counts.put(s.name(), n));
+        orderRepository.countByStatus(scope).forEach((s, n) -> {
+            if (!s.isLegacy()) {
+                counts.put(s.name(), n);
+            }
+        });
         long totalOrders = counts.values().stream().mapToLong(Long::longValue).sum();
 
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
         LocalDateTime endOfToday = startOfToday.plusDays(1);
-        long ordersToday = orderRepository.count(scope.and(OrderSpecs.createdBetween(startOfToday, endOfToday)));
+        long ordersToday = orderRepository.count(scope.and(OrderSpecs.receivedBetween(startOfToday, endOfToday)));
         long overdueOrders = orderRepository.count(scope.and(OrderSpecs.overdue(now)));
         long dueToday = orderRepository.count(scope.and(OrderSpecs.dueBetween(now, endOfToday)));
 
-        var activePickup = EnumSet.of(PickupStatus.OPEN, PickupStatus.ACCEPTED);
-        long openPickups = user.getRole().isCustomerRole()
-                ? pickupRepository.countByCustomerIdAndStatusIn(requireCustomer(user).getId(), activePickup)
-                : pickupRepository.countByStatusIn(activePickup);
+        long openPickups = counts.get(OrderStatus.PICKUP_PENDING.name()) + counts.get(OrderStatus.PICKUP_ASSIGNED.name());
 
         BigDecimal billed = null;
         BigDecimal paid = null;
@@ -229,12 +226,13 @@ public class ReportService {
 
         StringBuilder sb = new StringBuilder();
         sb.append(row("Mã đơn", "Khách hàng", "Loại khách", "Tài xế", "Trạng thái", "Số túi", "Số loại đồ",
-                "Tổng tiền (đ)", "Đã đủ đơn giá", "Ngày tạo", "Hạn trả", "Trễ hạn", "Ngày hoàn thành"));
+                "Tổng tiền (đ)", "Đã đủ đơn giá", "Ngày nhận đồ", "Hạn trả", "Trễ hạn", "Ngày hoàn thành"));
         for (Order o : orderService.visibleOrders(user)) {
             OrderDtos.Response r = OrderDtos.Response.from(o, false);
             sb.append(row(String.valueOf(r.id()), r.customerName(), r.customerType().getLabel(), r.driverName(),
-                    r.status().getLabel(), String.valueOf(r.totalBags()), String.valueOf(r.items().size()),
-                    plain(r.totalAmount()), r.billable() ? "Có" : "Chưa", dateTime(r.createdAt()), dateTime(r.dueAt()),
+                    r.status().getLabel(), r.totalBags() == null ? "" : String.valueOf(r.totalBags()),
+                    String.valueOf(r.items().size()),
+                    plain(r.totalAmount()), r.billable() ? "Có" : "Chưa", dateTime(r.receivedAt()), dateTime(r.dueAt()),
                     r.overdue() ? "Có" : "", dateTime(r.completedAt())));
         }
         return withBom(sb);

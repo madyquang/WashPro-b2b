@@ -12,7 +12,6 @@ import com.washpro.washpro_b2b.repository.CustomerRepository;
 import com.washpro.washpro_b2b.repository.NotificationRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.PaymentRepository;
-import com.washpro.washpro_b2b.repository.PickupRequestRepository;
 import com.washpro.washpro_b2b.repository.UserRepository;
 import com.washpro.washpro_b2b.service.NotificationDigestJob;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +47,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class NotificationApiIntegrationTest {
 
     private static final String PASSWORD = "Test@1234";
+    /** PNG 1x1 hợp lệ (chữ ký khách). */
+    private static final byte[] PNG = java.util.Base64.getDecoder().decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 
     @Autowired
     MockMvc mvc;
@@ -60,8 +64,6 @@ class NotificationApiIntegrationTest {
     @Autowired
     PaymentRepository paymentRepository;
     @Autowired
-    PickupRequestRepository pickupRepository;
-    @Autowired
     CustomerPriceRepository customerPriceRepository;
     @Autowired
     NotificationRepository notificationRepository;
@@ -74,7 +76,6 @@ class NotificationApiIntegrationTest {
     @BeforeEach
     void seed() {
         notificationRepository.deleteAll();
-        pickupRepository.deleteAll();
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         customerPriceRepository.deleteAll();
@@ -96,46 +97,70 @@ class NotificationApiIntegrationTest {
     @Test
     void pickupAndOrderEventsReachTheRightPeople() throws Exception {
         // Khách gửi yêu cầu lấy đồ: quản lý xưởng và mọi tài xế đang làm việc được báo; người gửi thì không
-        String body = mvc.perform(post("/api/pickups").header("Authorization", "Bearer " + login("hoasen.nv"))
+        String body = mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"preferredDate\":\"%s\",\"estimatedBags\":3}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        long pickupId = ((Number) JsonPath.read(body, "$.id")).longValue();
+        long id = ((Number) JsonPath.read(body, "$.id")).longValue();
 
         mine("admin").andExpect(jsonPath("$.unread", is(1)))
                 .andExpect(jsonPath("$.items[0].type", is("PICKUP_NEW")))
                 .andExpect(jsonPath("$.items[0].title", is("Yêu cầu lấy đồ mới: Nhà hàng Hoa Sen")))
-                .andExpect(jsonPath("$.items[0].link", is("/pickups")));
+                .andExpect(jsonPath("$.items[0].link", is("/pickups?tab=open")));
         mine("taixe2").andExpect(jsonPath("$.unread", is(1)));
         mine("hoasen.nv").andExpect(jsonPath("$.unread", is(0)));
         mine("ketoan").andExpect(jsonPath("$.unread", is(0)));
         mine("bienxanh.nv").andExpect(jsonPath("$.unread", is(0)));
 
         // Tài xế nhận việc: mọi tài khoản của khách được báo
-        mvc.perform(put("/api/pickups/" + pickupId + "/accept").header("Authorization", "Bearer " + login("taixe1")))
+        String driver = login("taixe1");
+        mvc.perform(put("/api/orders/" + id + "/accept").header("Authorization", "Bearer " + driver))
                 .andExpect(status().isOk());
         mine("hoasen.ql").andExpect(jsonPath("$.items[0].type", is("PICKUP_ACCEPTED")));
 
-        // Tài xế tạo đơn: khách được báo xác nhận số lượng, kèm đường dẫn mở đơn
-        String order = mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("taixe1"))
+        // Tài xế nhận đồ (khách đã ký): khách và quản lý xưởng được báo, kèm đường dẫn mở đơn
+        mvc.perform(multipart("/api/orders/" + id + "/attachments")
+                .file(new MockMultipartFile("file", "ky.png", MediaType.IMAGE_PNG_VALUE, PNG))
+                .param("kind", "PICKUP_SIGNATURE").header("Authorization", "Bearer " + driver))
+                .andExpect(status().isCreated());
+        mvc.perform(put("/api/orders/" + id + "/receive").header("Authorization", "Bearer " + driver)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"customerId\":%d,\"totalBags\":3,\"pickupRequestId\":%d,\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":10}]}"
-                        .formatted(hoaSen.getId(), pickupId)))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString();
-        long orderId = ((Number) JsonPath.read(order, "$.id")).longValue();
-        mine("hoasen.nv").andExpect(jsonPath("$.items[0].type", is("ORDER_TO_CONFIRM")))
-                .andExpect(jsonPath("$.items[0].link", is("/orders?status=PENDING_CONFIRM&open=" + orderId)));
+                .content("{\"totalBags\":3,\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":10}]}"))
+                .andExpect(status().isOk());
+        mine("hoasen.nv").andExpect(jsonPath("$.items[0].type", is("ORDER_RECEIVED")))
+                .andExpect(jsonPath("$.items[0].link", is("/orders?status=RECEIVED&open=" + id)));
+        mine("admin").andExpect(jsonPath("$.items[0].title", is("Đơn #" + id + " (Nhà hàng Hoa Sen) đang về xưởng")));
+
+        // Giặt xong: mọi tài xế được báo có đơn chờ giao
+        String admin = login("admin");
+        mvc.perform(put("/api/orders/" + id + "/status").header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"WASHING\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/orders/" + id + "/items").header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":10,\"unitPrice\":5000}]}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/orders/" + id + "/status").header("Authorization", "Bearer " + admin)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"WASHED\"}"))
+                .andExpect(status().isOk());
+        mine("taixe2").andExpect(jsonPath("$.items[0].type", is("ORDER_WASHED")))
+                .andExpect(jsonPath("$.items[0].link", is("/pickups?tab=deliver")));
+
+        // Tài xế nhận giao: khách được báo đang giao trả
+        mvc.perform(put("/api/orders/" + id + "/accept").header("Authorization", "Bearer " + login("taixe2")))
+                .andExpect(status().isOk());
+        mine("hoasen.ql").andExpect(jsonPath("$.items[0].type", is("ORDER_DELIVERING")))
+                .andExpect(jsonPath("$.items[0].body", startsWith("Tài xế taixe2.")));
     }
 
     @Test
     void readAndReadAll() throws Exception {
-        mvc.perform(post("/api/pickups").header("Authorization", "Bearer " + login("hoasen.nv"))
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());
-        mvc.perform(post("/api/pickups").header("Authorization", "Bearer " + login("hoasen.ql"))
+        mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.ql"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());

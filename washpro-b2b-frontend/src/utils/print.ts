@@ -39,11 +39,12 @@ export function printDeliverySlip(order: Order) {
 </style></head><body>
 <div class="shop">${SHOP_NAME}</div>
 <h1>PHIẾU GIAO NHẬN ĐỒ GIẶT</h1>
-<div class="sub">Đơn #${order.id} · ${escapeHtml(formatDateTime(order.createdAt))}</div>
+<div class="sub">Đơn #${order.id} · nhận đồ ${escapeHtml(formatDateTime(order.receivedAt ?? order.createdAt))}</div>
 <div class="info">
   <p><b>Khách hàng:</b> ${escapeHtml(order.customerName)} (${escapeHtml(CUSTOMER_TYPE_LABELS[order.customerType])})</p>
-  <p><b>Tài xế:</b> ${escapeHtml(order.driverName)}</p>
-  <p><b>Số túi / bao:</b> ${order.totalBags}</p>
+  ${order.driverName ? `<p><b>Tài xế lấy đồ:</b> ${escapeHtml(order.driverName)}</p>` : ''}
+  ${order.deliveryDriverName ? `<p><b>Tài xế giao trả:</b> ${escapeHtml(order.deliveryDriverName)}</p>` : ''}
+  <p><b>Số túi / bao:</b> ${order.totalBags ?? '—'}</p>
   ${order.dueAt ? `<p><b>Hạn trả:</b> ${escapeHtml(formatDateTime(order.dueAt))}</p>` : ''}
   ${order.description ? `<p><b>Ghi chú:</b><br/>${escapeHtml(order.description).replace(/\n/g, '<br/>')}</p>` : ''}
 </div>
