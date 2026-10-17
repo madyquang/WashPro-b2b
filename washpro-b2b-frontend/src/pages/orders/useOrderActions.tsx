@@ -11,6 +11,7 @@ import NoteModal from './NoteModal'
 import OrderDrawer from './OrderDrawer'
 import ReceiveModal from './ReceiveModal'
 import RequestModal from './RequestModal'
+import ScheduleModal from './ScheduleModal'
 import { getSession, isCustomerRole } from '../../utils/auth'
 import { getErrorMessage, toLocalInput } from '../../utils/format'
 import { isPickupStage, STATUS_META, type Order, type OrderStatus } from '../../types'
@@ -78,6 +79,7 @@ export function useOrderActions(onChanged: () => void) {
   const [assignOrder, setAssignOrder] = useState<Order | null>(null)
   const [receiveOrder, setReceiveOrder] = useState<Order | null>(null)
   const [deliverOrder, setDeliverOrder] = useState<Order | null>(null)
+  const [scheduleOrder, setScheduleOrder] = useState<Order | null>(null)
   const [creating, setCreating] = useState(false)
   const openCreate = useCallback(() => setCreating(true), [])
 
@@ -214,6 +216,10 @@ export function useOrderActions(onChanged: () => void) {
     if (isAdmin && !pickup && o.status !== 'COMPLETED') {
       actions.push({ key: 'due', label: 'Đổi hạn trả', onClick: () => openDue(o) })
     }
+    // Đổi lịch đặt ngay cạnh nút hủy: khách muốn lấy hôm khác thì đổi, không phải hủy rồi gửi lại
+    if ((isAdmin || isCustomer) && pickup) {
+      actions.push({ key: 'schedule', label: 'Đổi ngày giờ', onClick: () => setScheduleOrder(o) })
+    }
     if ((isAdmin && o.status !== 'COMPLETED') || (isCustomer && pickup)) {
       actions.push({ key: 'cancel', label: pickup ? 'Hủy yêu cầu' : 'Hủy đơn', danger: true, onClick: () => setCancelOrder(o) })
     }
@@ -241,6 +247,7 @@ export function useOrderActions(onChanged: () => void) {
       <AssignModal order={assignOrder} onClose={() => setAssignOrder(null)} onDone={done(() => setAssignOrder(null))} />
       <ReceiveModal order={receiveOrder} atWorkshop={isAdmin} onClose={() => setReceiveOrder(null)} onDone={done(() => setReceiveOrder(null))} />
       <DeliverModal order={deliverOrder} onClose={() => setDeliverOrder(null)} onDone={done(() => setDeliverOrder(null))} />
+      <ScheduleModal order={scheduleOrder} onClose={() => setScheduleOrder(null)} onDone={done(() => setScheduleOrder(null))} />
       <RequestModal open={creating} forWorkshop={isAdmin} onClose={() => setCreating(false)} onDone={done(() => setCreating(false))} />
       {modalHolder}
 

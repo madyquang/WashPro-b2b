@@ -64,7 +64,7 @@ export default function RequestModal({ open, forWorkshop, onClose, onDone }: { o
       className="sheet-modal"
       width={{ xs: '100%', md: 520 }}
     >
-      <Form<RequestForm> form={form} layout="vertical" onFinish={submit}>
+      <Form<RequestForm> form={form} name="pickup-request" layout="vertical" onFinish={submit}>
         {forWorkshop && (
           <Form.Item name="customerId" label="Khách hàng" rules={[{ required: true, message: 'Vui lòng chọn khách hàng' }]}>
             <Select showSearch={{ optionFilterProp: 'label' }} options={customers.map((c) => ({ value: c.id, label: c.name }))} />

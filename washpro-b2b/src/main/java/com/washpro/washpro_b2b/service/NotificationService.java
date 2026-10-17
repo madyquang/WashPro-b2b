@@ -100,6 +100,16 @@ public class NotificationService {
         pickupAccepted(o, actor);
     }
 
+    /** Đổi lịch lấy đồ: tài xế đã nhận việc; khách đổi thì báo xưởng, xưởng đổi hộ thì báo khách. */
+    public void pickupRescheduled(Order o, User actor, String before) {
+        List<User> to = new ArrayList<>();
+        to.add(o.getDriver());
+        to.addAll(actor.getRole().isCustomerRole() ? users(Role.WORKSHOP_ADMIN) : customerUsers(o.getCustomer()));
+        send(to, actor, NotificationType.PICKUP_RESCHEDULED,
+                "Đổi lịch lấy đồ: " + o.getCustomer().getName(), "Từ " + before.toLowerCase() + " sang " + when(o).toLowerCase(),
+                o.getDriver() != null ? "/pickups?tab=mine" : "/pickups");
+    }
+
     public void orderReceived(Order o, User actor) {
         String body = o.getTotalBags() + " túi" + (o.getDriver() != null ? ", tài xế " + o.getDriver().getDisplayName() : "");
         send(customerUsers(o.getCustomer()), actor, NotificationType.ORDER_RECEIVED,

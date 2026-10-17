@@ -130,6 +130,29 @@ public class OrderService {
         return Response.from(saved, true);
     }
 
+    /**
+     * Đổi ngày / khung giờ lấy đồ khi tài xế chưa lấy (khách đổi lịch thay vì hủy rồi gửi lại). Khách đổi yêu cầu
+     * của mình; Quản lý xưởng đổi hộ. Tài xế đã nhận việc vẫn giữ việc và được báo lịch mới.
+     */
+    @Transactional
+    public Response reschedule(Long id, OrderDtos.ScheduleRequest request) {
+        User user = currentUserService.getCurrentUser();
+        Order order = loadForUpdate(id, user);
+        if (!order.getStatus().isPickupStage()) {
+            throw ApiException.badRequest("Tài xế đã lấy đồ, không đổi ngày lấy được nữa");
+        }
+        String before = DAY.format(order.getPreferredDate()) + ", " + order.getTimeSlot().getLabel().toLowerCase();
+        String after = DAY.format(request.preferredDate()) + ", " + request.timeSlot().getLabel().toLowerCase();
+        if (before.equals(after)) {
+            return Response.from(order, true);
+        }
+        order.setPreferredDate(request.preferredDate());
+        order.setTimeSlot(request.timeSlot());
+        order.addHistory(order.getStatus(), order.getStatus(), user.getUsername(), "Đổi lịch lấy đồ: " + before + " → " + after);
+        notificationService.pickupRescheduled(order, user, before);
+        return Response.from(orderRepository.saveAndFlush(order), true);
+    }
+
     // ===================== Tài xế nhận / trả việc =====================
 
     /** Tài xế nhận việc đang chờ: đi lấy đồ (đơn chờ lấy) hoặc đi giao (đơn đã giặt xong). */

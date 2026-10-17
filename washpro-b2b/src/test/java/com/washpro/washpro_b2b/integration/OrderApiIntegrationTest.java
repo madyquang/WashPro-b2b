@@ -196,6 +196,38 @@ class OrderApiIntegrationTest {
     }
 
     @Test
+    void pickupCanBeRescheduledUntilPickedUp() throws Exception {
+        long id = request("hoasen.nv", null, null, null);
+        mvc.perform(auth(put("/api/orders/" + id + "/accept"), login("taixe1"))).andExpect(status().isOk());
+        String tomorrow = LocalDate.now().plusDays(1).toString();
+
+        // Khách đổi lịch: tài xế giữ việc, lịch sử ghi lại lịch cũ → mới
+        mvc.perform(auth(put("/api/orders/" + id + "/schedule"), login("hoasen.ql")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"preferredDate\":\"%s\",\"timeSlot\":\"EVENING\"}".formatted(tomorrow)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferredDate", is(tomorrow)))
+                .andExpect(jsonPath("$.timeSlot", is("EVENING")))
+                .andExpect(jsonPath("$.status", is("PICKUP_ASSIGNED")))
+                .andExpect(jsonPath("$.history[-1].note", org.hamcrest.Matchers.startsWith("Đổi lịch lấy đồ: ")));
+
+        String body = "{\"preferredDate\":\"%s\",\"timeSlot\":\"MORNING\"}";
+        // Ngày trong quá khứ, khách khác, tài xế: không đổi được
+        mvc.perform(auth(put("/api/orders/" + id + "/schedule"), login("hoasen.nv")).contentType(MediaType.APPLICATION_JSON)
+                .content(body.formatted(LocalDate.now().minusDays(1)))).andExpect(status().isBadRequest());
+        mvc.perform(auth(put("/api/orders/" + id + "/schedule"), login("bienxanh.nv")).contentType(MediaType.APPLICATION_JSON)
+                .content(body.formatted(tomorrow))).andExpect(status().isNotFound());
+        mvc.perform(auth(put("/api/orders/" + id + "/schedule"), login("taixe1")).contentType(MediaType.APPLICATION_JSON)
+                .content(body.formatted(tomorrow))).andExpect(status().isForbidden());
+
+        // Đã lấy đồ thì không đổi lịch nữa
+        long received = receivedOrder(hoaSen, "Khăn bàn", 2);
+        mvc.perform(auth(put("/api/orders/" + received + "/schedule"), login("admin")).contentType(MediaType.APPLICATION_JSON)
+                .content(body.formatted(tomorrow)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Tài xế đã lấy đồ, không đổi ngày lấy được nữa")));
+    }
+
+    @Test
     void workshopAssignsDriversAndReceivesWalkInGoods() throws Exception {
         String admin = login("admin");
         long id = request("admin", bienXanh, null, null);

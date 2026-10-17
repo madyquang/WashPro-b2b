@@ -11,6 +11,7 @@ import com.washpro.washpro_b2b.dto.OrderDtos.PageResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos.ReceiptIssueRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ReceiveRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.Response;
+import com.washpro.washpro_b2b.dto.OrderDtos.ScheduleRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.Sort;
 import com.washpro.washpro_b2b.dto.OrderDtos.StatusRequest;
 import com.washpro.washpro_b2b.entity.ItemCategory;
@@ -69,6 +70,13 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER', 'WORKSHOP_ADMIN')")
     public ResponseEntity<Response> create(@Valid @RequestBody CreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(orderService.create(request));
+    }
+
+    /** Đổi ngày / khung giờ lấy đồ khi tài xế chưa lấy (khách: yêu cầu của mình; Quản lý xưởng đổi hộ). */
+    @PutMapping("/{id}/schedule")
+    @PreAuthorize("hasAnyRole('CUSTOMER_STAFF', 'CUSTOMER_MANAGER', 'WORKSHOP_ADMIN')")
+    public ResponseEntity<Response> reschedule(@PathVariable Long id, @Valid @RequestBody ScheduleRequest request) {
+        return ResponseEntity.ok(orderService.reschedule(id, request));
     }
 
     /** Tài xế nhận việc đang chờ: đi lấy đồ hoặc đi giao trả. */

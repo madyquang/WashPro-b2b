@@ -46,9 +46,18 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 /** Ký vào khung chữ ký bằng chuột. */
 async function sign(page, scope) {
   const canvas = scope.locator('.signature-pad canvas')
+  await canvas.waitFor()
+  // Chờ hộp thoại mở xong (hiệu ứng phóng to còn đang chạy thì nét ký rơi ra ngoài khung)
+  let box = await canvas.boundingBox()
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(100)
+    const next = await canvas.boundingBox()
+    if (box && next && box.x === next.x && box.y === next.y && box.width === next.width) break
+    box = next
+  }
   // hover tự cuộn tới và kiểm tra điểm đặt chuột không bị phần tử khác (chân modal...) che
   await canvas.hover({ position: { x: 20, y: 40 } })
-  const box = await canvas.boundingBox()
+  box = await canvas.boundingBox()
   await page.mouse.down()
   await page.mouse.move(box.x + 140, box.y + 100, { steps: 10 })
   await page.mouse.up()
@@ -253,13 +262,31 @@ if (want('pickup')) {
     expect(min && min.length === 10, 'ô ngày không có giới hạn min')
     await modal(page).getByRole('button', { name: 'Hủy' }).click()
   }, page)
-  await step('pickup: gửi yêu cầu thứ hai rồi hủy kèm lý do', async () => {
+  await step('pickup: gửi yêu cầu thứ hai, mở hộp thoại hủy rồi đóng', async () => {
     await page.getByRole('button', { name: 'Yêu cầu lấy đồ' }).first().click()
     const d = modal(page)
     await d.getByLabel('Ghi chú cho tài xế').fill(`${TAG} sẽ hủy`)
     await d.getByRole('button', { name: 'Gửi yêu cầu' }).click()
     await toast(page, 'Đã gửi yêu cầu')
     await page.goto(APP + '/pickups')
+    await page.locator('.order-card').filter({ hasText: `${TAG} sẽ hủy` }).getByRole('button', { name: 'Hủy yêu cầu' }).click()
+    await modal(page).getByLabel('Lý do hủy').waitFor()
+    await modal(page).locator('.ant-modal-footer').getByRole('button', { name: 'Đóng' }).click()
+  }, page)
+  await step('pickup: đổi ngày giờ lấy đồ bằng nút cạnh "Hủy yêu cầu"', async () => {
+    const card = page.locator('.order-card').filter({ hasText: `${TAG} sẽ hủy` })
+    await card.getByRole('button', { name: 'Đổi ngày giờ' }).click()
+    const d = modal(page)
+    const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString('sv-SE', { timeZone: TZ })
+    await d.getByLabel('Ngày lấy').fill(tomorrow)
+    await d.getByText('Chiều (13h–17h)').click()
+    await d.getByRole('button', { name: 'Lưu lịch mới' }).click()
+    await toast(page, 'Đã đổi ngày giờ lấy đồ')
+    await card.getByText('Ngày mai').waitFor()
+    const o = await findOrder(`${TAG} sẽ hủy`)
+    expect(o.preferredDate === tomorrow && o.timeSlot === 'AFTERNOON', `lịch không đổi: ${o.preferredDate} ${o.timeSlot}`)
+  }, page)
+  await step('pickup: hủy yêu cầu kèm lý do, xem lại ở tab "Đã hủy"', async () => {
     await page.locator('.order-card').filter({ hasText: `${TAG} sẽ hủy` }).getByRole('button', { name: 'Hủy yêu cầu' }).click()
     await modal(page).getByLabel('Lý do hủy').fill('Test hủy')
     await modal(page).getByRole('button', { name: 'Hủy yêu cầu' }).click()

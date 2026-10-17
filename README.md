@@ -264,7 +264,8 @@ PICKUP_PENDING ─► PICKUP_ASSIGNED ─► RECEIVED ─► WASHING ─► WASH
 Quy tắc:
 
 - Khách (hoặc Quản lý xưởng tạo hộ khi khách gọi điện) gửi yêu cầu: ngày, khung giờ, số túi ước tính, lời dặn tài xế.
-  Khách hủy được yêu cầu của mình khi tài xế chưa lấy đồ; sau đó phải gọi xưởng (Quản lý xưởng hủy được mọi đơn chưa
+  Khi tài xế chưa lấy đồ, khách **đổi ngày giờ** được (nút cạnh "Hủy yêu cầu"; tài xế đã nhận việc vẫn giữ việc và được
+  báo lịch mới) hoặc hủy yêu cầu của mình; sau đó phải gọi xưởng (Quản lý xưởng hủy được mọi đơn chưa
   hoàn thành). Đơn / yêu cầu đã hủy vẫn xem lại được (tab "Đã hủy", `GET /orders?cancelled=true`) kèm lý do.
 - **Nhận đồ:** tài xế kiểm số túi và số lượng từng loại đồ cùng khách; **bắt buộc có chữ ký khách hoặc ảnh túi đồ**
   (thay cho bước khách xác nhận số lượng trên ứng dụng). Hạn trả = lúc nhận đồ + thời gian trả đồ của khách.
@@ -401,6 +402,7 @@ bấm vào một thông báo để mở đúng trang / đúng đơn. Ai nhận g
 | Khách (hoặc xưởng) gửi yêu cầu lấy đồ | Quản lý xưởng, mọi tài xế |
 | Tài xế nhận việc / được phân công | Tài khoản phía khách; tài xế được phân công |
 | Hủy yêu cầu lấy đồ | Quản lý xưởng, phía khách, tài xế đã nhận |
+| Đổi ngày giờ lấy đồ | Tài xế đã nhận việc; quản lý xưởng (khách đổi) hoặc phía khách (xưởng đổi hộ) |
 | Tài xế nhận đồ | Phía khách; quản lý xưởng (đồ đang về xưởng, chờ bắt đầu giặt) |
 | Giặt xong | Mọi tài xế (việc chờ giao); phía khách |
 | Tài xế nhận giao / được phân công giao | Tài xế được phân công; phía khách (đang giao trả) |
@@ -433,7 +435,7 @@ Lỗi trả về dạng `{ timestamp, status, message, errors? }`.
 | Tài khoản | `GET/POST /users`, `PATCH /users/{id}/enabled`, `PUT /users/{id}/password` |
 | Khách hàng | `GET/POST /customers`, `PUT /customers/{id}`, `PATCH /customers/{id}/active` |
 | Bảng giá | `GET/POST /prices`, `PUT /prices/{id}`, `PATCH /prices/{id}/active`, `GET /prices/catalog`, `GET /prices/customers/{id}`, `PUT/DELETE /prices/customers/{id}/{priceId}` |
-| Đơn hàng | `GET /orders` (xem bên dưới), `POST /orders` (yêu cầu lấy đồ), `GET /orders/{id}`, `PUT /orders/{id}/accept`, `/release`, `/assign`, `/receive`, `/delivered`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `POST /orders/{id}/notes`, `DELETE /orders/{id}?reason=` |
+| Đơn hàng | `GET /orders` (xem bên dưới), `POST /orders` (yêu cầu lấy đồ), `GET /orders/{id}`, `PUT /orders/{id}/schedule`, `/accept`, `/release`, `/assign`, `/receive`, `/delivered`, `/items`, `/status`, `/due`, `/confirm-receipt`, `/receipt-issue`, `POST /orders/{id}/notes`, `DELETE /orders/{id}?reason=` |
 | Thông tin xưởng | `GET /company` (tên, số hotline `COMPANY_HOTLINE`, mặc định `COMPANY_PHONE`) |
 | Thanh toán | `GET/POST /payments`, `PATCH /payments/{id}/void` |
 | Ảnh / chữ ký | `GET/POST /orders/{id}/attachments` (multipart: `kind`, `file`), `GET /attachments/{id}/file`, `DELETE /attachments/{id}` |
@@ -504,7 +506,7 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(63 bước, 9 module): đăng nhập / phân quyền, gửi và hủy yêu cầu lấy đồ, nút gọi xưởng, tài xế nhận việc, xem lộ trình và
+(65 bước, 9 module): đăng nhập / phân quyền, gửi, đổi ngày giờ và hủy yêu cầu lấy đồ, nút gọi xưởng, tài xế nhận việc, xem lộ trình và
 nhận đồ (khách ký, chụp ảnh; thiếu chữ ký thì không cho nhận), xưởng điều phối (gọi khách, ghi chú, tạo yêu cầu hộ, phân công,
 nhận đồ tại xưởng, bắt đầu giặt, đổi hạn, giặt xong, hủy, in phiếu), tài xế nhận giao, khách báo thiếu, xưởng giao bù, tài
 xế giao xong (khách ký), kế toán nhập giá

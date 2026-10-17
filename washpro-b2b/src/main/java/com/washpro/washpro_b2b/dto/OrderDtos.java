@@ -60,6 +60,12 @@ public final class OrderDtos {
             @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
     }
 
+    /** Đổi ngày / khung giờ lấy đồ (khi tài xế chưa lấy). */
+    public record ScheduleRequest(
+            @NotNull(message = "Vui lòng chọn ngày lấy đồ") @FutureOrPresent(message = "Ngày lấy đồ không được ở quá khứ") LocalDate preferredDate,
+            @NotNull(message = "Vui lòng chọn khung giờ") TimeSlot timeSlot) {
+    }
+
     /** Tài xế (hoặc xưởng khi khách mang đồ đến) nhận đồ: số túi và số lượng từng loại đã kiểm cùng khách. */
     public record ReceiveRequest(
             @NotNull(message = "Vui lòng nhập số túi") @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer totalBags,

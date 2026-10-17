@@ -4,6 +4,7 @@ import { Badge, Button, Empty, Popover, Spin } from 'antd'
 import {
   AlertOutlined,
   BellOutlined,
+  CalendarOutlined,
   CarOutlined,
   CheckCircleOutlined,
   CheckSquareOutlined,
@@ -27,6 +28,7 @@ const ICONS: Record<NotificationType, ReactNode> = {
   PICKUP_ACCEPTED: <CarOutlined />,
   PICKUP_ASSIGNED: <CarOutlined />,
   PICKUP_CANCELLED: <CloseCircleOutlined />,
+  PICKUP_RESCHEDULED: <CalendarOutlined />,
   ORDER_RECEIVED: <InboxOutlined />,
   ORDER_WASHED: <CheckSquareOutlined />,
   DELIVERY_ASSIGNED: <CarOutlined />,

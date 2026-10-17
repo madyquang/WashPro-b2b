@@ -6,6 +6,7 @@ public enum NotificationType {
     PICKUP_ACCEPTED, // Tài xế đã nhận / được phân công lấy đồ
     PICKUP_ASSIGNED, // Tài xế được quản lý xưởng phân công
     PICKUP_CANCELLED, // Yêu cầu lấy đồ bị hủy
+    PICKUP_RESCHEDULED, // Đổi ngày / khung giờ lấy đồ
     ORDER_RECEIVED, // Tài xế đã nhận đồ, đồ đang về xưởng
     ORDER_WASHED, // Đồ đã giặt xong, chờ tài xế giao
     DELIVERY_ASSIGNED, // Tài xế được quản lý xưởng phân công giao trả
