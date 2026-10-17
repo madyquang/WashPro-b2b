@@ -14,6 +14,7 @@ import {
   LogoutOutlined,
   MenuOutlined,
   NodeIndexOutlined,
+  PhoneOutlined,
   ShopOutlined,
   TagsOutlined,
   TeamOutlined,
@@ -26,6 +27,7 @@ import ToneTag from './ToneTag'
 import TouchFriendly from './TouchFriendly'
 import { useInstallPrompt, useOnline } from '../utils/pwa'
 import { forgetThisDevice, syncPush } from '../utils/push'
+import { telHref, useCompany } from '../utils/company'
 import { clearSession, canManagePrices, canViewFinance, getSession, isCustomerRole } from '../utils/auth'
 import { ROLE_LABELS, type Role } from '../types'
 
@@ -109,6 +111,7 @@ export default function MainLayout() {
     void syncPush()
   }, [])
   const { canInstall, install } = useInstallPrompt()
+  const company = useCompany()
 
   // Đổi trang: đưa focus về vùng nội dung để trình đọc màn hình / bàn phím bắt đầu từ trang mới
   useEffect(() => {
@@ -220,6 +223,18 @@ export default function MainLayout() {
             </div>
           </div>
           <div className="header-right">
+          {fieldRole && company?.hotline && (
+            <Button
+              type="text"
+              icon={<PhoneOutlined />}
+              href={telHref(company.hotline)}
+              aria-label={`Gọi xưởng ${company.hotline}`}
+              title={`Gọi xưởng: ${company.hotline}`}
+              className="hotline-button"
+            >
+              {screens.md && 'Gọi xưởng'}
+            </Button>
+          )}
           <NotificationBell />
           <Dropdown menu={{ items: userMenu }} trigger={['click']} placement="bottomRight">
             <Button type="text" className="user-button">

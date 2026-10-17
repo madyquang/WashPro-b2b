@@ -5,8 +5,10 @@ import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderHistory;
 import com.washpro.washpro_b2b.entity.OrderItem;
+import com.washpro.washpro_b2b.entity.OrderNote;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
+import com.washpro.washpro_b2b.entity.Role;
 import com.washpro.washpro_b2b.entity.ServiceType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -91,6 +93,10 @@ public final class OrderDtos {
             @NotEmpty(message = "Cần có ít nhất một dòng đồ giặt") @Size(max = 200, message = "Tối đa 200 dòng chi tiết") @Valid List<ItemRequest> items) {
     }
 
+    public record NoteRequest(
+            @NotBlank(message = "Vui lòng nhập nội dung ghi chú") @Size(max = 1000, message = "Ghi chú tối đa 1000 ký tự") String body) {
+    }
+
     /** Thứ tự danh sách đơn: mới nhận trước, hoặc hạn trả gần nhất trước (đơn trễ hạn tự đứng đầu). */
     public enum Sort {
         NEWEST, DUE
@@ -131,6 +137,13 @@ public final class OrderDtos {
         }
     }
 
+    public record NoteResponse(Long id, String author, Role authorRole, String body, LocalDateTime createdAt) {
+
+        public static NoteResponse from(OrderNote n) {
+            return new NoteResponse(n.getId(), n.getAuthor(), n.getAuthorRole(), n.getBody(), n.getCreatedAt());
+        }
+    }
+
     public record Response(
             Long id,
             Long customerId,
@@ -158,9 +171,15 @@ public final class OrderDtos {
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
             /** Chỉ có khi xem chi tiết một đơn. */
-            List<HistoryResponse> history) {
+            List<HistoryResponse> history,
+            /** Ghi chú nội bộ: chỉ có khi phía xưởng / tài xế xem chi tiết một đơn. */
+            List<NoteResponse> notes) {
 
         public static Response from(Order o, boolean withHistory) {
+            return from(o, withHistory, null);
+        }
+
+        public static Response from(Order o, boolean withHistory, List<NoteResponse> notes) {
             List<ItemResponse> items = o.getItems().stream().map(ItemResponse::from).toList();
             var r = o.getCustomer();
             return new Response(
@@ -184,7 +203,8 @@ public final class OrderDtos {
                     o.getStatus() == OrderStatus.COMPLETED ? o.getEffectiveCompletedAt() : null,
                     o.getCreatedAt(),
                     o.getUpdatedAt(),
-                    withHistory ? o.getHistory().stream().map(HistoryResponse::from).toList() : null);
+                    withHistory ? o.getHistory().stream().map(HistoryResponse::from).toList() : null,
+                    notes);
         }
     }
 }

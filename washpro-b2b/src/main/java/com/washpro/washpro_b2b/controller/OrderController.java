@@ -7,6 +7,8 @@ import com.washpro.washpro_b2b.dto.OrderDtos.Filter;
 import com.washpro.washpro_b2b.dto.OrderDtos.PageResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos.ReceiptIssueRequest;
 import com.washpro.washpro_b2b.dto.OrderDtos.ItemsRequest;
+import com.washpro.washpro_b2b.dto.OrderDtos.NoteRequest;
+import com.washpro.washpro_b2b.dto.OrderDtos.NoteResponse;
 import com.washpro.washpro_b2b.dto.OrderDtos.Response;
 import com.washpro.washpro_b2b.dto.OrderDtos.Sort;
 import com.washpro.washpro_b2b.dto.OrderDtos.StatusRequest;
@@ -111,6 +113,13 @@ public class OrderController {
     @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT')")
     public ResponseEntity<Response> updateItems(@PathVariable Long id, @Valid @RequestBody ItemsRequest request) {
         return ResponseEntity.ok(orderService.updateItems(id, request));
+    }
+
+    /** Thêm ghi chú nội bộ; trả về toàn bộ ghi chú của đơn. */
+    @PostMapping("/{id}/notes")
+    @PreAuthorize("hasAnyRole('WORKSHOP_ADMIN', 'WORKSHOP_ACCOUNTANT', 'DRIVER')")
+    public ResponseEntity<List<NoteResponse>> addNote(@PathVariable Long id, @Valid @RequestBody NoteRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.addNote(id, request.body()));
     }
 
     /** Hủy đơn (xóa mềm, dữ liệu vẫn được giữ để đối soát). */

@@ -15,6 +15,7 @@ import com.washpro.washpro_b2b.dto.OrderDtos.StatusRequest;
 import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderItem;
+import com.washpro.washpro_b2b.entity.OrderNote;
 import com.washpro.washpro_b2b.entity.OrderStatus;
 import com.washpro.washpro_b2b.entity.PriceUnit;
 import com.washpro.washpro_b2b.entity.AuditAction;
@@ -24,6 +25,7 @@ import com.washpro.washpro_b2b.entity.ServicePrice;
 import com.washpro.washpro_b2b.entity.ServiceType;
 import com.washpro.washpro_b2b.entity.User;
 import com.washpro.washpro_b2b.exception.ApiException;
+import com.washpro.washpro_b2b.repository.OrderNoteRepository;
 import com.washpro.washpro_b2b.repository.OrderRepository;
 import com.washpro.washpro_b2b.repository.OrderSpecs;
 import com.washpro.washpro_b2b.repository.CustomerRepository;
@@ -69,6 +71,7 @@ public class OrderService {
             OrderStatus.PENDING_CONFIRM, OrderStatus.DELIVERING, OrderStatus.COMPLETED);
 
     private final OrderRepository orderRepository;
+    private final OrderNoteRepository noteRepository;
     private final CustomerRepository customerRepository;
     private final PriceService priceService;
     private final PickupService pickupService;
@@ -178,7 +181,28 @@ public class OrderService {
                 .filter(o -> !o.isDeleted())
                 .orElseThrow(() -> ApiException.notFound("Không tìm thấy đơn hàng"));
         assertCanAccess(order, user);
-        return Response.from(order, true);
+        return Response.from(order, true, user.getRole().isCustomerRole() ? null : notesOf(order.getId()));
+    }
+
+    // ===================== Ghi chú nội bộ =====================
+
+    /** Xưởng, kế toán, tài xế ghi lại vấn đề phát sinh (VD đã gọi khách, khách hẹn lại). Không sửa / xóa. */
+    @Transactional
+    public List<OrderDtos.NoteResponse> addNote(Long id, String body) {
+        User user = currentUserService.getCurrentUser();
+        Order order = loadForUpdate(id, user);
+        noteRepository.save(OrderNote.builder()
+                .order(order)
+                .author(user.getUsername())
+                .authorRole(user.getRole())
+                .body(body.trim())
+                .build());
+        return notesOf(order.getId());
+    }
+
+    private List<OrderDtos.NoteResponse> notesOf(Long orderId) {
+        return noteRepository.findByOrderIdOrderByCreatedAtAscIdAsc(orderId).stream()
+                .map(OrderDtos.NoteResponse::from).toList();
     }
 
     /** Danh sách đơn (đã bỏ đơn hủy) mà người dùng được phép thấy. Dùng chung cho báo cáo. */

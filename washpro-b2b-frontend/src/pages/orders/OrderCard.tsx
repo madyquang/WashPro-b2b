@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react'
 import { Button, Card, Dropdown, Popconfirm, Space, Tooltip, Typography } from 'antd'
-import { MoreOutlined } from '@ant-design/icons'
+import { MoreOutlined, PhoneOutlined } from '@ant-design/icons'
 import CategoryTag from '../../components/CategoryTag'
 import DueTag from '../../components/DueTag'
 import StatusTag from '../../components/StatusTag'
 import ToneTag from '../../components/ToneTag'
+import { getSession, isCustomerRole } from '../../utils/auth'
 import { groupByCategory } from '../../utils/catalog'
+import { telHref } from '../../utils/company'
 import { formatCurrency, formatDateTime } from '../../utils/format'
 import type { Order } from '../../types'
 import type { OrderAction } from './useOrderActions'
@@ -31,6 +33,20 @@ export function ActionButton({ action: a, busy, block }: { action: OrderAction; 
     </Popconfirm>
   ) : (
     button
+  )
+}
+
+/** Nút gọi khách của đơn: chỉ phía xưởng và tài xế (khách không cần gọi chính mình). */
+export function CallCustomer({ order, compact }: { order: Order; compact?: boolean }) {
+  const role = getSession()?.role
+  if (!order.customerPhone || !role || isCustomerRole(role)) return null
+  const label = `Gọi ${order.contactName ?? order.customerName}: ${order.customerPhone}`
+  return (
+    <Tooltip title={label}>
+      <Button size={compact ? 'small' : 'middle'} icon={<PhoneOutlined />} href={telHref(order.customerPhone)} aria-label={label}>
+        {!compact && 'Gọi'}
+      </Button>
+    </Tooltip>
   )
 }
 
@@ -120,6 +136,7 @@ export function OrderCard({ order: o, actions, busy, onDetail, showMoney, hideCu
         <Button size="middle" onClick={onDetail}>
           Chi tiết
         </Button>
+        <CallCustomer order={o} />
         {onMenuAction ? (
           <>
             {main && <ActionButton action={main} busy={busy} block />}
@@ -175,7 +192,10 @@ export function OrderRow({
         {o.status !== 'COMPLETED' && o.dueAt && <DueTag order={o} />}
         <StatusTag status={o.status} />
       </Space>
-      <CompactActions actions={actions} busy={busy} onDetail={onDetail} onMenuAction={onMenuAction} />
+      <Space size={4}>
+        <CallCustomer order={o} compact />
+        <CompactActions actions={actions} busy={busy} onDetail={onDetail} onMenuAction={onMenuAction} />
+      </Space>
     </div>
   )
 }

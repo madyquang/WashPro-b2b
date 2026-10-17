@@ -6,6 +6,7 @@ import PhotoPicker, { type PickedPhoto } from '../../components/PhotoPicker'
 import { uploadAttachments } from '../../utils/attachments'
 import DiscrepancyModal from './DiscrepancyModal'
 import ItemsModal from './ItemsModal'
+import NoteModal from './NoteModal'
 import OrderDrawer from './OrderDrawer'
 import { getSession, isCustomerRole } from '../../utils/auth'
 import { formatQuantity } from '../../utils/catalog'
@@ -70,6 +71,7 @@ export function useOrderActions(onChanged: () => void) {
   const [dueOrder, setDueOrder] = useState<Order | null>(null)
   const [dueValue, setDueValue] = useState('')
   const [dueNote, setDueNote] = useState('')
+  const [noteOrderId, setNoteOrderId] = useState<number | null>(null)
 
   const run = async (order: Order, request: () => Promise<unknown>, success: string) => {
     setBusyId(order.id)
@@ -179,6 +181,9 @@ export function useOrderActions(onChanged: () => void) {
     if ((isAdmin || isAccountant) && o.status !== 'COMPLETED') {
       actions.push({ key: 'items', label: isAccountant && !o.billable ? 'Nhập đơn giá' : 'Chi tiết & giá', primary: isAccountant && !o.billable, onClick: () => setItemsOrder(o) })
     }
+    if (isAdmin || isAccountant || isDriver) {
+      actions.push({ key: 'note', label: 'Ghi chú', onClick: () => setNoteOrderId(o.id) })
+    }
     if (isAdmin && o.status !== 'COMPLETED') {
       actions.push(
         { key: 'due', label: 'Đổi hạn trả', onClick: () => openDue(o) },
@@ -204,6 +209,7 @@ export function useOrderActions(onChanged: () => void) {
       <DiscrepancyModal order={discrepancyOrder} onClose={() => setDiscrepancyOrder(null)} onDone={done(() => setDiscrepancyOrder(null))} />
       <ItemsModal order={itemsOrder} onClose={() => setItemsOrder(null)} onDone={done(() => setItemsOrder(null))} />
       <OrderDrawer orderId={detailId} onClose={() => setDetailId(null)} />
+      <NoteModal orderId={noteOrderId} onClose={() => setNoteOrderId(null)} />
       {modalHolder}
 
       <Modal

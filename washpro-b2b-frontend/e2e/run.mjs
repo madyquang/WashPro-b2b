@@ -237,6 +237,10 @@ if (want('pickup')) {
     await toast(page, 'Đã gửi yêu cầu')
     await page.getByText(`${TAG} lấy ở cửa sau`).first().waitFor()
   }, page)
+  await step('pickup: nút "Gọi xưởng" trên đầu trang gọi đúng số hotline', async () => {
+    const href = await page.getByRole('link', { name: /^Gọi xưởng/ }).getAttribute('href')
+    expect(href === 'tel:0909123456', 'hotline sai: ' + href)
+  }, page)
   await step('pickup: không cho chọn ngày lấy trong quá khứ', async () => {
     await page.getByRole('button', { name: 'Yêu cầu lấy đồ' }).first().click()
     const min = await modal(page).getByLabel('Ngày lấy').getAttribute('min')
@@ -392,6 +396,24 @@ if (want('confirm')) {
 // ============ M5. Admin điều phối đơn ============
 if (want('admin-orders')) {
   const { ctx, page } = await open('admin', DESKTOP, 'admin')
+  await step('admin: gọi khách và ghi chú ngay ở "Đơn cần xử lý" trên trang chủ', async () => {
+    await page.goto(APP + '/')
+    const row = page.locator('.home-section').filter({ hasText: 'Đơn cần xử lý' }).locator('.order-row').first()
+    await row.waitFor()
+    const id = Number((await row.locator('.order-card-title').innerText()).match(/#(\d+)/)[1])
+    const call = await row.getByRole('link', { name: /^Gọi / }).getAttribute('href')
+    expect(call?.startsWith('tel:'), 'nút gọi khách sai: ' + call)
+    await row.getByRole('button', { name: 'Thao tác khác' }).click()
+    await page.locator('.ant-dropdown:visible').getByRole('menuitem', { name: 'Ghi chú' }).click()
+    const d = modal(page)
+    await d.getByLabel('Ghi chú mới').fill(`${TAG} đã gọi khách`)
+    await d.getByRole('button', { name: 'Thêm ghi chú' }).click()
+    await toast(page, 'Đã lưu ghi chú')
+    await d.getByText(`${TAG} đã gọi khách`).waitFor()
+    const notes = (await api('admin', `/orders/${id}`)).notes
+    expect(notes.some((n) => n.body === `${TAG} đã gọi khách`), 'ghi chú chưa lưu')
+    await page.keyboard.press('Escape')
+  }, page)
   await step('admin: mở lại đơn có sai lệch', async () => {
     const o = await findOrder(`${TAG} đơn lẻ`)
     await gotoOrder(page, '/orders?status=DISCREPANCY', o.id)

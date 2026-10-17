@@ -276,6 +276,15 @@ export interface OrderHistory {
   createdAt: string
 }
 
+/** Ghi chú nội bộ của xưởng / tài xế trên đơn (khách không thấy). */
+export interface OrderNote {
+  id: number
+  author: string
+  authorRole: Role
+  body: string
+  createdAt: string
+}
+
 export interface Order {
   id: number
   customerId: number
@@ -300,6 +309,8 @@ export interface Order {
   createdAt: string
   updatedAt: string
   history: OrderHistory[] | null
+  /** Chỉ có khi phía xưởng / tài xế xem chi tiết một đơn. */
+  notes: OrderNote[] | null
 }
 
 /** Một trang đơn hàng từ GET /orders (lọc, phân trang phía máy chủ). */

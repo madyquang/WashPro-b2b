@@ -203,6 +203,48 @@ class OrderApiIntegrationTest {
                 .andExpect(jsonPath("$.message", is("Cỡ trang tối đa là 100")));
     }
 
+    @Test
+    void notesAreInternalToWorkshopAndDrivers() throws Exception {
+        long id = createOrder(login("taixe1"), hoaSen, "Khăn bàn", 4);
+
+        mvc.perform(auth(post("/api/orders/" + id + "/notes"), login("admin")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"  Đã gọi chị Lan, hẹn bổ sung 2 khăn  \"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].body", is("Đã gọi chị Lan, hẹn bổ sung 2 khăn")))
+                .andExpect(jsonPath("$[0].authorRole", is("WORKSHOP_ADMIN")));
+        mvc.perform(auth(post("/api/orders/" + id + "/notes"), login("taixe1")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"Khách dặn lần sau lấy cửa sau\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$", hasSize(2)));
+
+        mvc.perform(auth(get("/api/orders/" + id), login("ketoan")))
+                .andExpect(jsonPath("$.notes", hasSize(2)))
+                .andExpect(jsonPath("$.notes[1].author", is("taixe1")));
+        // Khách không thấy và không ghi được ghi chú nội bộ
+        mvc.perform(auth(get("/api/orders/" + id), login("hoasen.ql")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").doesNotExist());
+        mvc.perform(auth(post("/api/orders/" + id + "/notes"), login("hoasen.ql")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"x\"}"))
+                .andExpect(status().isForbidden());
+        // Tài xế khác không ghi vào đơn không thuộc mình; nội dung trống bị từ chối
+        mvc.perform(auth(post("/api/orders/" + id + "/notes"), login("taixe2")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"x\"}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(auth(post("/api/orders/" + id + "/notes"), login("admin")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"body\":\"   \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void companyHotlineIsVisibleToEveryRole() throws Exception {
+        mvc.perform(get("/api/company")).andExpect(status().isUnauthorized());
+        mvc.perform(auth(get("/api/company"), login("hoasen.nv")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hotline", is("0909 123 456")));
+    }
+
     // ===================== Hàm hỗ trợ =====================
 
     private void user(String username, Role role, Customer customer) {

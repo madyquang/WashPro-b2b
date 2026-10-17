@@ -58,6 +58,7 @@ jobs:
           COMPANY_BANK_BIN=970436
           COMPANY_BANK_ACCOUNT=0011004012345
           COMPANY_BANK_NAME=Vietcombank
+          COMPANY_HOTLINE=0909123456
           ENV
           docker compose up -d --build
       - name: Chờ backend sẵn sàng

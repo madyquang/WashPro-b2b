@@ -419,6 +419,23 @@ button:focus-visible,
   font-size: 12px;
 }
 
+/* ===== Ghi chú nội bộ trên đơn ===== */
+.note-list {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.note-list li {
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
 .attachment-form {
   display: flex;
   flex-direction: column;

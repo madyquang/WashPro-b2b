@@ -11,6 +11,7 @@ import { formatCurrency, formatDateTime, getErrorMessage } from '../../utils/for
 import { getSession } from '../../utils/auth'
 import { printDeliverySlip } from '../../utils/print'
 import OrderAttachments from './OrderAttachments'
+import OrderNotes from './OrderNotes'
 import { CUSTOMER_TYPE_LABELS, STATUS_META, type Order, type OrderItem } from '../../types'
 
 interface Props {
@@ -144,6 +145,13 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
 
           <Divider titlePlacement="start">Ảnh & chữ ký</Divider>
           <OrderAttachments order={order} />
+
+          {order.notes && (
+            <>
+              <Divider titlePlacement="start">Ghi chú nội bộ (khách không thấy)</Divider>
+              <OrderNotes orderId={order.id} notes={order.notes} onChange={(notes) => setOrder({ ...order, notes })} />
+            </>
+          )}
 
           <Divider titlePlacement="start">Lịch sử xử lý</Divider>
           <Timeline
