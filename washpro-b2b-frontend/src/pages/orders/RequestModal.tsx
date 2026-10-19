@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Form, Input, InputNumber, Modal, Radio, Select } from 'antd'
 import axiosClient from '../../api/axiosClient'
+import CatalogLines from '../../components/CatalogLines'
+import { toItemRequest, useCatalog, type LineValue } from '../../utils/catalog'
 import { getErrorMessage, todayIso } from '../../utils/format'
 import { message } from '../../utils/message'
 import { TIME_SLOT_LABELS, type Customer, type TimeSlot } from '../../types'
@@ -11,6 +13,7 @@ interface RequestForm {
   timeSlot: TimeSlot
   estimatedBags?: number
   note?: string
+  items?: LineValue[]
 }
 
 export const TIME_SLOT_OPTIONS = (Object.keys(TIME_SLOT_LABELS) as TimeSlot[]).map((t) => ({ value: t, label: TIME_SLOT_LABELS[t] }))
@@ -20,11 +23,13 @@ export default function RequestModal({ open, forWorkshop, onClose, onDone }: { o
   const [form] = Form.useForm<RequestForm>()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [saving, setSaving] = useState(false)
+  const { catalog, loading: loadingCatalog } = useCatalog(open)
 
   useEffect(() => {
     if (!open) return
     form.resetFields()
-    form.setFieldsValue({ preferredDate: todayIso(), timeSlot: 'ANYTIME' })
+    // Khách bắt buộc khai đồ: mở sẵn một dòng; xưởng tạo hộ thì không bắt buộc
+    form.setFieldsValue({ preferredDate: todayIso(), timeSlot: 'ANYTIME', items: forWorkshop ? [] : [{ quantity: 1 }] })
     if (!forWorkshop) return
     axiosClient
       .get<Customer[]>('/customers')
@@ -41,6 +46,10 @@ export default function RequestModal({ open, forWorkshop, onClose, onDone }: { o
         timeSlot: values.timeSlot,
         estimatedBags: values.estimatedBags ?? null,
         note: values.note?.trim() || null,
+        items: (values.items ?? []).map((l) => {
+          const { servicePriceId, itemName, unit, quantity } = toItemRequest(l)
+          return { servicePriceId, itemName, unit, quantity }
+        }),
       })
       message.success('Đã gửi yêu cầu, xưởng sẽ cử tài xế đến lấy đồ')
       onDone()
@@ -79,6 +88,14 @@ export default function RequestModal({ open, forWorkshop, onClose, onDone }: { o
         </Form.Item>
         <Form.Item name="estimatedBags" label="Số túi ước tính (không bắt buộc)">
           <InputNumber min={1} max={10000} precision={0} style={{ width: '100%' }} inputMode="numeric" />
+        </Form.Item>
+        <Form.Item
+          label={forWorkshop ? 'Đồ cần giặt (không bắt buộc)' : 'Đồ cần giặt'}
+          required={!forWorkshop}
+          extra="Khai từng loại và số lượng đã đếm. Tài xế soát lại khi nhận và ghi số thực nhận bên cạnh."
+          className="mb-4"
+        >
+          <CatalogLines name="items" catalog={catalog} loading={loadingCatalog} minLines={forWorkshop ? 0 : 1} />
         </Form.Item>
         <Form.Item name="note" label="Ghi chú cho tài xế">
           <Input.TextArea rows={3} maxLength={500} showCount placeholder="Ví dụ: lấy ở cửa sau, gọi trước 15 phút, có 2 bao chăn ga lớn..." />

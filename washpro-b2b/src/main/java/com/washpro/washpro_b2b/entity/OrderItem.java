@@ -61,6 +61,11 @@ public class OrderItem {
     @Column(name = "unit_price", precision = 15, scale = 2)
     private BigDecimal unitPrice;
 
+    /** Khóa so khớp với dòng khách khai (xem OrderDeclaredItem#matchKey). */
+    public String matchKey() {
+        return servicePrice != null ? "p" + servicePrice.getId() : "n" + itemName.trim().toLowerCase() + "|" + unit;
+    }
+
     /** Hiển thị ngắn gọn cho nhật ký: "Ga giường đôi (Giặt + là ủi) 20 cái". */
     public String describe() {
         return itemName + " (" + serviceType.getLabel() + ") " + quantity.stripTrailingZeros().toPlainString()

@@ -99,7 +99,7 @@ class NotificationApiIntegrationTest {
         // Khách gửi yêu cầu lấy đồ: quản lý xưởng và mọi tài xế đang làm việc được báo; người gửi thì không
         String body = mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"preferredDate\":\"%s\",\"estimatedBags\":3}".formatted(LocalDate.now())))
+                .content("{\"preferredDate\":\"%s\",\"estimatedBags\":3,\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":10}]}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(body, "$.id")).longValue();
@@ -122,7 +122,7 @@ class NotificationApiIntegrationTest {
         // Tài xế nhận đồ (khách đã ký): khách và quản lý xưởng được báo, kèm đường dẫn mở đơn
         mvc.perform(multipart("/api/orders/" + id + "/attachments")
                 .file(new MockMultipartFile("file", "ky.png", MediaType.IMAGE_PNG_VALUE, PNG))
-                .param("kind", "PICKUP_SIGNATURE").header("Authorization", "Bearer " + driver))
+                .param("kind", "PICKUP_PHOTO").header("Authorization", "Bearer " + driver))
                 .andExpect(status().isCreated());
         mvc.perform(put("/api/orders/" + id + "/receive").header("Authorization", "Bearer " + driver)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -158,11 +158,11 @@ class NotificationApiIntegrationTest {
     void readAndReadAll() throws Exception {
         mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
+                .content("{\"preferredDate\":\"%s\",\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":1}]}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());
         mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.ql"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
+                .content("{\"preferredDate\":\"%s\",\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":1}]}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());
 
         String admin = login("admin");

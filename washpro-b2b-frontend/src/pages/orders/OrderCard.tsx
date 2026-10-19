@@ -6,7 +6,7 @@ import DueTag from '../../components/DueTag'
 import StatusTag from '../../components/StatusTag'
 import ToneTag from '../../components/ToneTag'
 import { getSession, isCustomerRole } from '../../utils/auth'
-import { groupByCategory } from '../../utils/catalog'
+import { formatQuantity, groupByCategory } from '../../utils/catalog'
 import { telHref } from '../../utils/company'
 import { formatCurrency, formatDate, formatDateTime, todayIso } from '../../utils/format'
 import { isPickupStage, TIME_SLOT_LABELS, type Order } from '../../types'
@@ -175,6 +175,9 @@ export function OrderCard({ order: o, actions, busy, onDetail, showMoney, hideCu
             <span>
               <CarOutlined aria-hidden /> Khoảng {o.estimatedBags} túi
             </span>
+          )}
+          {o.declaredItems.length > 0 && (
+            <span className="order-card-meta">Khách khai: {o.declaredItems.map((d) => `${d.itemName} ${formatQuantity(d.quantity, d.unit)}`).join(', ')}</span>
           )}
           {o.pickupNote && <div className="pickup-note pre-wrap">“{o.pickupNote}”</div>}
         </div>

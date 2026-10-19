@@ -16,6 +16,7 @@ import com.washpro.washpro_b2b.entity.AuditAction;
 import com.washpro.washpro_b2b.entity.Customer;
 import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
+import com.washpro.washpro_b2b.entity.OrderDeclaredItem;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderNote;
 import com.washpro.washpro_b2b.entity.OrderStatus;
@@ -74,10 +75,9 @@ public class OrderService {
     /** Các bước Quản lý xưởng bấm trực tiếp (giặt, giặt xong, giao bù, chốt hoàn thành). */
     private static final Set<OrderStatus> ADMIN_TARGETS = EnumSet.of(
             OrderStatus.WASHING, OrderStatus.WASHED, OrderStatus.DELIVERING, OrderStatus.COMPLETED);
-    private static final Set<AttachmentKind> PICKUP_PROOF = EnumSet.of(AttachmentKind.PICKUP_PHOTO,
-            AttachmentKind.PICKUP_SIGNATURE);
-    private static final Set<AttachmentKind> DELIVERY_PROOF = EnumSet.of(AttachmentKind.DELIVERY_PHOTO,
-            AttachmentKind.DELIVERY_SIGNATURE);
+    /** Bằng chứng bắt buộc là ảnh; chữ ký khách không bắt buộc. */
+    private static final Set<AttachmentKind> PICKUP_PROOF = EnumSet.of(AttachmentKind.PICKUP_PHOTO);
+    private static final Set<AttachmentKind> DELIVERY_PROOF = EnumSet.of(AttachmentKind.DELIVERY_PHOTO);
 
     private final OrderRepository orderRepository;
     private final OrderNoteRepository noteRepository;
@@ -111,6 +111,11 @@ public class OrderService {
             throw ApiException.badRequest("Khách hàng này đã ngừng hợp tác, không thể tạo đơn mới");
         }
 
+        List<OrderDtos.DeclaredItemRequest> declared = request.items() == null ? List.of() : request.items();
+        if (user.getRole().isCustomerRole() && declared.isEmpty()) {
+            throw ApiException.badRequest("Vui lòng khai các loại đồ cần giặt và số lượng");
+        }
+
         TimeSlot slot = request.timeSlot() != null ? request.timeSlot() : TimeSlot.ANYTIME;
         Order order = Order.builder()
                 .customer(customer)
@@ -121,10 +126,21 @@ public class OrderService {
                 .estimatedBags(request.estimatedBags())
                 .pickupNote(blankToNull(request.note()))
                 .build();
+        for (OrderDtos.DeclaredItemRequest d : declared) {
+            OrderItem line = buildItem(d.servicePriceId(), d.itemName(), d.unit(), d.quantity(), null, p -> null, Set.of());
+            order.addDeclaredItem(OrderDeclaredItem.builder()
+                    .servicePrice(line.getServicePrice())
+                    .itemName(line.getItemName())
+                    .serviceType(line.getServiceType())
+                    .unit(line.getUnit())
+                    .quantity(line.getQuantity())
+                    .build());
+        }
         order.addHistory(null, OrderStatus.PICKUP_PENDING, user.getUsername(),
                 "Yêu cầu lấy đồ ngày " + DAY.format(request.preferredDate()) + ", " + slot.getLabel().toLowerCase()
                         + (request.estimatedBags() != null ? ", khoảng " + request.estimatedBags() + " túi" : "")
-                        + (user.getRole() == Role.WORKSHOP_ADMIN ? " (xưởng tạo hộ khách)" : ""));
+                        + (user.getRole() == Role.WORKSHOP_ADMIN ? " (xưởng tạo hộ khách)" : "")
+                        + (declared.isEmpty() ? "" : ". Khách khai: " + summarizeDeclared(order.getDeclaredItems())));
         Order saved = orderRepository.saveAndFlush(order);
         notificationService.pickupRequested(saved, user);
         return Response.from(saved, true);
@@ -253,7 +269,7 @@ public class OrderService {
                 throw ApiException.badRequest("Việc này đã được giao cho tài xế khác");
             }
             if (!attachmentRepository.existsByOrderIdAndKindIn(order.getId(), PICKUP_PROOF)) {
-                throw ApiException.badRequest("Cần chữ ký của khách hoặc ảnh túi đồ để xác nhận số lượng khi nhận đồ");
+                throw ApiException.badRequest("Cần chụp ít nhất một ảnh túi đồ khi nhận đồ");
             }
             order.setDriver(user);
         }
@@ -271,11 +287,16 @@ public class OrderService {
         order.setReceivedAt(now);
         // Hạn trả tính từ lúc nhận đồ theo cam kết với từng khách (khách sạn 24h, nhà hàng 48h...)
         order.setDueAt(now.plusHours(order.getCustomer().getTurnaroundHours()));
+        List<String> differences = differences(order);
         moveTo(order, OrderStatus.RECEIVED, user.getUsername(),
-                (atWorkshop ? "Xưởng nhận đồ khách mang đến (" : "Tài xế nhận đồ, khách đã ký xác nhận (")
-                        + request.totalBags() + " túi): " + summarize(order.getItems()));
+                (atWorkshop ? "Xưởng nhận đồ khách mang đến (" : "Tài xế soát và nhận đồ (")
+                        + request.totalBags() + " túi): " + summarize(order.getItems())
+                        + (differences.isEmpty() ? "" : "\nChênh lệch so với số khách khai: " + String.join("; ", differences)));
         Order saved = orderRepository.saveAndFlush(order);
         notificationService.orderReceived(saved, user);
+        if (!differences.isEmpty()) {
+            notificationService.receivedDifferent(saved, user, differences);
+        }
         return Response.from(saved, true);
     }
 
@@ -406,9 +427,9 @@ public class OrderService {
             throw ApiException.badRequest("Chỉ tài xế đang giao đơn này mới bấm giao xong được");
         }
         if (!attachmentRepository.existsByOrderIdAndKindIn(order.getId(), DELIVERY_PROOF)) {
-            throw ApiException.badRequest("Cần chữ ký của khách hoặc ảnh lúc giao trước khi báo giao xong");
+            throw ApiException.badRequest("Cần chụp ít nhất một ảnh lúc giao trước khi báo giao xong");
         }
-        complete(order, driver.getUsername(), "Tài xế giao xong, khách đã ký nhận / có ảnh lúc giao");
+        complete(order, driver.getUsername(), "Tài xế giao xong, có ảnh lúc giao");
         notificationService.orderCompleted(order, driver);
         return Response.from(orderRepository.saveAndFlush(order), true);
     }
@@ -654,6 +675,46 @@ public class OrderService {
                 .map(i -> i.getItemName() + " " + plain(i.getQuantity()) + " " + i.getUnit().getLabel() + " × "
                         + (i.getUnitPrice() == null ? "chưa có giá" : AuditService.money(i.getUnitPrice())))
                 .collect(Collectors.joining("; "));
+    }
+
+    /**
+     * Dòng chênh lệch giữa số khách khai và số thực nhận, VD "Khăn ăn: khai 120, nhận 118 (-2)".
+     * Rỗng khi khớp hết hoặc khách không khai (xưởng tạo hộ).
+     */
+    static List<String> differences(Order order) {
+        if (order.getDeclaredItems().isEmpty()) {
+            return List.of();
+        }
+        Map<String, BigDecimal> declared = new java.util.LinkedHashMap<>();
+        Map<String, String> names = new java.util.LinkedHashMap<>();
+        for (OrderDeclaredItem d : order.getDeclaredItems()) {
+            declared.merge(d.matchKey(), d.getQuantity(), BigDecimal::add);
+            names.putIfAbsent(d.matchKey(), d.getItemName() + "|" + d.getUnit().getLabel());
+        }
+        Map<String, BigDecimal> received = new java.util.LinkedHashMap<>();
+        for (OrderItem i : order.getItems()) {
+            received.merge(i.matchKey(), i.getQuantity(), BigDecimal::add);
+            names.putIfAbsent(i.matchKey(), i.getItemName() + "|" + i.getUnit().getLabel());
+        }
+        List<String> lines = new ArrayList<>();
+        for (Map.Entry<String, String> e : names.entrySet()) {
+            BigDecimal d = declared.getOrDefault(e.getKey(), BigDecimal.ZERO);
+            BigDecimal r = received.getOrDefault(e.getKey(), BigDecimal.ZERO);
+            if (d.compareTo(r) != 0) {
+                String[] nameUnit = e.getValue().split("\\|", 2);
+                BigDecimal diff = r.subtract(d);
+                lines.add("%s: %s, nhận %s %s (%s%s)".formatted(nameUnit[0],
+                        d.signum() == 0 ? "không khai" : "khai " + plain(d), plain(r), nameUnit[1],
+                        diff.signum() > 0 ? "+" : "", plain(diff)));
+            }
+        }
+        return lines;
+    }
+
+    private static String summarizeDeclared(List<OrderDeclaredItem> items) {
+        return items.stream()
+                .map(i -> i.getItemName() + " " + plain(i.getQuantity()) + " " + i.getUnit().getLabel())
+                .collect(Collectors.joining(", "));
     }
 
     /** "Khăn bàn 50 cái, Ga giường đôi 20 cái, Chăn ga (tính cân) 12.5 kg". */

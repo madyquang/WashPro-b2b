@@ -4,6 +4,7 @@ import com.washpro.washpro_b2b.entity.CustomerType;
 import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
 import com.washpro.washpro_b2b.entity.OrderHistory;
+import com.washpro.washpro_b2b.entity.OrderDeclaredItem;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderNote;
 import com.washpro.washpro_b2b.entity.OrderStatus;
@@ -50,14 +51,23 @@ public final class OrderDtos {
             @DecimalMin(value = "0", message = "Đơn giá không được âm") @Digits(integer = 12, fraction = 2, message = "Đơn giá không hợp lệ") BigDecimal unitPrice) {
     }
 
-    /** Yêu cầu lấy đồ: mở một đơn mới ở trạng thái "Chờ lấy đồ". */
+    /** Một dòng khách khai: loại đồ (bảng giá hoặc nhập tay) và số lượng; không có giá. */
+    public record DeclaredItemRequest(
+            Long servicePriceId,
+            @Size(max = 100, message = "Tên đồ giặt tối đa 100 ký tự") String itemName,
+            PriceUnit unit,
+            @NotNull(message = "Vui lòng nhập số lượng") @DecimalMin(value = "0.01", message = "Số lượng phải lớn hơn 0") @DecimalMax(value = "100000", message = "Số lượng quá lớn") @Digits(integer = 6, fraction = 2, message = "Số lượng tối đa 2 chữ số thập phân") BigDecimal quantity) {
+    }
+
+    /** Yêu cầu lấy đồ: mở một đơn mới ở trạng thái "Chờ lấy đồ". Khách bắt buộc khai đồ; xưởng tạo hộ thì không. */
     public record CreateRequest(
             /** Chỉ Quản lý xưởng cần gửi (tạo hộ khách gọi điện); tài khoản khách hàng tự lấy theo tài khoản. */
             Long customerId,
             @NotNull(message = "Vui lòng chọn ngày lấy đồ") @FutureOrPresent(message = "Ngày lấy đồ không được ở quá khứ") LocalDate preferredDate,
             TimeSlot timeSlot,
             @Min(value = 1, message = "Số túi tối thiểu là 1") @Max(value = 10000, message = "Số túi quá lớn") Integer estimatedBags,
-            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note) {
+            @Size(max = 500, message = "Ghi chú tối đa 500 ký tự") String note,
+            @Size(max = 200, message = "Tối đa 200 dòng khai") @Valid List<DeclaredItemRequest> items) {
     }
 
     /** Đổi ngày / khung giờ lấy đồ (khi tài xế chưa lấy). */
@@ -145,6 +155,15 @@ public final class OrderDtos {
         }
     }
 
+    public record DeclaredItemResponse(Long id, Long servicePriceId, String itemName, ServiceType serviceType,
+            PriceUnit unit, BigDecimal quantity) {
+
+        public static DeclaredItemResponse from(OrderDeclaredItem d) {
+            return new DeclaredItemResponse(d.getId(), d.getServicePrice() == null ? null : d.getServicePrice().getId(),
+                    d.getItemName(), d.getServiceType(), d.getUnit(), d.getQuantity());
+        }
+    }
+
     public record NoteResponse(Long id, String author, Role authorRole, String body, LocalDateTime createdAt) {
 
         public static NoteResponse from(OrderNote n) {
@@ -181,6 +200,8 @@ public final class OrderDtos {
             String pickupNote,
             /** Đã qua ngày hẹn lấy mà chưa lấy. */
             boolean pickupLate,
+            /** Số khách khai khi gửi yêu cầu (đối chiếu với items là số thực nhận). */
+            List<DeclaredItemResponse> declaredItems,
             List<ItemResponse> items,
             /** Tổng tiền các dòng đã có đơn giá. */
             BigDecimal totalAmount,
@@ -237,6 +258,7 @@ public final class OrderDtos {
                     o.getEstimatedBags(),
                     o.getPickupNote(),
                     !o.isDeleted() && o.isPickupLate(now.toLocalDate()),
+                    o.getDeclaredItems().stream().map(DeclaredItemResponse::from).toList(),
                     items,
                     o.getTotalAmount(),
                     o.isBillable(),

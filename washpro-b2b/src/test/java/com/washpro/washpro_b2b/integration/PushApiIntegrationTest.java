@@ -202,7 +202,7 @@ class PushApiIntegrationTest {
     private void createPickup() throws Exception {
         mvc.perform(post("/api/orders").header("Authorization", "Bearer " + login("hoasen.nv"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
+                .content("{\"preferredDate\":\"%s\",\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":1}]}".formatted(LocalDate.now())))
                 .andExpect(status().isCreated());
     }
 

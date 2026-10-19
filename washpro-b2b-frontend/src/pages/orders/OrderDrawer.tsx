@@ -119,7 +119,23 @@ export default function OrderDrawer({ orderId, onClose }: Props) {
             </Descriptions.Item>
           </Descriptions>
 
-          <Divider titlePlacement="start">Chi tiết đồ giặt</Divider>
+          {order.declaredItems.length > 0 && (
+            <>
+              <Divider titlePlacement="start">Khách khai khi gửi yêu cầu</Divider>
+              <Table
+                size="small"
+                pagination={false}
+                rowKey="id"
+                dataSource={order.declaredItems}
+                columns={[
+                  { title: 'Loại đồ', key: 'name', render: (_: unknown, d) => catalogLabel(d) },
+                  { title: 'Khách khai', key: 'qty', align: 'right', render: (_: unknown, d) => formatQuantity(d.quantity, d.unit) },
+                ]}
+              />
+            </>
+          )}
+
+          <Divider titlePlacement="start">{order.declaredItems.length > 0 ? 'Thực nhận (số chốt)' : 'Chi tiết đồ giặt'}</Divider>
           {order.items.length === 0 ? (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có chi tiết đồ giặt" />
           ) : (

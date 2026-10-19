@@ -119,6 +119,14 @@ public class NotificationService {
                 body + ". Bấm \"Bắt đầu giặt\" khi đồ về tới xưởng", orderLink(o));
     }
 
+    /** Số tài xế thực nhận khác số khách khai: báo phía khách và quản lý xưởng (chỉ nội dung chữ). */
+    public void receivedDifferent(Order o, User actor, List<String> differences) {
+        List<User> to = new ArrayList<>(customerUsers(o.getCustomer()));
+        to.addAll(users(Role.WORKSHOP_ADMIN));
+        send(to, actor, NotificationType.ORDER_DISCREPANCY,
+                "Đơn #" + o.getId() + ": số thực nhận khác số khai", String.join("; ", differences), orderLink(o));
+    }
+
     // ===================== Giặt, giao trả =====================
 
     public void orderWashed(Order o, User actor) {

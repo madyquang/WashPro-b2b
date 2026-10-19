@@ -17,7 +17,7 @@ public enum NotificationType {
     PAYMENT_RECORDED, // Xưởng ghi nhận thanh toán
     OVERDUE_ORDERS, // Bản tin hằng ngày: đơn trễ hạn trả
     OVERDUE_DEBT, // Bản tin hằng ngày: nợ quá hạn
+    ORDER_DISCREPANCY, // Số tài xế thực nhận khác số khách khai
     /** Quy trình cũ: chỉ còn trong thông báo đã gửi trước đây. */
-    ORDER_TO_CONFIRM,
-    ORDER_DISCREPANCY
+    ORDER_TO_CONFIRM
 }

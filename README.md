@@ -206,7 +206,7 @@ Ngoài ra, `washpro-b2b/docs/bang-gia-mau.sql` chỉ thêm bảng giá mẫu (kh
 |---|---|---|
 | Quản lý xưởng | `WORKSHOP_ADMIN` | Toàn bộ: khách hàng, tài khoản, bảng giá, tạo yêu cầu hộ khách, phân công tài xế lấy / giao, nhận đồ tại xưởng, bắt đầu giặt, giặt xong, chốt, hủy, đổi hạn, công nợ |
 | Kế toán xưởng | `WORKSHOP_ACCOUNTANT` | Bảng giá, chi tiết và đơn giá đơn hàng, ghi nhận/hủy thanh toán, công nợ, báo cáo, ghi chú nội bộ |
-| Tài xế | `DRIVER` | Nhận việc lấy đồ / giao trả, nhận đồ (khách ký), giao xong (khách ký), ghi chú nội bộ |
+| Tài xế | `DRIVER` | Nhận việc lấy đồ / giao trả, soát đồ theo số khách khai và nhận đồ (chụp ảnh), giao xong (chụp ảnh), ghi chú nội bộ |
 | Quản lý phía khách | `CUSTOMER_MANAGER` | Như nhân viên phía khách, thêm công nợ, sao kê, lịch sử thanh toán, báo cáo của khách mình |
 | Nhân viên phía khách | `CUSTOMER_STAFF` | Gửi / hủy yêu cầu lấy đồ, xác nhận đã nhận đủ đồ hoặc báo thiếu / hỏng |
 
@@ -253,7 +253,7 @@ PICKUP_PENDING ─► PICKUP_ASSIGNED ─► RECEIVED ─► WASHING ─► WASH
 | Trạng thái | Nhãn | Chuyển tiếp | Người thực hiện |
 |---|---|---|---|
 | `PICKUP_PENDING` | Chờ lấy đồ | → `PICKUP_ASSIGNED` (nhận việc / phân công), → `RECEIVED` (khách mang đồ đến xưởng) | Tài xế; Quản lý xưởng |
-| `PICKUP_ASSIGNED` | Tài xế đang đến lấy | → `RECEIVED` (nhận đồ, khách ký), → `PICKUP_PENDING` (trả lại việc) | Tài xế được giao; Quản lý xưởng |
+| `PICKUP_ASSIGNED` | Tài xế đang đến lấy | → `RECEIVED` (soát đồ, chụp ảnh), → `PICKUP_PENDING` (trả lại việc) | Tài xế được giao; Quản lý xưởng |
 | `RECEIVED` | Đã tiếp nhận | → `WASHING` (đồ về xưởng, "Bắt đầu giặt") | Quản lý xưởng |
 | `WASHING` | Đang giặt | → `WASHED` ("Đã giặt xong", đã kiểm lại số lượng, đủ đơn giá) | Quản lý xưởng |
 | `WASHED` | Đã giặt xong | → `DELIVERING` (tài xế nhận giao / xưởng phân công) | Tài xế; Quản lý xưởng |
@@ -263,13 +263,18 @@ PICKUP_PENDING ─► PICKUP_ASSIGNED ─► RECEIVED ─► WASHING ─► WASH
 
 Quy tắc:
 
-- Khách (hoặc Quản lý xưởng tạo hộ khi khách gọi điện) gửi yêu cầu: ngày, khung giờ, số túi ước tính, lời dặn tài xế.
+- Khách (hoặc Quản lý xưởng tạo hộ khi khách gọi điện) gửi yêu cầu: ngày, khung giờ, số túi ước tính, lời dặn tài xế và
+  **khai từng loại đồ, số lượng** (bắt buộc với tài khoản phía khách, không bắt buộc khi xưởng tạo hộ). Số khai được lưu
+  riêng (`order_declared_items`) và không bị sửa về sau.
   Khi tài xế chưa lấy đồ, khách **đổi ngày giờ** được (nút cạnh "Hủy yêu cầu"; tài xế đã nhận việc vẫn giữ việc và được
   báo lịch mới) hoặc hủy yêu cầu của mình; sau đó phải gọi xưởng (Quản lý xưởng hủy được mọi đơn chưa
   hoàn thành). Đơn / yêu cầu đã hủy vẫn xem lại được (tab "Đã hủy", `GET /orders?cancelled=true`) kèm lý do.
-- **Nhận đồ:** tài xế kiểm số túi và số lượng từng loại đồ cùng khách; **bắt buộc có chữ ký khách hoặc ảnh túi đồ**
-  (thay cho bước khách xác nhận số lượng trên ứng dụng). Hạn trả = lúc nhận đồ + thời gian trả đồ của khách.
-- **Giao xong:** tài xế đang giao bấm "Giao xong", **bắt buộc có chữ ký khách hoặc ảnh lúc giao**; đơn hoàn thành và tính
+- **Nhận đồ:** tài xế soát đồ tại chỗ khi gom túi. Bảng hiện cột "Khách khai" (chỉ xem) và cột "Thực nhận" điền sẵn
+  bằng số khai, tài xế sửa ô lệch, thêm món khách không khai; cột "Chênh lệch" tự tính. **Bắt buộc chụp ảnh túi đồ**, khách
+  ký không bắt buộc. Số thực nhận là số chốt để giặt và tính tiền. Có chênh lệch thì lịch sử đơn ghi lại (VD "Khăn ăn:
+  khai 120, nhận 118 cái (-2)") và phía khách, quản lý xưởng nhận thông báo (chỉ nội dung chữ). Đồ khách mang đến xưởng
+  thì quản lý xưởng nhận, không bắt buộc ảnh. Hạn trả = lúc nhận đồ + thời gian trả đồ của khách.
+- **Giao xong:** tài xế đang giao bấm "Giao xong", **bắt buộc chụp ảnh lúc giao** (khách ký không bắt buộc); đơn hoàn thành và tính
   vào công nợ. Khách vẫn bấm được "Đã nhận đủ đồ" hoặc báo thiếu / hỏng khi đơn đang giao; sau khi hoàn thành, vấn đề
   phát sinh liên hệ hotline của xưởng (nút "Gọi xưởng" trên ứng dụng) và xưởng ghi chú nội bộ trên đơn.
 - Chỉ báo "Đã giặt xong" hoặc chốt hoàn thành khi mọi dòng đã có đơn giá. Từ lúc giặt xong, việc sửa chi tiết vẫn
@@ -378,7 +383,7 @@ Bảng theo khách hàng và theo tài xế (chỉ phía xưởng). Mỗi đơn 
 
 ### Ảnh và chữ ký giao nhận
 
-Dùng làm bằng chứng khi có tranh chấp: tài xế bắt buộc có chữ ký hoặc ảnh khi nhận đồ và khi giao xong; các loại
+Dùng làm bằng chứng khi có tranh chấp: tài xế bắt buộc chụp ảnh khi nhận đồ và khi giao xong (chữ ký khách không bắt buộc); các loại
 khác không bắt buộc. Ảnh được thu nhỏ ngay trên điện thoại (cạnh dài 1600px,
 thường 200–500 KB) trước khi gửi; máy chủ chỉ nhận JPG / PNG / WEBP (kiểm tra theo nội dung file), tối đa 8 MB mỗi
 ảnh, 30 ảnh mỗi đơn.
@@ -404,6 +409,7 @@ bấm vào một thông báo để mở đúng trang / đúng đơn. Ai nhận g
 | Hủy yêu cầu lấy đồ | Quản lý xưởng, phía khách, tài xế đã nhận |
 | Đổi ngày giờ lấy đồ | Tài xế đã nhận việc; quản lý xưởng (khách đổi) hoặc phía khách (xưởng đổi hộ) |
 | Tài xế nhận đồ | Phía khách; quản lý xưởng (đồ đang về xưởng, chờ bắt đầu giặt) |
+| Số thực nhận khác số khách khai | Phía khách, quản lý xưởng |
 | Giặt xong | Mọi tài xế (việc chờ giao); phía khách |
 | Tài xế nhận giao / được phân công giao | Tài xế được phân công; phía khách (đang giao trả) |
 | Tài xế giao xong | Phía khách |
@@ -506,10 +512,10 @@ Frontend kiểm tra kiểu bằng `npm run build` (chạy `tsc`) và lint bằng
 ### Kiểm thử đầu-cuối (E2E) qua giao diện
 
 `washpro-b2b-frontend/e2e/run.mjs` đăng nhập lần lượt từng vai trò qua form thật và đi hết các luồng nghiệp vụ
-(65 bước, 9 module): đăng nhập / phân quyền, gửi, đổi ngày giờ và hủy yêu cầu lấy đồ, nút gọi xưởng, tài xế nhận việc, xem lộ trình và
-nhận đồ (khách ký, chụp ảnh; thiếu chữ ký thì không cho nhận), xưởng điều phối (gọi khách, ghi chú, tạo yêu cầu hộ, phân công,
+(66 bước, 9 module): đăng nhập / phân quyền, gửi, đổi ngày giờ và hủy yêu cầu lấy đồ, nút gọi xưởng, tài xế nhận việc, xem lộ trình và
+soát đồ theo số khách khai (điền sẵn, tự tính chênh lệch; chưa chụp ảnh thì không cho nhận), xưởng điều phối (gọi khách, ghi chú, tạo yêu cầu hộ, phân công,
 nhận đồ tại xưởng, bắt đầu giặt, đổi hạn, giặt xong, hủy, in phiếu), tài xế nhận giao, khách báo thiếu, xưởng giao bù, tài
-xế giao xong (khách ký), kế toán nhập giá
+xế giao xong (chụp ảnh), khách được báo chênh lệch, kế toán nhập giá
 / thu tiền / hủy thu / sao kê / hóa đơn PDF / xuất CSV, báo cáo hiệu suất, nhật ký thay đổi, quản lý khách hàng / tài khoản / bảng giá, thông báo (chuông báo việc mới, bấm mở đúng đơn), đổi mật khẩu (thiết bị khác bị đăng xuất), đăng xuất mọi thiết bị, PWA (manifest, icon; trên bản build: mất mạng vẫn mở được ứng dụng). Ngoài kết quả từng
 bước, script còn bắt mọi lỗi API (mã ≥ 400 không mong đợi) và lỗi JavaScript trên trang.
 

@@ -104,12 +104,13 @@ class OrderApiIntegrationTest {
                 .andExpect(jsonPath("$.status", is("PICKUP_ASSIGNED")))
                 .andExpect(jsonPath("$.driverName", is("taixe1")));
 
-        // Nhận đồ phải có chữ ký khách hoặc ảnh túi đồ
+        // Nhận đồ bắt buộc có ảnh túi đồ; chữ ký khách không bắt buộc và không thay được ảnh
+        upload("taixe1", id, "PICKUP_SIGNATURE").andExpect(status().isCreated());
         mvc.perform(auth(put("/api/orders/" + id + "/receive"), driver).contentType(MediaType.APPLICATION_JSON)
                 .content(receiveJson("Khăn bàn", 10)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Cần chữ ký của khách hoặc ảnh túi đồ để xác nhận số lượng khi nhận đồ")));
-        upload("taixe1", id, "PICKUP_SIGNATURE").andExpect(status().isCreated());
+                .andExpect(jsonPath("$.message", is("Cần chụp ít nhất một ảnh túi đồ khi nhận đồ")));
+        upload("taixe1", id, "PICKUP_PHOTO").andExpect(status().isCreated());
         mvc.perform(auth(put("/api/orders/" + id + "/receive"), driver).contentType(MediaType.APPLICATION_JSON)
                 .content(receiveJson("Khăn bàn", 10)))
                 .andExpect(status().isOk())
@@ -136,12 +137,12 @@ class OrderApiIntegrationTest {
                 .andExpect(jsonPath("$.status", is("DELIVERING")))
                 .andExpect(jsonPath("$.deliveryDriverName", is("taixe2")))
                 .andExpect(jsonPath("$.driverName", is("taixe1")));
-        // Chỉ tài xế đang giao mới báo giao xong; phải có chữ ký / ảnh lúc giao
+        // Chỉ tài xế đang giao mới báo giao xong; phải có ảnh lúc giao
         mvc.perform(auth(put("/api/orders/" + id + "/delivered"), driver)).andExpect(status().isBadRequest());
         mvc.perform(auth(put("/api/orders/" + id + "/delivered"), other))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message", is("Cần chữ ký của khách hoặc ảnh lúc giao trước khi báo giao xong")));
-        upload("taixe2", id, "DELIVERY_SIGNATURE").andExpect(status().isCreated());
+                .andExpect(jsonPath("$.message", is("Cần chụp ít nhất một ảnh lúc giao trước khi báo giao xong")));
+        upload("taixe2", id, "DELIVERY_PHOTO").andExpect(status().isCreated());
         mvc.perform(auth(put("/api/orders/" + id + "/delivered"), other))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status", is("COMPLETED")))
@@ -152,6 +153,48 @@ class OrderApiIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].balance", is(50000.0)));
+    }
+
+    @Test
+    void declaredCountsAreKeptAndDifferencesReported() throws Exception {
+        // Khách bắt buộc khai đồ; xưởng tạo hộ thì không
+        mvc.perform(auth(post("/api/orders"), login("hoasen.nv")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"preferredDate\":\"%s\"}".formatted(LocalDate.now())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message", is("Vui lòng khai các loại đồ cần giặt và số lượng")));
+        long id = request("hoasen.nv", null, null, null);
+        mvc.perform(auth(get("/api/orders/" + id), login("hoasen.nv")))
+                .andExpect(jsonPath("$.declaredItems", hasSize(1)))
+                .andExpect(jsonPath("$.declaredItems[0].itemName", is("Khăn bàn")))
+                .andExpect(jsonPath("$.declaredItems[0].quantity", is(10.0)))
+                .andExpect(jsonPath("$.items", hasSize(0)));
+
+        // Tài xế soát: khăn bàn thiếu 2, thêm 3 áo khách không khai
+        String driver = login("taixe1");
+        mvc.perform(auth(put("/api/orders/" + id + "/accept"), driver)).andExpect(status().isOk());
+        upload("taixe1", id, "PICKUP_PHOTO").andExpect(status().isCreated());
+        mvc.perform(auth(put("/api/orders/" + id + "/receive"), driver).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"totalBags\":1,\"items\":[{\"itemName\":\"khăn bàn\",\"quantity\":8},{\"itemName\":\"Áo\",\"quantity\":3}]}"))
+                .andExpect(status().isOk())
+                // Số khai giữ nguyên, số thực nhận là số chốt
+                .andExpect(jsonPath("$.declaredItems[0].quantity", is(10.0)))
+                .andExpect(jsonPath("$.items", hasSize(2)))
+                .andExpect(jsonPath("$.history[-1].note", org.hamcrest.Matchers.containsString(
+                        "Chênh lệch so với số khách khai: Khăn bàn: khai 10, nhận 8 cái (-2); Áo: không khai, nhận 3 cái (+3)")));
+
+        // Phía khách được báo chênh lệch (chỉ nội dung chữ)
+        mvc.perform(auth(get("/api/notifications"), login("hoasen.ql")))
+                .andExpect(jsonPath("$.items[0].type", is("ORDER_DISCREPANCY")))
+                .andExpect(jsonPath("$.items[0].body", is("Khăn bàn: khai 10, nhận 8 cái (-2); Áo: không khai, nhận 3 cái (+3)")));
+
+        // Khớp số khai thì không báo chênh lệch
+        long same = request("hoasen.nv", null, null, null);
+        mvc.perform(auth(put("/api/orders/" + same + "/accept"), driver)).andExpect(status().isOk());
+        upload("taixe1", same, "PICKUP_PHOTO").andExpect(status().isCreated());
+        mvc.perform(auth(put("/api/orders/" + same + "/receive"), driver).contentType(MediaType.APPLICATION_JSON)
+                .content(receiveJson("Khăn bàn", 10)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.history[-1].note", org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Chênh lệch"))));
     }
 
     @Test
@@ -403,8 +446,9 @@ class OrderApiIntegrationTest {
 
     /** Gửi yêu cầu lấy đồ hôm nay (khách gửi cho mình; quản lý xưởng gửi hộ `customer`). */
     private long request(String username, Customer customer, Integer bags, String note) throws Exception {
-        String json = "{\"preferredDate\":\"%s\",\"timeSlot\":\"MORNING\"%s%s%s}".formatted(LocalDate.now(),
+        String json = "{\"preferredDate\":\"%s\",\"timeSlot\":\"MORNING\"%s%s%s%s}".formatted(LocalDate.now(),
                 customer != null ? ",\"customerId\":" + customer.getId() : "",
+                customer == null ? ",\"items\":[{\"itemName\":\"Khăn bàn\",\"quantity\":10}]" : "",
                 bags != null ? ",\"estimatedBags\":" + bags : "",
                 note != null ? ",\"note\":\"" + note + "\"" : "");
         String body = mvc.perform(auth(post("/api/orders"), login(username)).contentType(MediaType.APPLICATION_JSON)
@@ -420,7 +464,7 @@ class OrderApiIntegrationTest {
         long id = request("admin", customer, null, null);
         String driver = login("taixe1");
         mvc.perform(auth(put("/api/orders/" + id + "/accept"), driver)).andExpect(status().isOk());
-        upload("taixe1", id, "PICKUP_SIGNATURE").andExpect(status().isCreated());
+        upload("taixe1", id, "PICKUP_PHOTO").andExpect(status().isCreated());
         mvc.perform(auth(put("/api/orders/" + id + "/receive"), driver).contentType(MediaType.APPLICATION_JSON)
                 .content(receiveJson(itemName, quantity)))
                 .andExpect(status().isOk());

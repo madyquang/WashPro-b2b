@@ -287,6 +287,16 @@ export interface OrderHistory {
   createdAt: string
 }
 
+/** Một dòng khách khai khi gửi yêu cầu lấy đồ (không có giá). */
+export interface DeclaredItem {
+  id: number
+  servicePriceId: number | null
+  itemName: string
+  serviceType: ServiceType
+  unit: PriceUnit
+  quantity: number
+}
+
 /** Ghi chú nội bộ của xưởng / tài xế trên đơn (khách không thấy). */
 export interface OrderNote {
   id: number
@@ -324,6 +334,8 @@ export interface Order {
   pickupNote: string | null
   /** Đã qua ngày hẹn lấy mà chưa lấy. */
   pickupLate: boolean
+  /** Số khách khai khi gửi yêu cầu (đối chiếu với items là số thực nhận). */
+  declaredItems: DeclaredItem[]
   items: OrderItem[]
   totalAmount: number
   billable: boolean

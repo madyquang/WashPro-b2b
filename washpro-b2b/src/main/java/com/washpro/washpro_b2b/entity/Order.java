@@ -63,6 +63,13 @@ public class Order {
     @Builder.Default
     private List<OrderItem> items = new ArrayList<>();
 
+    /** Số lượng khách khai khi gửi yêu cầu (giữ nguyên để đối chiếu với số thực nhận ở items). */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
+    @org.hibernate.annotations.BatchSize(size = 100)
+    @Builder.Default
+    private List<OrderDeclaredItem> declaredItems = new ArrayList<>();
+
     /** Nhật ký thay đổi trạng thái/số lượng: phục vụ đối soát, không bao giờ sửa hay xóa. */
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     @OrderBy("createdAt ASC, id ASC")
@@ -160,6 +167,11 @@ public class Order {
     public void addItem(OrderItem item) {
         item.setOrder(this);
         items.add(item);
+    }
+
+    public void addDeclaredItem(OrderDeclaredItem item) {
+        item.setOrder(this);
+        declaredItems.add(item);
     }
 
     public void addHistory(OrderStatus from, OrderStatus to, String actor, String note) {

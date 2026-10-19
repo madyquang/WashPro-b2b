@@ -43,26 +43,6 @@ async function api(user, path, init = {}) {
 }
 /** Ảnh PNG nhỏ để thử đính kèm ảnh. */
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
-/** Ký vào khung chữ ký bằng chuột. */
-async function sign(page, scope) {
-  const canvas = scope.locator('.signature-pad canvas')
-  await canvas.waitFor()
-  // Chờ hộp thoại mở xong (hiệu ứng phóng to còn đang chạy thì nét ký rơi ra ngoài khung)
-  let box = await canvas.boundingBox()
-  for (let i = 0; i < 20; i++) {
-    await page.waitForTimeout(100)
-    const next = await canvas.boundingBox()
-    if (box && next && box.x === next.x && box.y === next.y && box.width === next.width) break
-    box = next
-  }
-  // hover tự cuộn tới và kiểm tra điểm đặt chuột không bị phần tử khác (chân modal...) che
-  await canvas.hover({ position: { x: 20, y: 40 } })
-  box = await canvas.boundingBox()
-  await page.mouse.down()
-  await page.mouse.move(box.x + 140, box.y + 100, { steps: 10 })
-  await page.mouse.up()
-  await scope.getByText('Đã ký').waitFor()
-}
 /** Tìm đơn theo ghi chú khi nhận đồ hoặc lời dặn khi yêu cầu lấy đồ, trong các đơn gần nhất. */
 async function findOrder(note) {
   const page = await api('admin', '/orders?size=100')
@@ -236,9 +216,17 @@ if (want('auth')) {
 // ============ M2. Khách gửi / hủy yêu cầu lấy đồ ============
 if (want('pickup')) {
   const { ctx, page } = await open('hoasen.nv', MOBILE, 'nhân viên khách')
-  await step('pickup: khách gửi yêu cầu từ trang chủ', async () => {
+  await step('pickup: khách gửi yêu cầu từ trang chủ, khai 2 loại đồ', async () => {
     await page.getByRole('button', { name: 'Yêu cầu lấy đồ' }).first().click()
     const d = modal(page)
+    // Khách bắt buộc khai đồ
+    await d.getByRole('button', { name: 'Gửi yêu cầu' }).click()
+    await d.getByText('Chọn loại đồ').first().waitFor()
+    await pick(page, d, 'Loại đồ dòng 1', 'Khăn')
+    await d.getByLabel('Số lượng dòng 1').fill('12')
+    await d.getByRole('button', { name: 'Thêm loại đồ' }).click()
+    await pick(page, d, 'Loại đồ dòng 2', 'Ga giường')
+    await d.getByLabel('Số lượng dòng 2').fill('4')
     await d.getByText('Sáng (7h–11h)').click()
     await d.getByLabel('Số túi ước tính (không bắt buộc)').fill('3')
     await d.getByLabel('Ghi chú cho tài xế').fill(`${TAG} lấy ở cửa sau`)
@@ -251,6 +239,7 @@ if (want('pickup')) {
     await page.goto(APP + '/')
     const o = await findOrder(`${TAG} lấy ở cửa sau`)
     expect(o.status === 'PICKUP_PENDING' && o.estimatedBags === 3, `đơn chờ lấy sai: ${o.status} ${o.estimatedBags}`)
+    expect(o.declaredItems.map((x) => x.quantity).join(',') === '12,4', 'số khai sai: ' + JSON.stringify(o.declaredItems))
   }, page)
   await step('pickup: nút "Gọi xưởng" trên đầu trang gọi đúng số hotline', async () => {
     const href = await page.getByRole('link', { name: /^Gọi xưởng/ }).getAttribute('href')
@@ -265,6 +254,8 @@ if (want('pickup')) {
   await step('pickup: gửi yêu cầu thứ hai, mở hộp thoại hủy rồi đóng', async () => {
     await page.getByRole('button', { name: 'Yêu cầu lấy đồ' }).first().click()
     const d = modal(page)
+    await pick(page, d, 'Loại đồ dòng 1', 'Khăn')
+    await d.getByLabel('Số lượng dòng 1').fill('2')
     await d.getByLabel('Ghi chú cho tài xế').fill(`${TAG} sẽ hủy`)
     await d.getByRole('button', { name: 'Gửi yêu cầu' }).click()
     await toast(page, 'Đã gửi yêu cầu')
@@ -339,36 +330,35 @@ if (want('driver')) {
     const map = await card().getByRole('link', { name: 'Chỉ đường' }).getAttribute('href')
     expect(call?.startsWith('tel:') && map?.includes('google.com/maps'), `href sai: ${call} / ${map}`)
   }, page)
-  await step('driver: nhận đồ thiếu loại đồ hoặc thiếu chữ ký / ảnh của khách thì không cho xác nhận', async () => {
+  await step('driver: soát theo số khách khai (điền sẵn), chưa chụp ảnh thì không cho xác nhận', async () => {
     await card().getByRole('button', { name: 'Đã nhận đồ' }).click()
     const d = modal(page)
     await d.getByText(`Khách dặn: ${TAG}`).waitFor()
-    expect((await d.getByLabel('Số túi / bao đồ').inputValue()) === '3', 'số túi không điền sẵn từ yêu cầu')
-    await d.getByRole('button', { name: 'Xác nhận đã nhận đủ' }).click()
-    await d.getByText('Chọn loại đồ').first().waitFor()
-    await pick(page, d, 'Loại đồ dòng 1', 'Khăn')
-    await d.getByLabel('Số lượng dòng 1').fill('12')
-    await d.getByRole('button', { name: 'Xác nhận đã nhận đủ' }).click()
-    await toast(page, 'Cần chữ ký của khách hoặc ảnh túi đồ')
-    expect((await findOrder(`${TAG} lấy ở cửa sau`)).status === 'PICKUP_ASSIGNED', 'đơn đã chuyển trạng thái dù chưa có chữ ký')
+    expect((await d.getByLabel('Số túi sau khi gom').inputValue()) === '3', 'số túi không điền sẵn từ yêu cầu')
+    const received = d.locator('.declared-table input')
+    expect((await received.nth(0).inputValue()) === '12' && (await received.nth(1).inputValue()) === '4', 'số thực nhận không điền sẵn bằng số khai')
+    // Thực nhận thiếu 1 ga: cột chênh lệch tự tính
+    await received.nth(1).fill('3')
+    await d.locator('.declared-table').getByText('-1').waitFor()
+    await d.getByRole('button', { name: 'Xác nhận đã nhận' }).click()
+    await toast(page, 'Cần chụp ít nhất một ảnh túi đồ')
+    expect((await findOrder(`${TAG} lấy ở cửa sau`)).status === 'PICKUP_ASSIGNED', 'đơn đã chuyển trạng thái dù chưa có ảnh')
   }, page)
-  await step('driver: kiểm 2 loại đồ cùng khách, khách ký, chụp ảnh → đơn "Đã tiếp nhận"', async () => {
+  await step('driver: chụp ảnh (không ký) → "Đã tiếp nhận", lưu chênh lệch so với số khai', async () => {
     const d = modal(page)
-    await d.getByRole('button', { name: 'Thêm loại đồ' }).click()
-    await pick(page, d, 'Loại đồ dòng 2', 'Ga')
-    await d.getByLabel('Số lượng dòng 2').fill('4')
     await d.getByLabel('Ghi chú').fill(`${TAG} từ yêu cầu`)
     await d.locator('input[type=file]').setInputFiles({ name: 'tui-do.png', mimeType: 'image/png', buffer: PNG })
     await d.locator('.photo-thumb').first().waitFor()
-    await sign(page, d)
-    await d.getByRole('button', { name: 'Xác nhận đã nhận đủ' }).click()
+    await d.getByRole('button', { name: 'Xác nhận đã nhận' }).click()
     await toast(page, 'Đã nhận đồ')
     const o = await findOrder(`${TAG} từ yêu cầu`)
-    const att = await api('admin', `/orders/${o.id}/attachments`)
-    const kinds = att.map((a) => a.kind).sort().join(',')
-    expect(kinds === 'PICKUP_PHOTO,PICKUP_SIGNATURE', `ảnh đính kèm sai: ${kinds}`)
-    expect(o.status === 'RECEIVED' && o.totalBags === 3 && o.items.length === 2 && o.dueAt, `đơn sai: ${o.status} ${o.totalBags} túi ${o.items.length} dòng`)
-    expect((o.pickupNote ?? '').includes(`${TAG} lấy ở cửa sau`), 'đơn không giữ lời dặn của yêu cầu lấy đồ')
+    const kinds = (await api('admin', `/orders/${o.id}/attachments`)).map((a) => a.kind).join(',')
+    expect(kinds === 'PICKUP_PHOTO', `ảnh đính kèm sai: ${kinds}`)
+    expect(o.status === 'RECEIVED' && o.totalBags === 3 && o.dueAt, `đơn sai: ${o.status} ${o.totalBags} túi`)
+    expect(o.items.map((x) => x.quantity).join(',') === '12,3', 'số thực nhận sai: ' + o.items.map((x) => x.quantity))
+    expect(o.declaredItems.map((x) => x.quantity).join(',') === '12,4', 'số khai bị sửa')
+    const detail = await api('admin', `/orders/${o.id}`)
+    expect(detail.history.at(-1).note.includes('khai 4, nhận 3'), 'không ghi chênh lệch: ' + detail.history.at(-1).note)
   }, page)
   await ctx.close()
 }
@@ -420,7 +410,7 @@ if (want('admin-orders')) {
     await pick(page, d, 'Loại đồ dòng 1', 'Khăn')
     await d.getByLabel('Số lượng dòng 1').fill('5')
     await d.getByLabel('Ghi chú').fill(`${TAG} tại xưởng`)
-    await d.getByRole('button', { name: 'Xác nhận đã nhận đủ' }).click()
+    await d.getByRole('button', { name: 'Xác nhận đã nhận' }).click()
     await toast(page, 'Đã nhận đồ')
     expect((await findOrder(`${TAG} tại xưởng`)).status === 'RECEIVED', 'đơn chưa sang Đã tiếp nhận')
   }, page)
@@ -476,8 +466,8 @@ if (want('admin-orders')) {
     await dr.getByText('Lịch sử xử lý').waitFor()
     await dr.getByText(`${TAG} khách lùi hạn`).waitFor()
     await dr.getByText(`${TAG} lấy ở cửa sau`).first().waitFor()
-    // Ảnh và chữ ký tài xế đính kèm lúc lấy đồ hiện được (tải kèm token)
-    await dr.getByText('Chữ ký khách khi giao đồ bẩn').waitFor()
+    // Ảnh tài xế chụp lúc lấy đồ hiện được (tải kèm token)
+    await dr.getByText('Ảnh lúc lấy đồ').first().waitFor()
     const img = dr.locator('.attachment-card img').first()
     await img.waitFor()
     await page.waitForFunction((el) => el.complete && el.naturalWidth > 0, await img.elementHandle())
@@ -516,6 +506,12 @@ if (want('receipt')) {
     await drawer(page).getByText('Lịch sử xử lý').waitFor()
     await page.keyboard.press('Escape')
   }, page)
+  await step('receipt: khách được báo số thực nhận khác số khai', async () => {
+    const o = await findOrder(`${TAG} từ yêu cầu`)
+    await openNotification(page, `Đơn #${o.id}: số thực nhận khác số khai`)
+    await drawer(page).getByText('Khách khai khi gửi yêu cầu').waitFor()
+    await page.keyboard.press('Escape')
+  }, page)
   await step('receipt: quản lý khách thấy số tiền trên thẻ đơn đang giao', async () => {
     const o = await findOrder(`${TAG} từ yêu cầu`)
     await gotoOrder(page, '/orders?view=todo', o.id)
@@ -542,18 +538,19 @@ if (want('receipt')) {
   }, a.page)
   await a.ctx.close()
   const t = await open('taixe.tai', MOBILE, 'tài xế')
-  await step('receipt: tài xế giao xong, khách ký nhận → hoàn thành', async () => {
+  await step('receipt: tài xế giao xong, chụp ảnh lúc giao → hoàn thành', async () => {
     const o = await findOrder(`${TAG} từ yêu cầu`)
     await t.page.goto(APP + '/pickups?tab=mine')
     await t.page.locator('.order-card').filter({ hasText: `#${o.id}` }).getByRole('button', { name: 'Giao xong' }).click()
     const d = modal(t.page)
-    expect(await d.getByRole('button', { name: 'Xác nhận giao xong' }).isDisabled(), 'chưa ký mà vẫn bấm giao xong được')
-    await sign(t.page, d)
+    expect(await d.getByRole('button', { name: 'Xác nhận giao xong' }).isDisabled(), 'chưa chụp ảnh mà vẫn bấm giao xong được')
+    await d.locator('input[type=file]').setInputFiles({ name: 'giao.png', mimeType: 'image/png', buffer: PNG })
+    await d.locator('.photo-thumb').first().waitFor()
     await d.getByRole('button', { name: 'Xác nhận giao xong' }).click()
     await toast(t.page, 'Đã giao xong')
     expect((await orderStatus(o.id)) === 'COMPLETED', 'đơn chưa hoàn thành')
     const kinds = (await api('admin', `/orders/${o.id}/attachments`)).map((x) => x.kind)
-    expect(kinds.includes('DELIVERY_SIGNATURE'), 'không lưu chữ ký nhận đồ: ' + kinds)
+    expect(kinds.includes('DELIVERY_PHOTO'), 'không lưu ảnh lúc giao: ' + kinds)
   }, t.page)
   await t.ctx.close()
   const c = await open('hoasen.nv', MOBILE, 'nhân viên khách')
