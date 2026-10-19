@@ -4,6 +4,7 @@ import com.washpro.washpro_b2b.entity.CustomerPrice;
 import com.washpro.washpro_b2b.entity.CustomerType;
 import com.washpro.washpro_b2b.entity.ItemCategory;
 import com.washpro.washpro_b2b.entity.Order;
+import com.washpro.washpro_b2b.entity.OrderDeclaredItem;
 import com.washpro.washpro_b2b.entity.OrderHistory;
 import com.washpro.washpro_b2b.entity.OrderItem;
 import com.washpro.washpro_b2b.entity.OrderStatus;
@@ -72,6 +73,7 @@ public class DemoDataRunner implements ApplicationRunner {
 
     /** Cố định hạt giống để mỗi lần sinh ra cùng một bộ dữ liệu. */
     private final Random rnd = new Random(20261006L);
+    private Map<String, ServicePrice> catalog = Map.of();
 
     /** Tên đăng nhập Quản lý xưởng thật (ghi vào nhật ký đơn). */
     private String adminUser = "admin";
@@ -129,7 +131,7 @@ public class DemoDataRunner implements ApplicationRunner {
             orderCount += seedOrders(p, r, catalog, drivers, now, completed);
             paymentCount += seedPayments(p, r, completed, now.toLocalDate());
         }
-        int pickups = seedRequests(drivers, now);
+        int pickups = seedRequests(drivers, now, catalog);
         log.info("Đã sinh dữ liệu demo: {} khách hàng, {} đơn, {} khoản thanh toán, {} yêu cầu lấy đồ. Mật khẩu: {}",
                 profiles.size(), orderCount, paymentCount, pickups, PASSWORD);
     }
@@ -365,6 +367,20 @@ public class DemoDataRunner implements ApplicationRunner {
             summary.add(price.getName() + " " + qty.stripTrailingZeros().toPlainString() + " " + price.getUnit().getLabel());
         }
         String items = String.join(", ", summary);
+        boolean showDifference = target == OrderStatus.RECEIVED && p.name().equals(MARKER_CUSTOMER);
+        for (OrderItem line : order.getItems()) {
+            BigDecimal declared = line.getQuantity();
+            if (showDifference && line == order.getItems().get(0)) {
+                declared = declared.add(BigDecimal.valueOf(2));
+            }
+            order.addDeclaredItem(OrderDeclaredItem.builder()
+                    .servicePrice(line.getServicePrice())
+                    .itemName(line.getItemName())
+                    .serviceType(line.getServiceType())
+                    .unit(line.getUnit())
+                    .quantity(declared)
+                    .build());
+        }
 
         // Nhật ký theo đúng quy trình, kèm mốc thời gian
         List<LocalDateTime> times = new ArrayList<>();
@@ -373,8 +389,13 @@ public class DemoDataRunner implements ApplicationRunner {
         order.addHistory(OrderStatus.PICKUP_PENDING, OrderStatus.PICKUP_ASSIGNED, driver.getUsername(),
                 "Tài xế " + driver.getDisplayName() + " nhận việc lấy đồ");
         times.add(requested.plusMinutes(20 + rnd.nextInt(60)));
+        OrderItem first = order.getItems().get(0);
         order.addHistory(OrderStatus.PICKUP_ASSIGNED, OrderStatus.RECEIVED, driver.getUsername(),
-                "Tài xế nhận đồ, khách đã ký xác nhận (" + order.getTotalBags() + " túi): " + items);
+                "Tài xế soát và nhận đồ (" + order.getTotalBags() + " túi): " + items
+                        + (showDifference ? "\nChênh lệch so với số khách khai: " + first.getItemName() + ": khai "
+                                + first.getQuantity().add(BigDecimal.valueOf(2)).stripTrailingZeros().toPlainString()
+                                + ", nhận " + first.getQuantity().stripTrailingZeros().toPlainString() + " "
+                                + first.getUnit().getLabel() + " (-2)" : ""));
         times.add(pickup);
         LocalDateTime t = pickup;
         if (target.ordinal() >= OrderStatus.WASHING.ordinal()) {
@@ -488,7 +509,8 @@ public class DemoDataRunner implements ApplicationRunner {
 
     // ===================== Yêu cầu lấy đồ chưa lấy =====================
 
-    private int seedRequests(List<User> drivers, LocalDateTime now) {
+    private int seedRequests(List<User> drivers, LocalDateTime now, Map<String, ServicePrice> catalog) {
+        this.catalog = catalog;
         Customer hoaSen = customerRepository.findByNameIgnoreCase(MARKER_CUSTOMER).orElseThrow();
         Customer bienXanh = customerRepository.findByNameIgnoreCase("Nhà hàng Biển Xanh").orElseThrow();
         Customer ngocLan = customerRepository.findByNameIgnoreCase("Spa Ngọc Lan").orElseThrow();
@@ -496,20 +518,24 @@ public class DemoDataRunner implements ApplicationRunner {
         Customer doiThong = customerRepository.findByNameIgnoreCase("Homestay Đồi Thông").orElseThrow();
         LocalDate today = now.toLocalDate();
 
-        request(hoaSen, "hoasen.nv", today, TimeSlot.MORNING, 8, "Lấy ở cửa sau, có 3 bao chăn ga lớn", drivers.get(0), null);
+        request(hoaSen, "hoasen.nv", today, TimeSlot.MORNING, 8, "Lấy ở cửa sau, có 3 bao chăn ga lớn", drivers.get(0), null,
+                "Ga giường đôi", 60, "Vỏ gối", 120, "Khăn tắm", 80);
         request(anTam, "antam.ql", today, TimeSlot.AFTERNOON, 5, "Đồ y tế đã đóng túi riêng, vui lòng mang găng tay",
-                drivers.get(1), null);
-        request(bienXanh, "bienxanh.ql", today.plusDays(1), TimeSlot.AFTERNOON, 4, null, null, null);
-        request(ngocLan, "ngoclan.ql", today, TimeSlot.ANYTIME, null, "Gọi trước 15 phút", null, null);
-        request(doiThong, "doithong.ql", today.minusDays(1), TimeSlot.MORNING, 3, null, null, null);
+                drivers.get(1), null, "Áo blouse y tế", 40, "Ga giường đơn", 30);
+        request(bienXanh, "bienxanh.ql", today.plusDays(1), TimeSlot.AFTERNOON, 4, null, null, null,
+                "Khăn trải bàn", 50, "Khăn ăn", 150, "Áo đầu bếp", 12);
+        request(ngocLan, "ngoclan.ql", today, TimeSlot.ANYTIME, null, "Gọi trước 15 phút", null, null,
+                "Khăn tắm", 70, "Khăn mặt", 100);
+        request(doiThong, "doithong.ql", today.minusDays(1), TimeSlot.MORNING, 3, null, null, null,
+                "Ga giường đôi", 12, "Vỏ chăn", 12, "Vỏ gối", 24);
         request(bienXanh, "bienxanh.nv", today.minusDays(3), TimeSlot.EVENING, 2, null, null,
-                "Đã gửi chung với đơn hôm trước");
+                "Đã gửi chung với đơn hôm trước", "Khăn ăn", 40);
         return 6;
     }
 
     /** Một yêu cầu lấy đồ chưa lấy: chờ tài xế, đã có tài xế, hoặc đã hủy (cancelReason khác null). */
     private void request(Customer r, String by, LocalDate date, TimeSlot slot, Integer bags, String note, User driver,
-            String cancelReason) {
+            String cancelReason, Object... declared) {
         OrderStatus status = driver == null ? OrderStatus.PICKUP_PENDING : OrderStatus.PICKUP_ASSIGNED;
         Order order = Order.builder()
                 .customer(r)
@@ -521,6 +547,17 @@ public class DemoDataRunner implements ApplicationRunner {
                 .estimatedBags(bags)
                 .pickupNote(note)
                 .build();
+        // Khách khai: cặp (tên mục bảng giá, số lượng)
+        for (int i = 0; i < declared.length; i += 2) {
+            ServicePrice price = catalog.get((String) declared[i]);
+            order.addDeclaredItem(OrderDeclaredItem.builder()
+                    .servicePrice(price)
+                    .itemName(price.getName())
+                    .serviceType(price.getServiceType())
+                    .unit(price.getUnit())
+                    .quantity(BigDecimal.valueOf((Integer) declared[i + 1]).setScale(2, RoundingMode.HALF_UP))
+                    .build());
+        }
         LocalDateTime requested = date.minusDays(1).atTime(16, 0);
         List<LocalDateTime> times = new ArrayList<>();
         order.addHistory(null, OrderStatus.PICKUP_PENDING, by,
